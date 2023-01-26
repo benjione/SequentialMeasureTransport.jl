@@ -1,4 +1,4 @@
-module PositiveSemidefiniteModels
+module PSDModels
 
 using LinearAlgebra, SparseArrays
 using KernelFunctions: Kernel
@@ -13,7 +13,7 @@ struct PSDModel{T<:Number}
     X::Vector{T}                # X is the set of points for the feature map
 end
 
-function PositiveSemidefiniteModel(
+function PSDModel(
                 X::Vector{T}, 
                 Y::Vector{T}, 
                 k::Kernel;
@@ -72,7 +72,7 @@ end
 
 Base.:*(a::PSDModel, b::Number) = b * a
 function Base.:*(a::Number, b::PSDModel)
-    return PositiveSemidefiniteModel(
+    return PSDModel(
         a * b.B,
         b.k,
         b.X
