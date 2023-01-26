@@ -3,6 +3,7 @@ module PSDModels
 using LinearAlgebra, SparseArrays
 using KernelFunctions: Kernel
 using ProximalOperators: IndPSD, prox, prox!
+using ProximalAlgorithms: FastForwardBackward
 import Base
 
 export PSDModel
@@ -13,7 +14,44 @@ struct PSDModel{T<:Number}
     X::Vector{T}                # X is the set of points for the feature map
 end
 
+
 function PSDModel(
+                X::Vector{T}, 
+                Y::Vector{T}, 
+                k::Kernel;
+                solver=:direct,
+                kwargs...
+            ) where {T<:Number}
+    if solver == :direct
+        return PSDModel_direct(X, Y, k; kwargs...)
+    if solver == :gradient_descent
+        @error "Solver not implemented"
+        return nothing
+    else
+        @error "Solver not implemented"
+        return nothing
+    end
+end
+
+function PSDModel_gradient_descent(
+                        X::Vector{T},
+                        Y::Vector{T},
+                        k::Kernel;
+                    ) where {T<:Number}
+    K = T[k(x, y) for x in X, y in X]
+    K = Hermitian(K)
+    
+    f_A(A) = @error("TODO")
+    grad(A) = @error("TODO")
+
+    psd_constraint = IndPSD()
+
+    solver = ProximalAlgorithms.FastForwardBackward(maxit=1000, tol=1e-5, verbose=true)
+    solution, iterations = solver(x0=nothing, f=f_A, g=psd_constraint)
+
+end
+
+function PSDModel_direct(
                 X::Vector{T}, 
                 Y::Vector{T}, 
                 k::Kernel;
