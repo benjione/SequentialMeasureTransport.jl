@@ -1,7 +1,7 @@
 # PSDModels
 Simple implementation of models of the type
 $$f(x) = \sum_{ij} k(x,x_i) B_{ij} k(x,x_j)$$
-where $k$ is a Kernel function. This is bases on a paper by Marteau-Ferey et al. (see [1]).
+where $k$ is a Kernel function. This is based on a paper by Marteau-Ferey et al. (see [1]).
 
 Currently, the usage of this library is the following:
 
