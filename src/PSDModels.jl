@@ -3,7 +3,7 @@ module PSDModels
 using LinearAlgebra, SparseArrays
 using KernelFunctions: Kernel
 using ProximalOperators: IndPSD, prox, prox!
-using ProximalAlgorithms: FastForwardBackward
+import ProximalAlgorithms
 import Base
 
 export PSDModel
@@ -24,9 +24,8 @@ function PSDModel(
             ) where {T<:Number}
     if solver == :direct
         return PSDModel_direct(X, Y, k; kwargs...)
-    if solver == :gradient_descent
-        @error "Solver not implemented"
-        return nothing
+    elseif solver == :gradient_descent
+        return PSDModel_gradient_descent(X, Y, k; kwargs...)
     else
         @error "Solver not implemented"
         return nothing
@@ -37,18 +36,36 @@ function PSDModel_gradient_descent(
                         X::Vector{T},
                         Y::Vector{T},
                         k::Kernel;
+                        λ_1=1e-8,
+                        trace=false,
+                        maxit=5000,
+                        tol=1e-6,
+                        B0=nothing,
                     ) where {T<:Number}
     K = T[k(x, y) for x in X, y in X]
-    K = Hermitian(K)
+
+    N = length(X)
     
-    f_A(A) = @error("TODO")
-    grad(A) = @error("TODO")
+    f_A(i, A::AbstractMatrix) = begin
+        v = K[i,:]
+        return v' * A * v
+    end
+    f_A(A::AbstractMatrix) = (1.0/N) * mapreduce(i-> (f_A(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
 
     psd_constraint = IndPSD()
 
-    solver = ProximalAlgorithms.FastForwardBackward(maxit=1000, tol=1e-5, verbose=true)
-    solution, iterations = solver(x0=nothing, f=f_A, g=psd_constraint)
+    verbose_solver = trace ? true : false
 
+    A0 = if B0===nothing
+        ones(N,N)
+    else
+        B0
+    end
+    solver = ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
+    solution, _ = solver(x0=A0, f=f_A, g=psd_constraint)
+
+    solution = Hermitian(solution)
+    return PSDModel{T}(solution, k, X)
 end
 
 function PSDModel_direct(
