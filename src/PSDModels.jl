@@ -8,12 +8,16 @@ import ProximalAlgorithms
 import Base
 
 export PSDModel
-export gradient
+export gradient, fit!
 
 struct PSDModel{T<:Number}
     B::Hermitian{T, Matrix{T}}  # A is the PSD so that f(x) = ∑_ij k(x, x_i) * A * k(x, x_j)
     k::Kernel                   # k(x, y) is the kernel function
     X::Vector{T}                # X is the set of points for the feature map
+    function PSDModel(k::Kernel, X::Vector{T}) where {T<:Number}
+        B = ones(length(X), length(X))
+        return new{T}(Hermitian(B), k, X)
+    end
 end
 
 
@@ -107,10 +111,38 @@ function PSDModel_direct(
     return PSDModel{T}(B, k, X)
 end
 
+function fit!(a::PSDModel{T}, X::Vector{T}, Y::Vector{T}; 
+                λ_1=1e-8,
+                trace=false,
+                maxit=5000,
+                tol=1e-6
+            ) where {T<:Number}
+    N = length(X)
+
+
+    f_A(A::AbstractMatrix) = begin
+        (1.0/N) * mapreduce(i-> (a(X[i], A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
+    end
+
+    psd_constraint = IndPSD()
+
+    verbose_solver = trace ? true : false
+
+    solver = ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
+    solution, _ = solver(x0=Matrix(a.B), f=f_A, g=psd_constraint)
+
+    solution = Hermitian(solution)
+    set_coefficients!(a, solution)
+end
 
 function (a::PSDModel)(x::T) where {T<:Number}
     v = a.k.(Ref(x), a.X)
     return v' * a.B * v
+end
+
+function (a::PSDModel)(x::T, B::AbstractMatrix{T}) where {T<:Number}
+    v = a.k.(Ref(x), a.X)
+    return v' * B * v
 end
 
 function set_coefficients!(a::PSDModel{T}, B::Hermitian{T}) where {T<:Number}
