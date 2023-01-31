@@ -1,12 +1,14 @@
 module PSDModels
 
 using LinearAlgebra, SparseArrays
-using KernelFunctions: Kernel
+using KernelFunctions: Kernel, kernelmatrix
 using ProximalOperators: IndPSD, prox, prox!
+import ForwardDiff as FD
 import ProximalAlgorithms
 import Base
 
 export PSDModel
+export gradient
 
 struct PSDModel{T<:Number}
     B::Hermitian{T, Matrix{T}}  # A is the PSD so that f(x) = ∑_ij k(x, x_i) * A * k(x, x_j)
@@ -42,7 +44,7 @@ function PSDModel_gradient_descent(
                         tol=1e-6,
                         B0=nothing,
                     ) where {T<:Number}
-    K = T[k(x, y) for x in X, y in X]
+    K = kernelmatrix(k, X)
 
     N = length(X)
     
@@ -77,7 +79,7 @@ function PSDModel_direct(
                 λ_1=1e-8,
                 trace=false,
             ) where {T<:Number}
-    K = T[k(x, y) for x in X, y in X]
+    K = kernelmatrix(k, X)
     K = Hermitian(K)
 
     trace && @show cond(K)
@@ -109,6 +111,34 @@ end
 function (a::PSDModel)(x::T) where {T<:Number}
     v = a.k.(Ref(x), a.X)
     return v' * a.B * v
+end
+
+function set_coefficients!(a::PSDModel{T}, B::Hermitian{T}) where {T<:Number}
+    a.B .= B
+end
+
+function set_coefficients(a::PSDModel{T}, B::Hermitian{T}) where {T<:Number}
+    return PSDModel{T}(B, a.k, a.X)
+end
+
+function gradient(a::PSDModel{T}, x::T) where {T<:Number}
+    # ∇v = FD.derivative((y)->a.k.(Ref(y), a.X), x)
+    # v = a.k.(Ref(x), a.X)
+    # return 2 * ∇v' * a.B * v
+    
+    # ForwardDiff faster than manual implementation
+    return FD.derivative(a, x)
+end
+
+function parameter_gradient(a::PSDModel{T}, x::T) where {T<:Number}
+    v = a.k.(Ref(x), a.X)
+    # ∇B = FD.derivative((B)->v' * B * v, a.B)
+
+    ∇B = Matrix{T}(undef, size(a.B)...)
+    @inbounds @simd for i in CartesianIndices(a.B)
+        ∇B[i] = v[i[1]] * v[i[2]]
+    end
+    return ∇B
 end
 
 function Base.:+(a::PSDModel, 
