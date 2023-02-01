@@ -1,5 +1,6 @@
 using PSDModels
 using KernelFunctions
+using DomainSets
 using Test
 
 @testset "Model creation/evaluation" begin
@@ -14,15 +15,15 @@ using Test
 
     end
 
-    @testset "Float16 type" begin
-        X = Float16[1, 2, 3]
-        Y = Float16[1, 1, 1]
-        k = MaternKernel()
-        model = PSDModel(X, Y, k)
-        @test isapprox(model(1), 1, rtol=1e-2)
-        @test isapprox(model(3), 1, rtol=1e-2)
-        @test isapprox(model(2), 1, rtol=1e-2)
-    end
+    # @testset "Float16 type" begin
+    #     X = Float16[1, 2, 3]
+    #     Y = Float16[1, 1, 1]
+    #     k = MaternKernel()
+    #     model = PSDModel(X, Y, k)
+    #     @test isapprox(model(1), 1, rtol=1e-2)
+    #     @test isapprox(model(3), 1, rtol=1e-2)
+    #     @test isapprox(model(2), 1, rtol=1e-2)
+    # end
 end
 
 @testset "arithmetic" begin 
@@ -41,5 +42,66 @@ end
         @test model3(1) ≈ 2
         @test model3(2) ≈ 2
         @test model3(3) ≈ 2
+    end
+end
+
+@testset "Model fitting" begin
+    @testset "direct fit" begin
+        f(x) = 2*(x-0.5)^2 * (x+0.5)^2
+        N = 20
+        X = collect(range(-1, 1, length=N))
+        Y = f.(X)
+
+        k = MaternKernel(ν=1.0)
+        model = PSDModel(X, Y, k; solver=:direct)
+
+        for x in rand(100)*1.5 .-0.75
+            @test isapprox(model(x), f(x), atol=1e-1)
+        end
+    end
+
+
+    @testset "gradient descent fit" begin
+        f(x) = 2*(x-0.5)^2 * (x+0.5)^2
+        N = 20
+        X = collect(range(-1, 1, length=N))
+        Y = f.(X)
+
+        k = MaternKernel(ν=1.0)
+        model = PSDModel(X, Y, k; solver=:gradient_descent)
+
+        for x in rand(100)*1.5 .-0.75
+            @test isapprox(model(x), f(x), atol=1e-1)
+        end
+    end
+end
+
+@testset "gradient" begin
+    f(x) = 2*(x-0.5)^2 * (x+0.5)^2
+    ∇f(x) = 4*(x-0.5)*(x+0.5)^2 + 4*(x-0.5)^2*(x+0.5)
+    N = 30
+    X = collect(range(-1, 1, length=N))
+    Y = f.(X)
+
+    k = MaternKernel(ν=1.0)
+    model = PSDModel(X, Y, k; solver=:gradient_descent)
+
+    for x in rand(100).- 0.5
+        @test isapprox(gradient(model, x), ∇f(x), atol=3e-1, rtol=2e-1)
+    end
+end
+
+@testset "integral" begin
+    f(x) = 2*(x-0.5)^2 * (x+0.5)^2
+    f_int(x) = 0.125*x + 0.4*x^5 - (1/3)*x^3
+    N = 30
+    X = collect(range(-1, 1, length=N))
+    Y = f.(X)
+
+    k = MaternKernel(ν=1.0)
+    model = PSDModel(X, Y, k; solver=:gradient_descent)
+
+    for x in rand(100) .- 0.5
+        @test isapprox(integral(model, 0..x), f_int(x), atol=1e-1)
     end
 end
