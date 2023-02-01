@@ -3,23 +3,31 @@ module PSDModels
 using LinearAlgebra, SparseArrays
 using KernelFunctions: Kernel, kernelmatrix
 using ProximalOperators: IndPSD, prox, prox!
+using DomainSets
+using FastGaussQuadrature: gausslegendre
 import ForwardDiff as FD
 import ProximalAlgorithms
 import Base
 
 export PSDModel
-export gradient, fit!
+export gradient, fit!, integral
 
 struct PSDModel{T<:Number}
-    B::Hermitian{T, Matrix{T}}  # A is the PSD so that f(x) = ∑_ij k(x, x_i) * A * k(x, x_j)
+    B::Hermitian{T, Matrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     k::Kernel                   # k(x, y) is the kernel function
     X::Vector{T}                # X is the set of points for the feature map
-    function PSDModel(k::Kernel, X::Vector{T}) where {T<:Number}
-        B = ones(length(X), length(X))
-        return new{T}(Hermitian(B), k, X)
+    function PSDModel(B::Hermitian{T, Matrix{T}}, 
+                        k::Kernel, 
+                        X::Vector{T}
+                    ) where {T<:Number}
+        new{T}(B, k, X)
     end
 end
 
+function PSDModel(k::Kernel, X::Vector{T}) where {T<:Number}
+    B = ones(length(X), length(X))
+    return PSDModel(Hermitian(B), k, X)
+end
 
 function PSDModel(
                 X::Vector{T}, 
@@ -71,7 +79,7 @@ function PSDModel_gradient_descent(
     solution, _ = solver(x0=A0, f=f_A, g=psd_constraint)
 
     solution = Hermitian(solution)
-    return PSDModel{T}(solution, k, X)
+    return PSDModel(solution, k, X)
 end
 
 function PSDModel_direct(
@@ -108,7 +116,7 @@ function PSDModel_direct(
     # project B onto the PSD cone, just in case
     B, _ = prox(IndPSD(), B)
 
-    return PSDModel{T}(B, k, X)
+    return PSDModel(B, k, X)
 end
 
 fit!(a::PSDModel, 
@@ -179,6 +187,41 @@ function parameter_gradient(a::PSDModel{T}, x::T) where {T<:Number}
         ∇B[i] = v[i[1]] * v[i[2]]
     end
     return ∇B
+end
+
+function integral(a::PSDModel{T}, χ::Domain; kwargs...) where {T<:Number}
+    return integral(a, x->1.0, χ; kwargs...)
+end
+
+
+"""
+integral(a::PSDModel{T}, p::Function, χ::Domain; quadrature_method=gausslegendre, amount_quadrature_points=10) where {T<:Number}
+
+returns ``\\int_χ p(x) a(x) dx``. The idea of the implementation is from proposition 4 in [1]. 
+The integral is approximated by a quadrature rule. The default quadrature rule is Gauss-Legendre.
+
+[1] U. Marteau-Ferey, F. Bach, and A. Rudi, “Non-parametric Models for Non-negative Functions” url: https://arxiv.org/abs/2007.03926
+"""
+function integral(a::PSDModel{T}, p::Function, χ::Domain; 
+                    quadrature_method=gausslegendre,
+                    amount_quadrature_points=20) where {T<:Number}
+    M_p = zeros(size(a.B))
+
+    x, w = quadrature_method(amount_quadrature_points)
+
+    l = leftendpoint(χ)
+    r = rightendpoint(χ)
+    x .*= ((r - l)/2)
+    x .+= ((r + l)/2)
+
+    @inline to_int(x, i, j) = a.k(x, a.X[i]) * a.k(x, a.X[j]) * p(x)
+    for i in CartesianIndices(a.B)
+        M_p[i] = ((r - l)/2) * dot(w, to_int.(x, i[1], i[2]))
+    end
+
+    # tr(A * W_P) = tr(V B V^T * V^-T W_P V^-1) = tr(V B M_p V^-1)
+    # = tr(B M_p V^-1 V) = tr(B M_p)
+    return tr(a.B * M_p)
 end
 
 function Base.:+(a::PSDModel, 
