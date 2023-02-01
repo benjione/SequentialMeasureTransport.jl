@@ -111,7 +111,15 @@ function PSDModel_direct(
     return PSDModel{T}(B, k, X)
 end
 
-function fit!(a::PSDModel{T}, X::Vector{T}, Y::Vector{T}; 
+fit!(a::PSDModel, 
+        X::Vector{T}, 
+        Y::Vector{T}; 
+        kwargs...
+    ) where {T<:Number} = fit!(a, X, Y, ones(T, length(X)); kwargs...)
+function fit!(a::PSDModel{T}, 
+                X::Vector{T}, 
+                Y::Vector{T},
+                weights::Vector{T}; 
                 λ_1=1e-8,
                 trace=false,
                 maxit=5000,
@@ -121,7 +129,7 @@ function fit!(a::PSDModel{T}, X::Vector{T}, Y::Vector{T};
 
 
     f_A(A::AbstractMatrix) = begin
-        (1.0/N) * mapreduce(i-> (a(X[i], A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
+        (1.0/N) * mapreduce(i-> weights[i]*(a(X[i], A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
     end
 
     psd_constraint = IndPSD()
