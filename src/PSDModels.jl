@@ -140,13 +140,26 @@ function fit!(a::PSDModel{T},
                 λ_1=1e-8,
                 trace=false,
                 maxit=5000,
-                tol=1e-6
+                tol=1e-6,
+                pre_eval=true,
+                pre_eval_thresh=5000,
             ) where {T<:Number}
     N = length(X)
 
-
+    f_B = if pre_eval && (N < pre_eval_thresh)
+        let K = T[a.k(x, y) for x in X, y in a.X]
+            (i, A::AbstractMatrix) -> begin
+                v = K[i,:]
+                return v' * A * v
+            end
+        end
+    else
+        (i, A::AbstractMatrix) -> begin
+            return a(X[i], A)
+        end
+    end
     f_A(A::AbstractMatrix) = begin
-        (1.0/N) * mapreduce(i-> weights[i]*(a(X[i], A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
+        (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
     end
 
     psd_constraint = IndPSD()
