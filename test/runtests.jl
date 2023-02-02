@@ -24,6 +24,38 @@ using Test
     #     @test isapprox(model(3), 1, rtol=1e-2)
     #     @test isapprox(model(2), 1, rtol=1e-2)
     # end
+
+    @testset "changing X" begin
+        X = Float64[]
+        Y = Float64[1, 1, 1]
+
+        append!(X, Float64[1, 2, 3])
+
+        k = MaternKernel()
+        model = PSDModel(X, Y, k)
+
+        append!(X, rand(10))
+        X[1] = 10
+
+        @test model(1) ≈ 1
+        @test model(2) ≈ 1
+        @test model(3) ≈ 1
+    end
+
+    # @testset "wiew with resizing X" begin
+    #     X = Float64[]
+    #     Y = Float64[1, 1, 1]
+
+    #     append!(X, Float64[1, 2, 3])
+    #     k = MaternKernel()
+    #     model = PSDModel(X, Y, k, use_view=true)
+
+    #     append!(X, rand(10))
+
+    #     @test model(1) ≈ 1
+    #     @test model(2) ≈ 1
+    #     @test model(3) ≈ 1
+    # end
 end
 
 @testset "arithmetic" begin 

@@ -18,15 +18,22 @@ struct PSDModel{T<:Number}
     X::Vector{T}                # X is the set of points for the feature map
     function PSDModel(B::Hermitian{T, Matrix{T}}, 
                         k::Kernel, 
-                        X::Vector{T}
+                        X::Vector{T};
+                        use_view=false
                     ) where {T<:Number}
+            
+        X = if use_view
+            @view X[1:end] # protect from appending
+        else
+            copy(X)       # protect from further changes
+        end
         new{T}(B, k, X)
     end
 end
 
-function PSDModel(k::Kernel, X::Vector{T}) where {T<:Number}
+function PSDModel(k::Kernel, X::Vector{T}, kwargs...) where {T<:Number}
     B = ones(length(X), length(X))
-    return PSDModel(Hermitian(B), k, X)
+    return PSDModel(Hermitian(B), k, X; kwargs...)
 end
 
 function PSDModel(
@@ -55,6 +62,7 @@ function PSDModel_gradient_descent(
                         maxit=5000,
                         tol=1e-6,
                         B0=nothing,
+                        kwargs...
                     ) where {T<:Number}
     K = kernelmatrix(k, X)
 
@@ -79,7 +87,7 @@ function PSDModel_gradient_descent(
     solution, _ = solver(x0=A0, f=f_A, g=psd_constraint)
 
     solution = Hermitian(solution)
-    return PSDModel(solution, k, X)
+    return PSDModel(solution, k, X; kwargs...)
 end
 
 function PSDModel_direct(
@@ -90,6 +98,7 @@ function PSDModel_direct(
                 cond_thresh=1e10,
                 λ_1=1e-8,
                 trace=false,
+                kwargs...
             ) where {T<:Number}
     K = kernelmatrix(k, X)
     K = Hermitian(K)
@@ -116,7 +125,7 @@ function PSDModel_direct(
     # project B onto the PSD cone, just in case
     B, _ = prox(IndPSD(), B)
 
-    return PSDModel(B, k, X)
+    return PSDModel(B, k, X; kwargs...)
 end
 
 fit!(a::PSDModel, 
