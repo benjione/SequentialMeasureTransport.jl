@@ -12,13 +12,17 @@ import Base
 export PSDModel
 export gradient, fit!, integral
 
+# for working with 1D and nD data
+const PSDdata{T} = Union{T, Vector{T}} where {T<:Number}
+const PSDDataVector{T} = Union{Vector{T}, Vector{Vector{T}}} where {T<:Number}
+
 struct PSDModel{T<:Number}
-    B::Hermitian{T, Matrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
-    k::Kernel                   # k(x, y) is the kernel function
-    X::Vector{T}                # X is the set of points for the feature map
-    function PSDModel(B::Hermitian{T, Matrix{T}}, 
+    B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
+    k::Kernel                               # k(x, y) is the kernel function
+    X::PSDDataVector{T}                     # X is the set of points for the feature map
+    function PSDModel(B::Hermitian{Float64, Matrix{Float64}}, 
                         k::Kernel, 
-                        X::Vector{T};
+                        X::PSDDataVector{T};
                         use_view=false
                     ) where {T<:Number}
             
@@ -31,13 +35,13 @@ struct PSDModel{T<:Number}
     end
 end
 
-function PSDModel(k::Kernel, X::Vector{T}, kwargs...) where {T<:Number}
-    B = ones(length(X), length(X))
+function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
+    B = ones(Float64, length(X), length(X))
     return PSDModel(Hermitian(B), k, X; kwargs...)
 end
 
 function PSDModel(
-                X::Vector{T}, 
+                X::PSDDataVector{T}, 
                 Y::Vector{T}, 
                 k::Kernel;
                 solver=:direct,
@@ -54,7 +58,7 @@ function PSDModel(
 end
 
 function PSDModel_gradient_descent(
-                        X::Vector{T},
+                        X::PSDDataVector{T},
                         Y::Vector{T},
                         k::Kernel;
                         λ_1=1e-8,
@@ -91,7 +95,7 @@ function PSDModel_gradient_descent(
 end
 
 function PSDModel_direct(
-                X::Vector{T}, 
+                X::PSDDataVector{T}, 
                 Y::Vector{T}, 
                 k::Kernel;
                 regularize_kernel=true,
@@ -129,12 +133,12 @@ function PSDModel_direct(
 end
 
 fit!(a::PSDModel, 
-        X::Vector{T}, 
+        X::PSDDataVector{T}, 
         Y::Vector{T}; 
         kwargs...
     ) where {T<:Number} = fit!(a, X, Y, ones(T, length(X)); kwargs...)
 function fit!(a::PSDModel{T}, 
-                X::Vector{T}, 
+                X::PSDDataVector{T}, 
                 Y::Vector{T},
                 weights::Vector{T}; 
                 λ_1=1e-8,
@@ -147,7 +151,7 @@ function fit!(a::PSDModel{T},
     N = length(X)
 
     f_B = if pre_eval && (N < pre_eval_thresh)
-        let K = T[a.k(x, y) for x in X, y in a.X]
+        let K = Float64[a.k(x, y) for x in X, y in a.X]
             (i, A::AbstractMatrix) -> begin
                 v = K[i,:]
                 return v' * A * v
@@ -173,12 +177,12 @@ function fit!(a::PSDModel{T},
     set_coefficients!(a, solution)
 end
 
-function (a::PSDModel)(x::T) where {T<:Number}
+function (a::PSDModel)(x::PSDdata{T}) where {T<:Number}
     v = a.k.(Ref(x), a.X)
     return v' * a.B * v
 end
 
-function (a::PSDModel)(x::T, B::AbstractMatrix{T}) where {T<:Number}
+function (a::PSDModel)(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     v = a.k.(Ref(x), a.X)
     return v' * B * v
 end

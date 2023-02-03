@@ -9,9 +9,9 @@ using Test
         Y = Float64[1, 1, 1]
         k = MaternKernel()
         model = PSDModel(X, Y, k)
-        @test model(1) ≈ 1
-        @test model(2) ≈ 1
-        @test model(3) ≈ 1
+        @test model(1.0) ≈ 1
+        @test model(2.0) ≈ 1
+        @test model(3.0) ≈ 1
 
     end
 
@@ -25,21 +25,27 @@ using Test
     #     @test isapprox(model(2), 1, rtol=1e-2)
     # end
 
-    @testset "changing X" begin
-        X = Float64[]
-        Y = Float64[1, 1, 1]
+    @testset "2D" begin
+        X = [rand(2) for i in 1:20]
+        Y = Float64[1 for i in 1:20]
+        k = MaternKernel()
+        model = PSDModel(X, Y, k, solver=:gradient_descent)
 
-        append!(X, Float64[1, 2, 3])
+        @test isapprox(model([0.5, 0.5]), 1.0, rtol=1e-1)
+    end
+
+    @testset "changing X" begin
+        X = Float64[1, 2, 3]
+        Y = Float64[1, 1, 1]
 
         k = MaternKernel()
         model = PSDModel(X, Y, k)
 
-        append!(X, rand(10))
         X[1] = 10
 
-        @test model(1) ≈ 1
-        @test model(2) ≈ 1
-        @test model(3) ≈ 1
+        @test model(1.0) ≈ 1
+        @test model(2.0) ≈ 1
+        @test model(3.0) ≈ 1
     end
 
     # @testset "wiew with resizing X" begin
@@ -66,14 +72,14 @@ end
         model = PSDModel(X, Y, k)
 
         model2 = 2 * model
-        @test model2(1) ≈ 2
-        @test model2(2) ≈ 2
-        @test model2(3) ≈ 2
+        @test model2(1.0) ≈ 2
+        @test model2(2.0) ≈ 2
+        @test model2(3.0) ≈ 2
 
         model3 = model * 2
-        @test model3(1) ≈ 2
-        @test model3(2) ≈ 2
-        @test model3(3) ≈ 2
+        @test model3(1.0) ≈ 2
+        @test model3(2.0) ≈ 2
+        @test model3(3.0) ≈ 2
     end
 end
 
