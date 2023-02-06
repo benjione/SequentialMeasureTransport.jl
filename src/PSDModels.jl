@@ -10,7 +10,8 @@ import ProximalAlgorithms
 import Base
 
 export PSDModel
-export gradient, fit!, integral
+export fit!, minimize!
+export gradient, integral
 
 # for working with 1D and nD data
 const PSDdata{T} = Union{T, Vector{T}} where {T<:Number}
@@ -172,6 +173,58 @@ function fit!(a::PSDModel{T},
 
     solver = ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
     solution, _ = solver(x0=Matrix(a.B), f=f_A, g=psd_constraint)
+
+    solution = Hermitian(solution)
+    set_coefficients!(a, solution)
+end
+
+"""
+minimize!(a::PSDModel{T}, L::Function, X::PSDDataVector{T}; λ_1=1e-8,
+                    trace=false,
+                    maxit=5000,
+                    tol=1e-6,
+                    pre_eval=true,
+                    pre_eval_thresh=5000,
+                ) where {T<:Number}
+
+Minimizes ``B^* = \\argmin_B L(a_B(x_1), a_B(x_2), ...) + λ_1 tr(B) `` and returns the modified PSDModel with the right matrix B.
+"""
+function minimize!(a::PSDModel{T}, 
+                   L::Function, 
+                   X::PSDDataVector{T};
+                   convex=true,
+                   λ_1=1e-8,
+                   trace=false,
+                   maxit=5000,
+                   tol=1e-6,
+                   pre_eval=true,
+                   pre_eval_thresh=5000,
+            ) where {T<:Number}
+    N = length(X)
+    f_B = if pre_eval && (N < pre_eval_thresh)
+        let K = Float64[a.k(x, y) for x in X, y in a.X]
+            (i, A::AbstractMatrix) -> begin
+                v = K[i,:]
+                return v' * A * v
+            end
+        end
+    else
+        (i, A::AbstractMatrix) -> begin
+            return a(X[i], A)
+        end
+    end
+    loss(A::AbstractMatrix) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
+
+    psd_constraint = IndPSD()
+
+    verbose_solver = trace ? true : false
+
+    solver = if convex
+        ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
+    else
+        ProximalAlgorithms.ForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
+    end
+    solution, _ = solver(x0=Matrix(a.B), f=loss, g=psd_constraint)
 
     solution = Hermitian(solution)
     set_coefficients!(a, solution)
