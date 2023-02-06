@@ -36,7 +36,7 @@ struct PSDModel{T<:Number}
 end
 
 function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
-    B = ones(Float64, length(X), length(X))
+    B = diagm(ones(Float64, length(X)))
     return PSDModel(Hermitian(B), k, X; kwargs...)
 end
 
