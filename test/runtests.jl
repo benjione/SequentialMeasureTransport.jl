@@ -1,5 +1,6 @@
 using PSDModels
 using KernelFunctions
+using LinearAlgebra
 using DomainSets
 using Test
 
@@ -142,4 +143,22 @@ end
     for x in rand(100) .- 0.5
         @test isapprox(integral(model, 0..x), f_int(x), atol=1e-1)
     end
+end
+
+@testset "minimization" begin
+    X = randn(150) * 0.75 .+ 0.5
+    pdf_X(x) = 1/(sqrt(2*pi*0.75)) * exp(-(x-0.5)^2/(2*0.75))
+
+    k = MaternKernel(ν=1.0)
+    model = PSDModel(k, X)
+
+    loss(Z) = -1/length(Z) * sum(log.(Z))
+
+    # TODO rewrite once the constraint minimization is done as density estimation
+    minimize!(model, loss, X, maxit=1000)
+
+    model = (1/integral(model, -5..5, amount_quadrature_points=100)) * model
+
+    dom_x = collect(range(-2, 3, length=200))
+    @test norm(pdf_X.(dom_x) - model.(dom_x)) < 0.3
 end
