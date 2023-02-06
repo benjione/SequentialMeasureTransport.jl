@@ -7,17 +7,17 @@ This library should in the future implement recent methods for PSD models found 
 - Creation and evaluation of PSD models for any dimensions and data types equipped with a distance.
 - Multiplication with a scalar, gradient, gradient with respect to the matrix B, integration over a domain.
 - fitting points and minimization of a function $$L$$ to minimize
-$$\argmin_{B \geq 0} \mathcal L (f(x_1; B), f(x_2; B), ..., f(x_n; B)) + \lambda_1 tr(B)$$.
+$$\arg,\min_{B \geq 0} \mathcal L (f(x_1; B), f(x_2; B), ..., f(x_n; B)) + \lambda_1 tr(B)$$.
 
-Applications are everywhere, where positive functions are needed, e.g. density estimation (constraint to $$\int_\Chi f(x) \mathrm{d}x = 1$$ not supported yet, instead posteriori normalization).
+Applications are everywhere, where positive functions are needed, e.g. density estimation (constraint to $$\int_\Omega f(x) \mathrm{d}x = 1$$ not supported yet, instead posteriori normalization).
 
 For examples see in folder examples and below.
 
 ## Table of Contents of Examples
-1. [Creation of a 1D model](#Creation of a model)
-2. [Creation of a 2D model]()
-3. [Differentiation and integration]()
-4. Density estimation
+1. [Creation of a 1D model](#Creation-of-a-model)
+2. [Creation of a 2D model](#creation-of-a-2d-model)
+3. [Differentiation and integration](#differentiation-and-integration)
+4. [Density estimation](#density-estimation)
 
 
 ### Creation of a model
@@ -81,7 +81,8 @@ gradient(model, 0.5)
 integral(model, -2..2)
 ```
 Example figure:
-TODO
+
+![differentiation integration](fig/differentiate_integrate.png)
 
 ### Density estimation
 ```julia
@@ -98,6 +99,7 @@ loss(Z) = 1/length(Z) * sum(log.(Z))
 minimize!(model, loss, X)
 ```
 Example figure:
+
 ![estimated distribution](fig/fit_distribution.png)
 
 ### References
