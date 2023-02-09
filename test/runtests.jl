@@ -145,7 +145,7 @@ end
     end
 end
 
-@testset "minimization" begin
+@testset "Density estimation" begin
     X = randn(150) * 0.75 .+ 0.5
     pdf_X(x) = 1/(sqrt(2*pi*0.75)) * exp(-(x-0.5)^2/(2*0.75))
 
@@ -155,10 +155,24 @@ end
     loss(Z) = -1/length(Z) * sum(log.(Z))
 
     # TODO rewrite once the constraint minimization is done as density estimation
-    minimize!(model, loss, X, maxit=1000)
+    minimize!(model, loss, X, maxit=1000, trace=true)
 
     model = (1/integral(model, -5..5, amount_quadrature_points=100)) * model
 
     dom_x = collect(range(-2, 3, length=200))
     @test norm(pdf_X.(dom_x) - model.(dom_x)) < 0.3
+end
+
+@testset "add support" begin
+    X = Float64[1, 2, 3]
+    Y = Float64[1, 1, 1]
+    k = MaternKernel()
+    model = PSDModel(X, Y, k)
+
+    X2 = Float64[4, 5, 6]
+    model2 = PSDModels.add_support(model, X2)
+
+    for i in rand(20) * 4
+        @test model(i) ≈ model2(i)
+    end
 end

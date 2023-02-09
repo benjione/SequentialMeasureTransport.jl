@@ -58,6 +58,22 @@ function PSDModel(
     end
 end
 
+"""
+add_support(a::PSDModel{T}, X::PSDdata{T}) where {T<:Number}
+
+Returns a PSD model with added support points, where the model still gives
+the same results as before (extension of the matrix initialized with zeros).
+"""
+function add_support(a::PSDModel{T}, X::PSDdata{T}) where {T<:Number}
+    new_S = vcat(a.X, X)
+    B = Hermitian(vcat(
+                    hcat(a.B, zeros(Float64, length(X), length(X))), 
+                    zeros(Float64, length(X), length(a.X)+length(X))
+                 )
+        )
+    return PSDModel(B, a.k, new_S)
+end
+
 function PSDModel_gradient_descent(
                         X::PSDDataVector{T},
                         Y::Vector{T},
@@ -176,6 +192,7 @@ function fit!(a::PSDModel{T},
 
     solution = Hermitian(solution)
     set_coefficients!(a, solution)
+    return nothing
 end
 
 """
