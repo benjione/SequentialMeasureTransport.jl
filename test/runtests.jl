@@ -155,7 +155,7 @@ end
     loss(Z) = -1/length(Z) * sum(log.(Z))
 
     # TODO rewrite once the constraint minimization is done as density estimation
-    minimize!(model, loss, X, maxit=1000, trace=true)
+    minimize!(model, loss, X, maxit=1000)
 
     model = (1/integral(model, -5..5, amount_quadrature_points=100)) * model
 

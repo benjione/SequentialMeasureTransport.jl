@@ -30,5 +30,3 @@ plot(dom_x, model.(dom_x), label="fitted model")
 plot!(dom_x, pdf_X.(dom_x), label="f(x)")
 # plot!(X, Y, seriestype=:scatter, label="data")
 plot!(model.X, model.(model.X), seriestype=:scatter, label="data points")
-
-savefig("fig/fit_distribution.png")

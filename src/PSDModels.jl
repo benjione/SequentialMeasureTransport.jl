@@ -9,6 +9,8 @@ import ForwardDiff as FD
 import ProximalAlgorithms
 import Base
 
+include("utils.jl")
+
 export PSDModel
 export fit!, minimize!
 export gradient, integral
@@ -183,6 +185,7 @@ function fit!(a::PSDModel{T},
         (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
     end
 
+    # IndPSD supports vector in lower triangular format
     psd_constraint = IndPSD()
 
     verbose_solver = trace ? true : false
@@ -230,8 +233,11 @@ function minimize!(a::PSDModel{T},
             return a(X[i], A)
         end
     end
+    V_M = view_mat_for_to_symmetric(length(a.X))
+    loss(A::AbstractVector) = loss(low_vec_to_Symmetric(A, V_M))
     loss(A::AbstractMatrix) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
 
+    # IndPSD supports vector in lower triangular format
     psd_constraint = IndPSD()
 
     verbose_solver = trace ? true : false
@@ -241,9 +247,9 @@ function minimize!(a::PSDModel{T},
     else
         ProximalAlgorithms.ForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
     end
-    solution, _ = solver(x0=Matrix(a.B), f=loss, g=psd_constraint)
+    solution, _ = solver(x0=Hermitian_to_low_vec(a.B), f=loss, g=psd_constraint)
 
-    solution = Hermitian(solution)
+    solution = Hermitian(copy(low_vec_to_Symmetric(solution)), :L)
     set_coefficients!(a, solution)
 end
 
