@@ -10,6 +10,7 @@ import ProximalAlgorithms
 import Base
 
 include("utils.jl")
+include("optimization.jl")
 
 export PSDModel
 export fit!, minimize!
@@ -18,6 +19,10 @@ export gradient, integral
 # for working with 1D and nD data
 const PSDdata{T} = Union{T, Vector{T}} where {T<:Number}
 const PSDDataVector{T} = Union{Vector{T}, Vector{Vector{T}}} where {T<:Number}
+
+# kwargs definition of PSDModel
+const _PSDModel_kwargs =
+        (:use_view, )
 
 struct PSDModel{T<:Number}
     B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
@@ -40,7 +45,8 @@ end
 
 function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
     B = diagm(ones(Float64, length(X)))
-    return PSDModel(Hermitian(B), k, X; kwargs...)
+    return PSDModel(Hermitian(B), k, X; 
+                    _filter_kwargs(kwargs, _PSDModel_kwargs)...)
 end
 
 function PSDModel(
@@ -82,8 +88,6 @@ function PSDModel_gradient_descent(
                         k::Kernel;
                         λ_1=1e-8,
                         trace=false,
-                        maxit=5000,
-                        tol=1e-6,
                         B0=nothing,
                         kwargs...
                     ) where {T<:Number}
@@ -97,20 +101,21 @@ function PSDModel_gradient_descent(
     end
     f_A(A::AbstractMatrix) = (1.0/N) * mapreduce(i-> (f_A(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
 
-    psd_constraint = IndPSD()
-
-    verbose_solver = trace ? true : false
-
     A0 = if B0===nothing
         ones(N,N)
     else
         B0
     end
-    solver = ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
-    solution, _ = solver(x0=A0, f=f_A, g=psd_constraint)
-
-    solution = Hermitian(solution)
-    return PSDModel(solution, k, X; kwargs...)
+    solution = optimize_PSD_model(A0, f_A;
+                                convex=true,
+                                trace=trace,
+                                _filter_kwargs(kwargs, 
+                                        _optimize_PSD_kwargs,
+                                        (:convex, :trace)
+                                )...
+                            )
+    return PSDModel(solution, k, X; 
+                    _filter_kwargs(kwargs, _PSDModel_kwargs)...)
 end
 
 function PSDModel_direct(
@@ -148,7 +153,8 @@ function PSDModel_direct(
     # project B onto the PSD cone, just in case
     B, _ = prox(IndPSD(), B)
 
-    return PSDModel(B, k, X; kwargs...)
+    return PSDModel(B, k, X; 
+                    _filter_kwargs(kwargs, _PSDModel_kwargs)...)
 end
 
 fit!(a::PSDModel, 
@@ -162,10 +168,9 @@ function fit!(a::PSDModel{T},
                 weights::Vector{T}; 
                 λ_1=1e-8,
                 trace=false,
-                maxit=5000,
-                tol=1e-6,
                 pre_eval=true,
                 pre_eval_thresh=5000,
+                kwargs...
             ) where {T<:Number}
     N = length(X)
 
@@ -185,15 +190,16 @@ function fit!(a::PSDModel{T},
         (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
     end
 
-    # IndPSD supports vector in lower triangular format
-    psd_constraint = IndPSD()
-
-    verbose_solver = trace ? true : false
-
     solver = ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
-    solution, _ = solver(x0=Matrix(a.B), f=f_A, g=psd_constraint)
+    solution, _ = solver(x0=Hermitian_to_low_vec(a.B), f=f_A, g=psd_constraint)
 
-    solution = Hermitian(solution)
+    solution = optimize_PSD_model(a.B, f_A;
+                                convex=true,
+                                trace=trace,
+                                _filter_kwargs(kwargs, 
+                                        _optimize_PSD_kwargs,
+                                        (:convex, :trace)
+                                )...)
     set_coefficients!(a, solution)
     return nothing
 end
@@ -212,13 +218,11 @@ Minimizes ``B^* = \\argmin_B L(a_B(x_1), a_B(x_2), ...) + λ_1 tr(B) `` and retu
 function minimize!(a::PSDModel{T}, 
                    L::Function, 
                    X::PSDDataVector{T};
-                   convex=true,
                    λ_1=1e-8,
                    trace=false,
-                   maxit=5000,
-                   tol=1e-6,
                    pre_eval=true,
                    pre_eval_thresh=5000,
+                   kwargs...
             ) where {T<:Number}
     N = length(X)
     f_B = if pre_eval && (N < pre_eval_thresh)
@@ -233,23 +237,13 @@ function minimize!(a::PSDModel{T},
             return a(X[i], A)
         end
     end
-    V_M = view_mat_for_to_symmetric(length(a.X))
-    loss(A::AbstractVector) = loss(low_vec_to_Symmetric(A, V_M))
     loss(A::AbstractMatrix) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
 
-    # IndPSD supports vector in lower triangular format
-    psd_constraint = IndPSD()
-
-    verbose_solver = trace ? true : false
-
-    solver = if convex
-        ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
-    else
-        ProximalAlgorithms.ForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
-    end
-    solution, _ = solver(x0=Hermitian_to_low_vec(a.B), f=loss, g=psd_constraint)
-
-    solution = Hermitian(copy(low_vec_to_Symmetric(solution)), :L)
+    solution = optimize_PSD_model(a.B, loss;
+                                trace=trace,
+                                _filter_kwargs(kwargs, 
+                                        _optimize_PSD_kwargs
+                                )...)
     set_coefficients!(a, solution)
 end
 

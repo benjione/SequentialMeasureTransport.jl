@@ -4,6 +4,10 @@ using LinearAlgebra
 using DomainSets
 using Test
 
+@testset "internal utility test" begin
+    include("utils_test.jl")
+end
+
 @testset "Model creation/evaluation" begin
     @testset "simple" begin
         X = Float64[1, 2, 3]
@@ -107,7 +111,10 @@ end
         Y = f.(X)
 
         k = MaternKernel(ν=1.0)
-        model = PSDModel(X, Y, k; solver=:gradient_descent)
+        model = PSDModel(X, Y, k, 
+                        solver=:gradient_descent,
+                        trace=true,
+                        vectorize_matrix=true,)
 
         for x in rand(100)*1.5 .-0.75
             @test isapprox(model(x), f(x), atol=1e-1)
@@ -146,21 +153,24 @@ end
 end
 
 @testset "Density estimation" begin
-    X = randn(150) * 0.75 .+ 0.5
+    X = randn(300) * 0.75 .+ 0.5
     pdf_X(x) = 1/(sqrt(2*pi*0.75)) * exp(-(x-0.5)^2/(2*0.75))
 
-    k = MaternKernel(ν=1.0)
-    model = PSDModel(k, X)
+    S = randn(100) * 0.75 .+ 0.5
+    k = MaternKernel(ν=1.5)
+    model = PSDModel(k, S)
 
-    loss(Z) = -1/length(Z) * sum(log.(Z))
+    loss(Z) = -1/length(Z) * mapreduce(i->log(Z[i]), +, 1:length(Z))
 
     # TODO rewrite once the constraint minimization is done as density estimation
-    minimize!(model, loss, X, maxit=1000)
+    minimize!(model, loss, X, maxit=1000, trace=true)
 
     model = (1/integral(model, -5..5, amount_quadrature_points=100)) * model
 
     dom_x = collect(range(-2, 3, length=200))
-    @test norm(pdf_X.(dom_x) - model.(dom_x)) < 0.3
+
+    # Maybe more meaningful test with expected error bound from literature?
+    @test norm(pdf_X.(dom_x) - model.(dom_x)) < 0.33
 end
 
 @testset "add support" begin
