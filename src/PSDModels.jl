@@ -190,9 +190,6 @@ function fit!(a::PSDModel{T},
         (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
     end
 
-    solver = ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
-    solution, _ = solver(x0=Hermitian_to_low_vec(a.B), f=f_A, g=psd_constraint)
-
     solution = optimize_PSD_model(a.B, f_A;
                                 convex=true,
                                 trace=trace,

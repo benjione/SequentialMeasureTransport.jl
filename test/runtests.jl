@@ -112,9 +112,7 @@ end
 
         k = MaternKernel(ν=1.0)
         model = PSDModel(X, Y, k, 
-                        solver=:gradient_descent,
-                        trace=true,
-                        vectorize_matrix=true,)
+                        solver=:gradient_descent)
 
         for x in rand(100)*1.5 .-0.75
             @test isapprox(model(x), f(x), atol=1e-1)
@@ -163,7 +161,7 @@ end
     loss(Z) = -1/length(Z) * mapreduce(i->log(Z[i]), +, 1:length(Z))
 
     # TODO rewrite once the constraint minimization is done as density estimation
-    minimize!(model, loss, X, maxit=1000, trace=true)
+    minimize!(model, loss, X, maxit=1000)
 
     model = (1/integral(model, -5..5, amount_quadrature_points=100)) * model
 
