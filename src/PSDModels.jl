@@ -20,10 +20,6 @@ export gradient, integral
 const PSDdata{T} = Union{T, Vector{T}} where {T<:Number}
 const PSDDataVector{T} = Union{Vector{T}, Vector{Vector{T}}} where {T<:Number}
 
-# kwargs definition of PSDModel
-const _PSDModel_kwargs =
-        (:use_view, )
-
 
 abstract type PSDModel{T} end
 
@@ -33,7 +29,14 @@ include("PSDModelFM.jl")
 function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
     B = diagm(ones(Float64, length(X)))
     return PSDModelKernel(Hermitian(B), k, X; 
-                    _filter_kwargs(kwargs, _PSDModel_kwargs)...)
+                    _filter_kwargs(kwargs, _PSDModelKernel_kwargs)...)
+end
+
+PSDModel(Φ::Function, N::Int; kwargs...) = PSDModel{Float64}(Φ, N; kwargs...)
+function PSDModel{T}(Φ::Function, N::Int; kwargs...) where {T<:Number}
+    B = diagm(ones(Float64, N))
+    return PSDModelFM{T}(Hermitian(B), Φ; 
+                    _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
 function PSDModel(
@@ -53,6 +56,15 @@ function PSDModel(
     end
 end
 
+function (a::PSDModel)(x::PSDdata{T}) where {T<:Number}
+    v = Φ(a, x)
+    return v' * a.B * v
+end
+
+function (a::PSDModel)(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
+    v = Φ(a, x)
+    return v' * B * v
+end
 
 
 fit!(a::PSDModel, 
@@ -73,9 +85,9 @@ function fit!(a::PSDModel{T},
     N = length(X)
 
     f_B = if pre_eval && (N < pre_eval_thresh)
-        let K = Float64[a.k(x, y) for x in X, y in a.X]
+        let K = reduce(hcat, Φ.(Ref(a), X))
             (i, A::AbstractMatrix) -> begin
-                v = K[i,:]
+                v = K[:,i]
                 return v' * A * v
             end
         end
@@ -121,9 +133,9 @@ function minimize!(a::PSDModel{T},
             ) where {T<:Number}
     N = length(X)
     f_B = if pre_eval && (N < pre_eval_thresh)
-        let K = Float64[a.k(x, y) for x in X, y in a.X]
+        let K = reduce(hcat, Φ.(Ref(a), X))
             (i, A::AbstractMatrix) -> begin
-                v = K[i,:]
+                v = K[:, i]
                 return v' * A * v
             end
         end
@@ -132,7 +144,7 @@ function minimize!(a::PSDModel{T},
             return a(X[i], A)
         end
     end
-    loss(A::AbstractMatrix) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
+    loss(A::AbstractMatrix) = L(Float64[f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,
@@ -157,7 +169,7 @@ function gradient(a::PSDModel{T}, x::T) where {T<:Number}
 end
 
 function parameter_gradient(a::PSDModel{T}, x::T) where {T<:Number}
-    v = a.k.(Ref(x), a.X)
+    v = Φ(a, x)
     # ∇B = FD.derivative((B)->v' * B * v, a.B)
 
     ∇B = Matrix{T}(undef, size(a.B)...)

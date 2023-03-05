@@ -1,3 +1,8 @@
+# kwargs definition of PSDModelKernel
+const _PSDModelKernel_kwargs =
+        (:use_view, )
+
+
 struct PSDModelKernel{T<:Number} <: PSDModel{T}
     B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     k::Kernel                               # k(x, y) is the kernel function
@@ -17,6 +22,15 @@ struct PSDModelKernel{T<:Number} <: PSDModel{T}
     end
 end
 
+
+"""
+Φ(a::PSDModelKernel, x::PSDdata{T}) where {T<:Number}
+
+Returns the feature map of the PSD model at x.
+"""
+function Φ(a::PSDModelKernel, x::PSDdata{T}) where {T<:Number}
+    return a.k.(Ref(x), a.X)
+end
 
 function PSDModel_gradient_descent(
         X::PSDDataVector{T},
@@ -51,7 +65,7 @@ function PSDModel_gradient_descent(
                 )...
             )
     return PSDModelKernel(solution, k, X; 
-                  _filter_kwargs(kwargs, _PSDModel_kwargs)...)
+                  _filter_kwargs(kwargs, _PSDModelKernel_kwargs)...)
 end
 
 function PSDModel_direct(
@@ -90,7 +104,7 @@ function PSDModel_direct(
     B, _ = prox(IndPSD(), B)
 
     return PSDModelKernel(B, k, X; 
-                    _filter_kwargs(kwargs, _PSDModel_kwargs)...)
+                    _filter_kwargs(kwargs, _PSDModelKernel_kwargs)...)
 end
 
 
@@ -112,16 +126,5 @@ function add_support(a::PSDModelKernel{T}, X::PSDdata{T}) where {T<:Number}
                  )
         )
     return PSDModelKernel(B, a.k, new_S)
-end
-
-
-function (a::PSDModelKernel)(x::PSDdata{T}) where {T<:Number}
-    v = a.k.(Ref(x), a.X)
-    return v' * a.B * v
-end
-
-function (a::PSDModelKernel)(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
-    v = a.k.(Ref(x), a.X)
-    return v' * B * v
 end
 
