@@ -144,7 +144,7 @@ function minimize!(a::PSDModel{T},
             return a(X[i], A)
         end
     end
-    loss(A::AbstractMatrix) = L(Float64[f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
+    loss(A::AbstractMatrix) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,
@@ -230,11 +230,7 @@ end
 
 Base.:*(a::PSDModel, b::Number) = b * a
 function Base.:*(a::Number, b::PSDModel)
-    return PSDModelKernel(
-        a * b.B,
-        b.k,
-        b.X
-    )
+    return _of_same_PSD(b, a * b.B)
 end
 
 function Base.:*(

@@ -17,6 +17,9 @@ struct PSDModelFM{T<:Number} <: AbstractPSDModelFM{T}
     end
 end
 
+@inline _of_same_PSD(a::PSDModelFM{T}, B::AbstractMatrix{T}) where {T<:Number} =
+                                        PSDModelFM{T}(Hermitian(B), a.Φ)
+
 """
 Φ(a::PSDModelFM, x::PSDdata{T}) where {T<:Number}
 

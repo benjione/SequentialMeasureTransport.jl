@@ -22,6 +22,8 @@ struct PSDModelKernel{T<:Number} <: PSDModel{T}
     end
 end
 
+@inline _of_same_PSD(a::PSDModelKernel{T}, B::AbstractMatrix{T}) where {T<:Number} =
+                                PSDModelKernel(Hermitian(B), a.k, a.X)
 
 """
 Φ(a::PSDModelKernel, x::PSDdata{T}) where {T<:Number}
