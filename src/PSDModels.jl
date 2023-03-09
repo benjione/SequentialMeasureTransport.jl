@@ -14,7 +14,7 @@ include("optimization.jl")
 
 export PSDModel
 export fit!, minimize!
-export gradient, integral
+export gradient, integrate
 
 # for working with 1D and nD data
 const PSDdata{T} = Union{T, Vector{T}} where {T<:Number}
@@ -36,6 +36,13 @@ PSDModel(Φ::Function, N::Int; kwargs...) = PSDModel{Float64}(Φ, N; kwargs...)
 function PSDModel{T}(Φ::Function, N::Int; kwargs...) where {T<:Number}
     B = diagm(ones(Float64, N))
     return PSDModelFM{T}(Hermitian(B), Φ; 
+                    _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
+end
+
+PSDModel(sp::Space, N::Int; kwargs...) = PSDModel{Float64}(sp, N; kwargs...)
+function PSDModel{T}(sp::Space, N::Int; kwargs...) where {T<:Number}
+    B = diagm(ones(Float64, N))
+    return PSDModelFMPolynomial{T}(Hermitian(B), sp; 
                     _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
@@ -179,20 +186,20 @@ function parameter_gradient(a::PSDModel{T}, x::T) where {T<:Number}
     return ∇B
 end
 
-function integral(a::PSDModel{T}, χ::Domain; kwargs...) where {T<:Number}
-    return integral(a, x->1.0, χ; kwargs...)
+function integrate(a::PSDModel{T}, χ::Domain; kwargs...) where {T<:Number}
+    return integrate(a, x->1.0, χ; kwargs...)
 end
 
 
 """
-integral(a::PSDModel{T}, p::Function, χ::Domain; quadrature_method=gausslegendre, amount_quadrature_points=10) where {T<:Number}
+integrate(a::PSDModel{T}, p::Function, χ::Domain; quadrature_method=gausslegendre, amount_quadrature_points=10) where {T<:Number}
 
 returns ``\\int_χ p(x) a(x) dx``. The idea of the implementation is from proposition 4 in [1]. 
 The integral is approximated by a quadrature rule. The default quadrature rule is Gauss-Legendre.
 
 [1] U. Marteau-Ferey, F. Bach, and A. Rudi, “Non-parametric Models for Non-negative Functions” url: https://arxiv.org/abs/2007.03926
 """
-function integral(a::PSDModel{T}, p::Function, χ::Domain; 
+function integrate(a::PSDModel{T}, p::Function, χ::Domain; 
                     quadrature_method=gausslegendre,
                     amount_quadrature_points=20) where {T<:Number}
     M_p = zeros(size(a.B))

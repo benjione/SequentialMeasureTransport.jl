@@ -1,11 +1,14 @@
 # PSDModels
 Simple implementation of models of the type
 $$f(x) = \sum_{ij} k(x,x_i) B_{ij} k(x,x_j)$$
-where $k$ is a Kernel function and functions of the type
+where $k$ is a Kernel function, functions of the type
 $$f(x) = \sum_{ij} \Phi(x)_i B_{ij} \Phi(x)_j$$
-where $\Phi$ is a feature map. Special focus is put onto polynomial feature maps
+where $\Phi$ is a feature map, or functions of the type
+$$\mathrm{tr}(B M(x))$$
+where $M(x) = \Phi(x) \Phi^T(x)$ is again from a feature map.
+Special focus is put onto polynomial feature maps
 which are created and modified using the ApproxFun.jl package.
-The general idea is from Marteau-Ferey et al. (see [1]).
+The general idea (using Kernels) originates from Marteau-Ferey et al. (see [1]).
 
 This library should in the future implement recent methods for PSD models found in the literature. Currently, it supports:
 - Creation and evaluation of PSD models for any dimensions and data types equipped with a distance.
