@@ -14,3 +14,7 @@ end
 @testset "PSDModelFM test" begin
     include("PSDFM_test.jl")
 end
+
+@testset "PSDModel polynomial test" begin
+    include("PSDPolynomial_test.jl")
+end

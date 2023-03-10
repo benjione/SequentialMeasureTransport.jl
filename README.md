@@ -5,7 +5,8 @@ where $k$ is a Kernel function, functions of the type
 $$f(x) = \sum_{ij} \Phi(x)_i B_{ij} \Phi(x)_j$$
 where $\Phi$ is a feature map, or functions of the type
 $$\mathrm{tr}(B M(x))$$
-where $M(x) = \Phi(x) \Phi^T(x)$ is again from a feature map.
+where $M(x) = \Phi(x) \Phi^T(x)$ is again from a feature map (with some exceptions).
+What the models have in common is that $B$ is always a PSD matrix.
 Special focus is put onto polynomial feature maps
 which are created and modified using the ApproxFun.jl package.
 The general idea (using Kernels) originates from Marteau-Ferey et al. (see [1]).

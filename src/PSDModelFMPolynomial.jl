@@ -13,13 +13,24 @@ struct PSDModelFMPolynomial{T<:Number} <: AbstractPSDModelFM{T}
     Π::Space                                # Polynomial space of the feature map
     func_vec::Vector{Fun}                   # Vector of functions that make up the feature map
     function PSDModelFMPolynomial{T}(B::Hermitian{Float64, Matrix{Float64}}, 
-                                    Π::Space
+                                    Π::Space,
+                                    func_vec::Vector{<:Fun}
                     ) where {T<:Number}
-        N = size(B, 1)
-        func_vec = Fun[Fun(Π, Float64[zeros(d); 1.0]) for d=0:(N-1)]
+        @assert length(func_vec) == size(B, 1)
         new{T}(B, Π, func_vec)
     end
 end
+
+function PSDModelFMPolynomial{T}(B::Hermitian{Float64, Matrix{Float64}}, 
+                Π::Space
+            ) where {T<:Number}
+    N = size(B, 1)
+    func_vec = Fun[Fun(Π, Float64[zeros(d); 1.0]) for d=0:(N-1)]
+    PSDModelFMPolynomial{T}(B, Π, func_vec)
+end
+
+@inline _of_same_PSD(a::PSDModelFMPolynomial{T}, B::AbstractMatrix{T}) where {T<:Number} =
+                PSDModelFMPolynomial{T}(Hermitian(B), a.Π, a.func_vec)
 
 """
 Φ(a::PSDModelFMPolynomial, x::PSDdata{T}) where {T<:Number}
@@ -35,8 +46,9 @@ function integral(a::PSDModelFMPolynomial{T}, dim::AbstractVector) where {T<:Num
 end
 
 function _to_FMMat(a::PSDModelFMPolynomial{T}) where {T<:Number}
-    func_mat = Fun[f1 * f2 for f1 in func_vec, f2 in func_vec]
-    return PSDModelFMMatPolynomial(copy(a.B), a.Π, func_mat)
+    func_mat = Fun[f1 * f2 for f1 in a.func_vec, f2 in a.func_vec]
+    Π = func_mat[1, 1].space
+    return PSDModelFMMatPolynomial{T}(copy(a.B), a.Π, func_mat)
 end
 
 struct PSDModelFMMatPolynomial{T<:Number} <: AbstractPSDModelFM{T}
@@ -45,12 +57,15 @@ struct PSDModelFMMatPolynomial{T<:Number} <: AbstractPSDModelFM{T}
     func_mat::Matrix{Fun}                   # Φ(x) Φ(x)^T is the feature map in matrix form
     function PSDModelFMMatPolynomial{T}(B::Hermitian{Float64, Matrix{Float64}}, 
                                     Π::Space,
-                                    func_mat::Matrix{Fun}
+                                    func_mat::Matrix{<:Fun}
                     ) where {T<:Number}
         @assert size(func_mat, 1) == size(B, 1)
         new{T}(B, Π, func_mat)
     end
 end
+
+@inline _of_same_PSD(a::PSDModelFMMatPolynomial{T}, B::AbstractMatrix{T}) where {T<:Number} =
+            PSDModelFMMatPolynomial{T}(Hermitian(B), a.Π, a.func_mat)
 
 """
 function ΦΦT(a::PSDModelFMMatPolynomial{T}, x::PSDdata{T}) where {T<:Number}

@@ -15,6 +15,10 @@ include("optimization.jl")
 export PSDModel
 export fit!, minimize!
 export gradient, integrate
+export integral
+
+## export arithmetic
+export mul!
 
 # for working with 1D and nD data
 const PSDdata{T} = Union{T, Vector{T}} where {T<:Number}
@@ -239,6 +243,13 @@ Base.:*(a::PSDModel, b::Number) = b * a
 function Base.:*(a::Number, b::PSDModel)
     return _of_same_PSD(b, a * b.B)
 end
+
+"""
+mul!(a::PSDModel, b::Number)
+
+In place multiplication with a number.
+"""
+mul!(a::PSDModel, b::Number) = a.B .= b * a.B; nothing
 
 function Base.:*(
     a::PSDModel,
