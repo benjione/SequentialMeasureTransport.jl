@@ -2,8 +2,9 @@
 ## kwargs utils
 @inline _filter_kwargs(kwargs, filt_keys, ignore) = 
             kwargs[setdiff(intersect(filt_keys, keys(kwargs)), ignore)]
-@inline _filter_kwargs(kwargs, filt_keys) = 
-            kwargs[intersect(filt_keys, keys(kwargs))]
+@inline _filter_kwargs(kwargs, filt_keys) =
+                kwargs[intersect(filt_keys, keys(kwargs))]
+
 
 ### Matrix utils
 function Hermitian_to_low_vec(A::AbstractMatrix)

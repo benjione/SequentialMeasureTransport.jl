@@ -4,6 +4,7 @@ authors = ["Benjamin Zanger <benjamin.zanger@inria.fr>"]
 version = "0.1.0"
 
 [deps]
+ApproxFun = "28f2ccd6-bb30-5033-b560-165f7b14dc2f"
 DomainSets = "5b8099bc-c8ec-5219-889f-1d9e522a28bf"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
