@@ -1,7 +1,10 @@
 
 abstract type AbstractPSDModelFM{T} <: PSDModel{T} end
+abstract type AbstractPSDModelFMPolynomial{T} <: AbstractPSDModelFM{T} end
 
+using ApproxFun
 include("PSDModelFMPolynomial.jl")
+include("PSDModelFMTensorPolynomial.jl")
 
 # kwargs definition of PSDModelKernel
 const _PSDModelFM_kwargs =

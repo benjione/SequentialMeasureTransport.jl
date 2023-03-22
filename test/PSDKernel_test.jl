@@ -144,7 +144,7 @@ end
     end
 end
 
-@testset "integral" begin
+@testset "integrate" begin
     f(x) = 2*(x-0.5)^2 * (x+0.5)^2
     f_int(x) = 0.125*x + 0.4*x^5 - (1/3)*x^3
     N = 30
@@ -155,7 +155,7 @@ end
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
     for x in rand(100) .- 0.5
-        @test isapprox(integral(model, 0..x), f_int(x), atol=1e-1)
+        @test isapprox(integrate(model, 0..x), f_int(x), atol=1e-1)
     end
 end
 
@@ -172,7 +172,7 @@ end
     # TODO rewrite once the constraint minimization is done as density estimation
     minimize!(model, loss, X, maxit=1000)
 
-    model = (1/integral(model, -5..5, amount_quadrature_points=100)) * model
+    model = (1/integrate(model, -5..5, amount_quadrature_points=100)) * model
 
     dom_x = collect(range(-2, 3, length=200))
 

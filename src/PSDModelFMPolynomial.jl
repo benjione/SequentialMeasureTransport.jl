@@ -1,14 +1,10 @@
-using ApproxFun
-
-abstract type AbstractPSDModelFMPolynomial{T} <: AbstractPSDModelFM{T} end
-
 """
 A PSD model where the feature map is made out of polynomial functions such as
 Chebyshev polynomials. There is an own implementation in order to provide
 optimal weighted sampling, closed form derivatives and integration, etc.
 As a polynomial package, ApproxFun is used.
 """
-struct PSDModelFMPolynomial{T<:Number} <: AbstractPSDModelFM{T}
+struct PSDModelFMPolynomial{T<:Number} <: AbstractPSDModelFMPolynomial{T}
     B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     Π::Space                                # Polynomial space of the feature map
     func_vec::Vector{Fun}                   # Vector of functions that make up the feature map
@@ -51,7 +47,7 @@ function _to_FMMat(a::PSDModelFMPolynomial{T}) where {T<:Number}
     return PSDModelFMMatPolynomial{T}(copy(a.B), a.Π, func_mat)
 end
 
-struct PSDModelFMMatPolynomial{T<:Number} <: AbstractPSDModelFM{T}
+struct PSDModelFMMatPolynomial{T<:Number} <: AbstractPSDModelFMPolynomial{T}
     B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     Π::Space                                # Polynomial space of the feature map
     func_mat::Matrix{Fun}                   # Φ(x) Φ(x)^T is the feature map in matrix form

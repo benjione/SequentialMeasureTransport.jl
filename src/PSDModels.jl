@@ -14,8 +14,11 @@ include("optimization.jl")
 
 export PSDModel
 export fit!, minimize!
+
+## export differentiation and integration
 export gradient, integrate
 export integral
+export marginalize_orth_measure
 
 ## export arithmetic
 export mul!
@@ -47,6 +50,19 @@ PSDModel(sp::Space, N::Int; kwargs...) = PSDModel{Float64}(sp, N; kwargs...)
 function PSDModel{T}(sp::Space, N::Int; kwargs...) where {T<:Number}
     B = diagm(ones(Float64, N))
     return PSDModelFMPolynomial{T}(Hermitian(B), sp; 
+                    _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
+end
+
+PSDModel(sp::Space, tensorizer::Symbol, N::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, N; kwargs...)
+function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int; kwargs...) where {T<:Number}
+    B = diagm(ones(Float64, N))
+
+    Φ = if tensorizer == :trivial
+        trivial_TensorPolynomial(sp, N)
+    else
+        @error "Tensorizer not implemented"
+    end
+    return PSDModelFMTensorPolynomial{T}(Hermitian(B), Φ; 
                     _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
