@@ -4,7 +4,8 @@ using ApproxFun
 using Plots
 
 f(x) = 1/(2.0 * π) * exp(-x[1]^2/2) * exp(-x[2]^2/2)
-f_marg(x) = 1/(2.0 * π)^0.5 * exp(-x^2/2)
+# result of ∫_{-1}^{1} f(x_1, x_2) dx_1
+f_marg(x) = (0.85/π) * exp(-x^2/2)
 
 # Create an empty model using Legendre polynimials, since they are orthogonal
 # to the Lebesgue measure.
@@ -18,7 +19,7 @@ Y = f.(X)
 fit!(model, X, Y, trace=true)
 
 # marginalize the model
-model_marginalized = PSDModels.marginalize(model, 1)
+model_marginalized = marginalize_orth_measure(model, 1)
 
 # Plot the model
 dom_x = range(-1, 1, length=100)

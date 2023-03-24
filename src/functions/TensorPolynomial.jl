@@ -86,10 +86,12 @@ function set_normalization_factors(poly_space::Space, highest_order::Int)
     return normal_factor
 end
 
-norm_func(sp::Chebyshev, n) = return 1.0/volume(sp)
+# default volume of Chebyshev is 2.0
+norm_func(sp::Chebyshev, n) = return 2.0/volume(sp.domain)
 function norm_func(sp::Jacobi, n)
+    vol_change = volume(sp.domain)/2.0
     if sp.a == sp.b == 0
-        return sqrt((2n+1)/2)
+        return sqrt((2n+1)/2)/vol_change
     else
         @error "Not implemented"
     end
