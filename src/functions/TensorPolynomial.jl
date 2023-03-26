@@ -7,12 +7,12 @@ in the tensorization.
 """
 struct FMTensorPolynomial{d, T} <: Function
     space::TensorSpace
-    normal_factor::Matrix{T}# Normalization factor for polynomials
+    normal_factor::Vector{Vector{T}} # Normalization factor for polynomials
     N::Int                  # order of feature map
     ten::Tensorizer         # tensorizer
     highest_order::Int      # Highest order of the polynomial
     function FMTensorPolynomial{d, T}(space::TensorSpace,
-                    normal_factor::Matrix{T}, 
+                    normal_factor::Vector{Vector{T}}, 
                     N::Int,
                     ten::Tensorizer,
                     highest_order::Int) where {d, T}
@@ -22,7 +22,7 @@ end
 
 dimensions(::FMTensorPolynomial{d}) where {d} = d
 
-FMTensorPolynomial{d}(space::TensorSpace, normal_factor::Matrix{Float64}, N::Int, ten::Tensorizer, 
+FMTensorPolynomial{d}(space::TensorSpace, normal_factor::Vector{Vector{Float64}}, N::Int, ten::Tensorizer, 
     highest_order::Int) where {d} = FMTensorPolynomial{d, Float64}(space, normal_factor, N, ten, highest_order)
 
 @inline σ(p::FMTensorPolynomial, i) = σ(p.ten, i)
@@ -47,19 +47,27 @@ function reduce_dim(p::FMTensorPolynomial{d}, dim::Int) where {d}
     return FMTensorPolynomial{d-1}(space, norm_factors, new_N, ten_new, p.highest_order)
 end
 
+function add_order(p::FMTensorPolynomial{d}, dim::Int) where {d}
+    ten_new = add_order(p.ten, dim)
+    triv_new_N = max_N(ten_new)
+    ## work with trivial new N now, maybe other strategy later
+    normal_vecs = set_normalization_factors(p.space, highest_order(ten_new)-1)
+    return FMTensorPolynomial{d}(p.space, normal_vecs, triv_new_N, ten_new, p.highest_order+1)
+end
+
 function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T}) where {d, T}
-    A = T[Fun(p.space.spaces[i], [zeros(T, k);p.normal_factor[d, k+1]])(x[i]) for k=0:p.highest_order, i=1:d]
+    A = T[Fun(p.space.spaces[i], [zeros(T, k);p.normal_factor[d][k+1]])(x[i]) for k=0:p.highest_order, i=1:d]
     @inline Ψ(k) = mapreduce(j->A[k[j], j], *, 1:d)
     map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
 
 function (p::FMTensorPolynomial{d, T})(x::T) where {d, T}
     @assert d == 1
-    A = T[Fun(p.space.spaces[1], [zeros(T, k);p.normal_factor[1, k+1]])(x) for k=0:p.highest_order]
+    A = T[Fun(p.space.spaces[1], [zeros(T, k);p.normal_factor[1][k+1]])(x) for k=0:p.highest_order]
     return map(i -> A[σ_inv(p, i)], 1:p.N)
 end
 
-
+trivial_TensorPolynomial(sp::Space, N::Int) = trivial_TensorPolynomial(TensorSpace(sp), N)
 function trivial_TensorPolynomial(space::TensorSpace, 
                                 N::Int)
     d = length(space.spaces)
@@ -69,11 +77,14 @@ function trivial_TensorPolynomial(space::TensorSpace,
     return FMTensorPolynomial{d}(space, normal_factor, N, ten, high_order)
 end
 
-function set_normalization_factors(poly_spaces::TensorSpace, highest_order::Int)
+set_normalization_factors(ps::TensorSpace, high_order::Int) = set_normalization_factors(ps, high_order*ones(Int, length(ps.spaces)))
+function set_normalization_factors(poly_spaces::TensorSpace, highest_orders::Vector{Int})
     d = length(poly_spaces.spaces)
-    normal_factor = zeros(Float64, d, highest_order+1)
+    @assert d == length(highest_orders)
+    normal_factor = Vector{Float64}[]
     for i=1:d
-        normal_factor[i, :] = set_normalization_factors(poly_spaces.spaces[i], highest_order)
+        norm_vec = set_normalization_factors(poly_spaces.spaces[i], highest_orders[i])
+        push!(normal_factor, norm_vec)
     end
     return normal_factor
 end
@@ -96,7 +107,4 @@ function norm_func(sp::Jacobi, n)
         @error "Not implemented"
     end
 end
-# norm_func(::Hermite, n) = sqrt(2^n*factorial(n)*sqrt(pi))
-# norm_func(::Laguerre, n) = sqrt(2^n*factorial(n)*sqrt(pi))
-# norm_func(::Jacobi, n) = sqrt((2n+1)/2)
 norm_func(::Any, n) = @error "Not implemented"

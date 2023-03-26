@@ -1,7 +1,7 @@
 using ApproxFun
 using SparseArrays
 
-include("functions/TensorPolynomial.jl")
+include("../../functions/TensorPolynomial.jl")
 
 """
 A PSD model where the feature map is made out of orthonormal 
@@ -47,4 +47,15 @@ function marginalize_orth_measure(a::PSDModelFMTensorPolynomial{T}, dim::Int) wh
     end
     B = P * (M .* a.B) * P'
     return PSDModelFMTensorPolynomial{T}(Hermitian(Matrix(B)), new_Φ)
+end
+
+
+function integral(a::PSDModelFMTensorPolynomial{T}, dim::Int) where {T<:Number}
+    d = dimensions(a.Φ)
+    @assert 1 ≤ dim ≤ d
+    sp = a.Φ.space.spaces[dim]
+
+    B = P * B_tilde
+    # model not PSD anymore, use scalar model for evaluation
+    return ScalarModel{T}(Matrix(B), Φ_new)
 end
