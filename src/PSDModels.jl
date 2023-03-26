@@ -5,6 +5,7 @@ using KernelFunctions: Kernel, kernelmatrix
 using ProximalOperators: IndPSD, prox, prox!
 using DomainSets
 using FastGaussQuadrature: gausslegendre
+using ApproxFun
 import ForwardDiff as FD
 import ProximalAlgorithms
 import Base
@@ -30,6 +31,8 @@ const PSDDataVector{T} = Union{Vector{T}, Vector{Vector{T}}} where {T<:Number}
 abstract type PSDModel{T} end
 abstract type TraceModel{T} end
 
+include("functions/functions.jl")
 include("PSDModels/models.jl")
+include("TraceModels/models.jl")
 
 end # module PositiveSemidefiniteModels

@@ -1,8 +1,3 @@
-using ApproxFun
-using SparseArrays
-
-include("../../functions/TensorPolynomial.jl")
-
 """
 A PSD model where the feature map is made out of orthonormal 
 polynomial functions such as Chebyshev polynomials. There is an own 
@@ -53,9 +48,6 @@ end
 function integral(a::PSDModelFMTensorPolynomial{T}, dim::Int) where {T<:Number}
     d = dimensions(a.Φ)
     @assert 1 ≤ dim ≤ d
-    sp = a.Φ.space.spaces[dim]
-
-    B = P * B_tilde
-    # model not PSD anymore, use scalar model for evaluation
-    return ScalarModel{T}(Matrix(B), Φ_new)
+    M = SquaredPolynomialMatrix(a.Φ, Int[dim])
+    return TensorizedPolynomialTraceModel(a.B, M)
 end

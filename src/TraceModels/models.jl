@@ -8,7 +8,7 @@ function (a::TraceModel{T})(x::PSDdata{T}) where {T<:Number}
     return tr(a.B * M)
 end
 
-function (a::PolynomialTraceModel)(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
+function (a::TraceModel{T})(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     M = ΦΦT(a, x)
     return tr(B * M)
 end

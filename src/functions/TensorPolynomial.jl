@@ -1,5 +1,3 @@
-include("tensorizers/Tensorizers.jl")
-
 """
 A feature map of tensorization of polynimials, where ``\\sigma``
 is the function that maps a multiindex to a coefficient index
@@ -65,6 +63,16 @@ function (p::FMTensorPolynomial{d, T})(x::T) where {d, T}
     @assert d == 1
     A = T[Fun(p.space.spaces[1], [zeros(T, k);p.normal_factor[1][k+1]])(x) for k=0:p.highest_order]
     return map(i -> A[σ_inv(p, i)], 1:p.N)
+end
+
+_eval(p::FMTensorPolynomial{d, T}, x::T, ignore_dim::Vector{Int}) where {d, T} = _eval(p, T[x], ignore_dim)
+function _eval(p::FMTensorPolynomial{d, T}, 
+               x::AbstractVector{T},
+               ignore_dim::Vector{Int}) where {d, T}
+    iter_dim = setdiff(1:d, ignore_dim)
+    A = T[Fun(p.space.spaces[i], [zeros(T, k);p.normal_factor[d][k+1]])(x[i]) for k=0:p.highest_order, i=1:d]
+    @inline Ψ(k) = mapreduce(j->A[k[j], j], *, iter_dim, init=1.0)
+    return map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
 
 trivial_TensorPolynomial(sp::Space, N::Int) = trivial_TensorPolynomial(TensorSpace(sp), N)

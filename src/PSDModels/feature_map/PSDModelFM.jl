@@ -3,7 +3,6 @@ abstract type AbstractPSDModelFM{T} <: PSDModel{T} end
 abstract type AbstractPSDModelFMPolynomial{T} <: AbstractPSDModelFM{T} end
 
 ## special feature map models:
-using ApproxFun
 include("polynomial.jl")
 include("tensorized_polynomial.jl")
 
