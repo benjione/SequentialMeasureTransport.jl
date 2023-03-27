@@ -163,14 +163,14 @@ end
     X = randn(300) * 0.75 .+ 0.5
     pdf_X(x) = 1/(sqrt(2*pi*0.75)) * exp(-(x-0.5)^2/(2*0.75))
 
-    S = randn(100) * 0.75 .+ 0.5
+    S = randn(120) * 0.75 .+ 0.5
     k = MaternKernel(ν=1.5)
     model = PSDModel(k, S)
 
     loss(Z) = -1/length(Z) * mapreduce(i->log(Z[i]), +, 1:length(Z))
 
     # TODO rewrite once the constraint minimization is done as density estimation
-    minimize!(model, loss, X, maxit=1000)
+    minimize!(model, loss, X, maxit=1500, trace=false)
 
     model = (1/integrate(model, -5..5, amount_quadrature_points=100)) * model
 

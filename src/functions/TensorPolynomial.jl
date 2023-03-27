@@ -41,7 +41,7 @@ function reduce_dim(p::FMTensorPolynomial{d}, dim::Int) where {d}
         end
     end
     space = TensorSpace([p.space.spaces[i] for i=1:d if i≠dim]...)
-    norm_factors = p.normal_factor[setdiff(1:d, dim), :]
+    norm_factors = p.normal_factor[setdiff(1:d, dim)]
     return FMTensorPolynomial{d-1}(space, norm_factors, new_N, ten_new, p.highest_order)
 end
 
