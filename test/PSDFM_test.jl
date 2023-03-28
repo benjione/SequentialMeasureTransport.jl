@@ -19,7 +19,7 @@ using ApproxFun
         X = Float64[1, 2, 3]
         Y = Float64[1, 1, 1]
         model = PSDModel(Φ, length(f_list))
-        fit!(model, X, Y, trace=true)
+        fit!(model, X, Y, trace=false)
         @test isapprox(model(1.0),1.0,atol=1e-1)
         @test isapprox(model(2.0),1.0,atol=1e-1)
         @test isapprox(model(3.0),1.0,atol=1e-1)

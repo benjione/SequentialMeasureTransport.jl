@@ -18,3 +18,7 @@ end
 @testset "PSDModel polynomial test" begin
     include("PSDPolynomial_test.jl")
 end
+
+@testset "PSDModel tensor polynomial test" begin
+    include("PSDTensorPolynomial_test.jl")
+end

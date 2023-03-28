@@ -47,11 +47,11 @@ function PSDModel_gradient_descent(
 
     N = length(X)
 
-    f_A(i, A::AbstractMatrix) = begin
+    f_A(i, A) = begin
         v = K[i,:]
         return v' * A * v
     end
-    f_A(A::AbstractMatrix) = (1.0/N) * mapreduce(i-> (f_A(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
+    f_A(A) = (1.0/N) * mapreduce(i-> (f_A(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
 
     A0 = if B0===nothing
         ones(N,N)

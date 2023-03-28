@@ -22,7 +22,7 @@ minimize!(model, loss, X, trace=true)
 
 # normalize the model (implement as a constraint into the minimization process, 
 #        see https://juliafirstorder.github.io/ProximalOperators.jl/stable/functions/#ProximalOperators.IndAffine)
-model = model * (1/integral(model, -10..10, amount_quadrature_points=50))
+model = model * (1/integrate(model, -10..10, amount_quadrature_points=50))
 
 # Plot the model
 dom_x = range(-2, 2.5, length=100)

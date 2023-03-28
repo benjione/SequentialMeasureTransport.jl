@@ -1,4 +1,5 @@
-
+using ProximalOperators: IndPSD, prox, prox!
+import ProximalAlgorithms
 
 const _optimize_PSD_kwargs = 
     (:convex, :trace, :maxit, :tol, :smooth, :opt_algo, :vectorize_matrix)
@@ -19,22 +20,29 @@ solver depending on the model.
 """
 function optimize_PSD_model(initial::AbstractMatrix, 
                     loss::Function;
-                    convex = true,
+                    convex::Bool = true,
                     trace::Bool=false,
                     maxit::Int=5000,
                     tol::Real=1e-6,
                     smooth::Bool=true,
                     opt_algo=nothing,
                     vectorize_matrix::Bool=true,
-                    )
+                )
+    if convex
+        return optimize_PSD_model_convex(initial, loss;
+                trace=trace,
+                maxit=maxit,
+                tol=tol,
+                smooth=smooth,
+            )
+    end
+
+    # set default parameters
+    # TODO
 
     verbose_solver = trace ? true : false
     solver = if opt_algo !== nothing
         opt_algo(maxit=maxit, tol=tol, verbose=verbose_solver)
-    elseif convex && smooth
-        ProximalAlgorithms.FastForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
-    elseif convex && !smooth
-        ProximalAlgorithms.PANOCplus(gamma=1e-5, maxit=maxit, tol=tol, verbose=verbose_solver)
     elseif !convex && smooth
         ProximalAlgorithms.ForwardBackward(maxit=maxit, tol=tol, verbose=verbose_solver)
     else
@@ -53,4 +61,33 @@ function optimize_PSD_model(initial::AbstractMatrix,
         solution, _ = solver(x0=Matrix(initial), f=loss, g=psd_constraint)
         return Hermitian(solution)
     end
+end
+
+import Convex as con
+import SCS
+## utils Convex for least squares
+Base.:^(x::con.AbstractExpr, p::Int) = begin
+    @assert p == 2
+    return con.sumsquares(x)
+end
+
+function optimize_PSD_model_convex(initial::AbstractMatrix, 
+                    loss::Function;
+                    trace::Bool=false,
+                    maxit::Int=5000,
+                    tol::Real=1e-6,
+                    smooth::Bool=true,
+                )
+    verbose_solver = trace ? true : false
+    N = size(initial, 1)
+    B = con.Variable((N, N))
+    problem = con.minimize(loss(B), con.isposdef(B))
+
+    solver = con.MOI.OptimizerWithAttributes(SCS.Optimizer, "max_iters" => maxit)
+
+    con.solve!(problem,
+        solver;
+        silent_solver = !verbose_solver
+    )
+    return Hermitian(con.evaluate(B))
 end

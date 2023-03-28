@@ -2,7 +2,7 @@
 Simple implementation of models of the type
 $$f(x) = \sum_{ij} k(x,x_i) B_{ij} k(x,x_j)$$
 where $k$ is a Kernel function, functions of the type
-$$f(x) = \sum_{ij} \Phi(x)_i B_{ij} \Phi(x)_j$$
+$$f(x) = \sum_{ij} \Phi(x)\_i B_{ij} \Phi(x)\_j$$
 where $\Phi$ is a feature map, or functions of the type
 $$\mathrm{tr}(B M(x))$$
 where $M(x) = \Phi(x) \Phi^T(x)$ is again from a feature map (with some exceptions).
