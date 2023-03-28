@@ -84,17 +84,17 @@ function fit!(a::PSDModel{T},
 
     f_B = if pre_eval && (N < pre_eval_thresh)
         let K = reduce(hcat, Φ.(Ref(a), X))
-            (i, A::AbstractMatrix) -> begin
+            (i, A) -> begin
                 v = K[:,i]
                 return v' * A * v
             end
         end
     else
-        (i, A::AbstractMatrix) -> begin
+        (i, A) -> begin
             return a(X[i], A)
         end
     end
-    f_A(A::AbstractMatrix) = begin
+    f_A(A) = begin
         (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
     end
 
@@ -132,17 +132,17 @@ function minimize!(a::PSDModel{T},
     N = length(X)
     f_B = if pre_eval && (N < pre_eval_thresh)
         let K = reduce(hcat, Φ.(Ref(a), X))
-            (i, A::AbstractMatrix) -> begin
+            (i, A) -> begin
                 v = K[:, i]
                 return v' * A * v
             end
         end
     else
-        (i, A::AbstractMatrix) -> begin
+        (i, A) -> begin
             return a(X[i], A)
         end
     end
-    loss(A::AbstractMatrix) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
+    loss(A) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,
@@ -193,8 +193,6 @@ The integral is approximated by a quadrature rule. The default quadrature rule i
 function integrate(a::PSDModel{T}, p::Function, χ::Domain; 
                     quadrature_method=gausslegendre,
                     amount_quadrature_points=20) where {T<:Number}
-    M_p = zeros(size(a.B))
-
     x, w = quadrature_method(amount_quadrature_points)
 
     l = leftendpoint(χ)
@@ -202,10 +200,9 @@ function integrate(a::PSDModel{T}, p::Function, χ::Domain;
     x .*= ((r - l)/2)
     x .+= ((r + l)/2)
 
-    @inline to_int(x, i, j) = a.k(x, a.X[i]) * a.k(x, a.X[j]) * p(x)
-    for i in CartesianIndices(a.B)
-        M_p[i] = ((r - l)/2) * dot(w, to_int.(x, i[1], i[2]))
-    end
+
+    @inline Quad_point(w, x) = p(x) * w * (Φ(a,x) * Φ(a,x)')
+    M_p = ((r - l)/2) * mapreduce(i->Quad_point(w[i], x[i]), .+, 1:length(x))
 
     # tr(A * W_P) = tr(V B V^T * V^-T W_P V^-1) = tr(V B M_p V^-1)
     # = tr(B M_p V^-1 V) = tr(B M_p)

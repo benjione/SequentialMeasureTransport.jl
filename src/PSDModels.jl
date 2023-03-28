@@ -2,24 +2,23 @@ module PSDModels
 
 using LinearAlgebra, SparseArrays
 using KernelFunctions: Kernel, kernelmatrix
-using ProximalOperators: IndPSD, prox, prox!
 using DomainSets
 using FastGaussQuadrature: gausslegendre
 using ApproxFun
 import ForwardDiff as FD
-import ProximalAlgorithms
 import Base
 
 include("utils.jl")
 include("optimization.jl")
 
 export PSDModel
+## export optimization
 export fit!, minimize!
 
 ## export differentiation and integration
 export gradient, integrate
 export integral
-export marginalize_orth_measure
+export marginalize_orth_measure, marginalize
 
 ## export arithmetic
 export mul!

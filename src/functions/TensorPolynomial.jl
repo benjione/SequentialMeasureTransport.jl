@@ -8,7 +8,7 @@ struct FMTensorPolynomial{d, T} <: Function
     normal_factor::Vector{Vector{T}} # Normalization factor for polynomials
     N::Int                  # order of feature map
     ten::Tensorizer         # tensorizer
-    highest_order::Int      # Highest order of the polynomial
+    highest_order::Int      # max(order(p_i)) for all p_i in dimensions
     function FMTensorPolynomial{d, T}(space::TensorSpace,
                     normal_factor::Vector{Vector{T}}, 
                     N::Int,
@@ -26,8 +26,11 @@ FMTensorPolynomial{d}(space::TensorSpace, normal_factor::Vector{Vector{Float64}}
 @inline σ(p::FMTensorPolynomial, i) = σ(p.ten, i)
 @inline σ_inv(p::FMTensorPolynomial, i) = σ_inv(p.ten, i)
 
-function reduce_dim(p::FMTensorPolynomial{d}, dim::Int) where {d}
+function reduce_dim(p::FMTensorPolynomial{d, T}, dim::Int) where {d, T}
     ten_new = reduce_dim(p.ten)
+    if d-1 == 0
+        return FMTensorPolynomial{0}(TensorSpace(ConstantSpace()), Vector{T}[], 1, ten_new, 0)
+    end
     triv_new_N = highest_order(ten_new)^(d-1)
     new_N = 0
     # x is new index, y is old index
@@ -43,6 +46,17 @@ function reduce_dim(p::FMTensorPolynomial{d}, dim::Int) where {d}
     space = TensorSpace([p.space.spaces[i] for i=1:d if i≠dim]...)
     norm_factors = p.normal_factor[setdiff(1:d, dim)]
     return FMTensorPolynomial{d-1}(space, norm_factors, new_N, ten_new, p.highest_order)
+end
+
+### Constructors
+trivial_TensorPolynomial(sp::Space, N::Int) = trivial_TensorPolynomial(TensorSpace(sp), N)
+function trivial_TensorPolynomial(space::TensorSpace, 
+                                N::Int)
+    d = length(space.spaces)
+    ten = TrivialTensorizer(d, N)
+    high_order = highest_order(ten)-1
+    normal_factor = set_normalization_factors(space, high_order)
+    return FMTensorPolynomial{d}(space, normal_factor, N, ten, high_order)
 end
 
 function add_order(p::FMTensorPolynomial{d}, dim::Int) where {d}
@@ -75,14 +89,26 @@ function _eval(p::FMTensorPolynomial{d, T},
     return map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
 
-trivial_TensorPolynomial(sp::Space, N::Int) = trivial_TensorPolynomial(TensorSpace(sp), N)
-function trivial_TensorPolynomial(space::TensorSpace, 
-                                N::Int)
-    d = length(space.spaces)
-    ten = TrivialTensorizer(d, N)
-    high_order = highest_order(ten)-1
-    normal_factor = set_normalization_factors(space, high_order)
-    return FMTensorPolynomial{d}(space, normal_factor, N, ten, high_order)
+
+"""
+Calculates M_{σ(i)σ(j)} = \\int measure(x) \\phi_{i_dim}(x) \\phi_{j_dim}(x) dx
+using Gauss-Legendre quadrature.
+"""
+function calculate_M_quadrature(p::FMTensorPolynomial{d, T}, 
+                                dim::Int, 
+                                measure::Function
+                        ) where {d, T<:Number}
+    M = zeros(T, p.N, p.N)
+    x, w = gausslegendre(Int(ceil(((p.highest_order+1)/2)+1)))
+    A = T[Fun(p.space.spaces[dim], [zeros(T, k);p.normal_factor[dim][k+1]])(x_i) for k=0:p.highest_order, x_i in x]
+    meas_vec = measure.(x)
+    integrate(i,j) = dot(w, meas_vec.*A[i,:].*A[j,:])
+    for i=1:p.N
+        for j=1:p.N
+            M[i,j] = integrate(σ_inv(p, i)[dim],σ_inv(p, j)[dim])
+        end
+    end
+    return Symmetric(M)
 end
 
 set_normalization_factors(ps::TensorSpace, high_order::Int) = set_normalization_factors(ps, high_order*ones(Int, length(ps.spaces)))
@@ -106,10 +132,10 @@ function set_normalization_factors(poly_space::Space, highest_order::Int)
 end
 
 # default volume of Chebyshev is 2.0
-norm_func(sp::Chebyshev, n) = return 2.0/volume(sp.domain)
+norm_func(sp::Chebyshev, n) = return sqrt(2.0/volume(sp.domain))
 function norm_func(sp::Jacobi, n)
-    vol_change = volume(sp.domain)/2.0
-    if sp.a == sp.b == 0
+    vol_change = sqrt(2.0/volume(sp.domain))
+    if sp.a == sp.b == 0 # Legendre
         return sqrt((2n+1)/2)/vol_change
     else
         @error "Not implemented"

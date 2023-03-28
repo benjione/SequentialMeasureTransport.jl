@@ -19,14 +19,15 @@ using ApproxFun
         
         f(x) = 2*(x[2]-0.5)^2 * (x[2]+0.5)^2 +
                2*(x[1]-0.5)^2 * (x[1]+0.5)^2
-        model = PSDModel(Chebyshev()^2, 15)
+        model = PSDModel(Legendre()^2, 15)
 
-        X = [(rand(2) * 2 .-1) for _=1:200]
+        X = [[x, y] for x=range(-1,1,20), y=range(-1,1,20)]
+        X = reshape(X, length(X))
         Y = f.(X)
 
         fit!(model, X, Y, trace=false)
         
         test_X = [[x,y] for x in range(-1,1,100), y in range(-1,1,100)]
-        @test norm(model.(test_X) .- f.(test_X), Inf) < 1e-1
+        @test norm(model.(test_X) .- f.(test_X), 2)/norm(f.(test_X), 2) < 1e-2
     end
 end

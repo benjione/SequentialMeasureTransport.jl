@@ -2,19 +2,21 @@
 
 struct SquaredPolynomialMatrix{d, T}
     Φ::FMTensorPolynomial{d, T}
-    int_dim::Vector{Int}
-    int_Fun::Vector{AbstractMatrix{Fun}}
+    int_dim::Vector{Int}                    # dimension which are integrated over
+    int_Fun::Vector{AbstractMatrix{Fun}}    # integral of Φ[i] * Φ[j] over dimension int_dim
     function SquaredPolynomialMatrix(Φ::FMTensorPolynomial{d, T}, int_dim::Vector{Int}) where {d, T}
         int_Fun = [Matrix{Fun}(undef, Φ.highest_order+1, Φ.highest_order+1) for _=1:length(int_dim)]
         
         for i=1:Φ.highest_order+1
             for j=i:Φ.highest_order+1
-                for k in int_dim
-                    f1 = Fun(Φ.space.spaces[k], [zeros(T, k);Φ.normal_factor[k][i]])
-                    f2 = Fun(Φ.space.spaces[k], [zeros(T, k);Φ.normal_factor[k][j]])
+                for k_index=1:length(int_dim)
+                    k = int_dim[k_index]
+                    f1 = Fun(Φ.space.spaces[k], [zeros(T, i-1);Φ.normal_factor[k][i]])
+                    f2 = Fun(Φ.space.spaces[k], [zeros(T, j-1);Φ.normal_factor[k][j]])
                     res = Integral() * (f1 * f2)
-                    int_Fun[k][i, j] = res
-                    int_Fun[k][j, i] = res
+                    res = res - res(0.0)  ## let integral start from 0
+                    int_Fun[k_index][i, j] = res
+                    int_Fun[k_index][j, i] = res
                 end
             end
         end
@@ -27,10 +29,11 @@ function (a::SquaredPolynomialMatrix)(x::PSDdata{T}) where {T<:Number}
     M = vec * vec'
     for i = 1:size(M, 1)
         for j = i:size(M, 2)
-            for k in a.int_dim
+            for k_index=1:length(a.int_dim)
+                k = a.int_dim[k_index]
                 i1 = σ_inv(a.Φ, i)[k]
                 i2 = σ_inv(a.Φ, j)[k]
-                res = a.int_Fun[k][i1, i2](x[k])
+                res = a.int_Fun[k_index][i1, i2](x[k])
                 M[i, j] *= res
             end
         end
