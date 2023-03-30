@@ -2,7 +2,7 @@ using ProximalOperators: IndPSD, prox, prox!
 import ProximalAlgorithms
 
 const _optimize_PSD_kwargs = 
-    (:convex, :trace, :maxit, :tol, :smooth, :opt_algo, :vectorize_matrix)
+    (:convex, :trace, :maxit, :tol, :smooth, :opt_algo, :vectorize_matrix, :normalization_constraint)
 
 """
 optimize_PSD_model(initial::AbstractMatrix, 
@@ -27,6 +27,7 @@ function optimize_PSD_model(initial::AbstractMatrix,
                     smooth::Bool=true,
                     opt_algo=nothing,
                     vectorize_matrix::Bool=true,
+                    normalization_constraint::Bool=false,
                 )
     if convex
         return optimize_PSD_model_convex(initial, loss;
@@ -34,9 +35,13 @@ function optimize_PSD_model(initial::AbstractMatrix,
                 maxit=maxit,
                 tol=tol,
                 smooth=smooth,
+                normalization_constraint=normalization_constraint,
             )
     end
 
+    if normalization_constraint
+        @error "Only implemented for the convex case."
+    end
     # set default parameters
     # TODO
 
@@ -77,11 +82,17 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
                     maxit::Int=5000,
                     tol::Real=1e-6,
                     smooth::Bool=true,
+                    normalization_constraint=false,
                 )
     verbose_solver = trace ? true : false
     N = size(initial, 1)
     B = con.Variable((N, N))
     problem = con.minimize(loss(B), con.isposdef(B))
+    if normalization_constraint
+        # IMPORTANT: only valid for tensorized polynomial maps.
+        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
+        problem.constraints += con.tr(B) == 1
+    end
 
     solver = con.MOI.OptimizerWithAttributes(SCS.Optimizer, "max_iters" => maxit)
 

@@ -11,8 +11,12 @@ function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
 end
 
 PSDModel(Φ::Function, N::Int; kwargs...) = PSDModel{Float64}(Φ, N; kwargs...)
-function PSDModel{T}(Φ::Function, N::Int; kwargs...) where {T<:Number}
-    B = diagm(ones(Float64, N))
+function PSDModel{T}(Φ::Function, N::Int; sparse=false, kwargs...) where {T<:Number}
+    B = if sparse
+        spdiagm(ones(Float64, N))
+    else
+        diagm(ones(Float64, N))
+    end
     return PSDModelFM{T}(Hermitian(B), Φ; 
                     _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
@@ -25,8 +29,13 @@ function PSDModel{T}(sp::Space, N::Int; kwargs...) where {T<:Number}
 end
 
 PSDModel(sp::Space, tensorizer::Symbol, N::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, N; kwargs...)
-function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int; kwargs...) where {T<:Number}
-    B = diagm(ones(Float64, N))
+function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int; 
+                     sparse=false, kwargs...) where {T<:Number}
+    B = if sparse
+        spdiagm(ones(Float64, N))
+    else
+        diagm(ones(Float64, N))
+    end
 
     Φ = if tensorizer == :trivial
         trivial_TensorPolynomial(sp, N)
@@ -127,8 +136,14 @@ function minimize!(a::PSDModel{T},
                    trace=false,
                    pre_eval=true,
                    pre_eval_thresh=5000,
+                   normalization_constraint=false,
                    kwargs...
             ) where {T<:Number}
+
+    if normalization_constraint && (typeof(a) != PSDModelFMTensorPolynomial{T})
+        @error "Normalization constraint only implemented for tensorized polynomial model!"
+        return nothing
+    end
     N = length(X)
     f_B = if pre_eval && (N < pre_eval_thresh)
         let K = reduce(hcat, Φ.(Ref(a), X))
@@ -146,6 +161,7 @@ function minimize!(a::PSDModel{T},
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,
+                                normalization_constraint=normalization_constraint,
                                 _filter_kwargs(kwargs, 
                                         _optimize_PSD_kwargs
                                 )...)

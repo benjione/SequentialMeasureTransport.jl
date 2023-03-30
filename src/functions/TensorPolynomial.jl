@@ -141,4 +141,8 @@ function norm_func(sp::Jacobi, n)
         @error "Not implemented"
     end
 end
+norm_func(sp::Hermite, n) = begin
+    @assert sp.L == 1.0
+    return sqrt(1/(sqrt(π) * 2^n * factorial(n)))
+end
 norm_func(::Any, n) = @error "Not implemented"
