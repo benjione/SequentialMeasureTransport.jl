@@ -1,9 +1,8 @@
 
 abstract type AbstractPSDModelFM{T} <: PSDModel{T} end
-abstract type AbstractPSDModelFMPolynomial{T} <: AbstractPSDModelFM{T} end
+abstract type AbstractPSDModelPolynomial{T} <: AbstractPSDModelFM{T} end
 
 ## special feature map models:
-include("polynomial.jl")
 include("tensorized_polynomial.jl")
 
 # kwargs definition of PSDModelKernel

@@ -1,6 +1,3 @@
-
-
-
 include("kernel/PSDModelKernel.jl")
 include("feature_map/PSDModelFM.jl")
 
@@ -23,11 +20,8 @@ end
 
 PSDModel(sp::Space, N::Int; kwargs...) = PSDModel{Float64}(sp, N; kwargs...)
 function PSDModel{T}(sp::Space, N::Int; kwargs...) where {T<:Number}
-    B = diagm(ones(Float64, N))
-    return PSDModelFMPolynomial{T}(Hermitian(B), sp; 
-                    _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
+    return PSDModel{T}(sp, :trivial, N; kwargs...)
 end
-
 PSDModel(sp::Space, tensorizer::Symbol, N::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, N; kwargs...)
 function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int; 
                      sparse=false, kwargs...) where {T<:Number}
@@ -42,8 +36,8 @@ function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int;
     else
         @error "Tensorizer not implemented"
     end
-    return PSDModelFMTensorPolynomial{T}(Hermitian(B), Φ; 
-                    _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
+    return PSDModelPolynomial{T}(Hermitian(B), Φ; 
+            _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
 function PSDModel(
