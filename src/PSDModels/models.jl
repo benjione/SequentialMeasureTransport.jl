@@ -59,12 +59,12 @@ end
 
 function (a::PSDModel)(x::PSDdata{T}) where {T<:Number}
     v = Φ(a, x)
-    return v' * a.B * v
+    return dot(v, a.B, v)
 end
 
 function (a::PSDModel)(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     v = Φ(a, x)
-    return v' * B * v
+    return dot(v, B, v)
 end
 
 
@@ -89,7 +89,7 @@ function fit!(a::PSDModel{T},
         let K = reduce(hcat, Φ.(Ref(a), X))
             (i, A) -> begin
                 v = K[:,i]
-                return v' * A * v
+                return dot(v, A, v)
             end
         end
     else
@@ -143,7 +143,7 @@ function minimize!(a::PSDModel{T},
         let K = reduce(hcat, Φ.(Ref(a), X))
             (i, A) -> begin
                 v = K[:, i]
-                return v' * A * v
+                return dot(v, A, v)
             end
         end
     else

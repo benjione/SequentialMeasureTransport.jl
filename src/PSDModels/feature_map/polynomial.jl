@@ -10,17 +10,17 @@ struct PSDModelPolynomial{d, T<:Number} <: AbstractPSDModelPolynomial{T}
     Φ::FMTensorPolynomial{d, T}
     function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
                                     Φ::FMTensorPolynomial{d, T}
-                    ) where {T<:Number}
+                    ) where {d, T<:Number}
         new{d, T}(B, Φ)
     end
     function PSDModelPolynomial{T}(B::Hermitian{T, <:AbstractMatrix{T}},
                                     Φ::FMTensorPolynomial{d, T}
-                        )where {T<:Number, d}
+                        )where {d, T<:Number}
         new{d, T}(B, Φ)
     end
 end
 
-@inline _of_same_PSD(a::PSDModelPolynomial{T}, B::AbstractMatrix{T}) where {T<:Number} =
+@inline _of_same_PSD(a::PSDModelPolynomial{<:Any, T}, B::AbstractMatrix{T}) where {T<:Number} =
                 PSDModelPolynomial(Hermitian(B), a.Φ)
 
 """
@@ -34,10 +34,11 @@ function marginalize_orth_measure(a::PSDModelPolynomial{d, T}, dim::Int;
     @inline δ(i::Int, j::Int) = i == j ? 1 : 0
     @inline comp_ind(x,y) = mapreduce(k->k<dim ? δ(x[k], y[k]) : δ(x[k], y[k+1]), *, 1:(d-1))
     for i=1:size(a.B, 1)
-        for j=1:size(a.B, 2)
+        for j=i:size(a.B, 2)
             M[i, j] = measure_scale * δ(σ_inv(a.Φ, i)[dim], σ_inv(a.Φ, j)[dim])
         end
     end
+    M = Symmetric(M)
     if d-1 == 0  ## no dimension left
         return tr(M.*a.B)
     end
@@ -53,8 +54,8 @@ function marginalize_orth_measure(a::PSDModelPolynomial{d, T}, dim::Int;
     return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
 end
 
-marginalize(a::PSDModelPolynomial{d, T}, dim::Int) where {T<:Number} = marginalize(a, dim, x->1.0)
-function marginalize(a::PSDModelPolynomial{T}, dim::Int,
+marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int) where {T<:Number} = marginalize(a, dim, x->1.0)
+function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
                      measure::Function) where {d, T<:Number}
     @assert 1 ≤ dim ≤ d
 
@@ -81,5 +82,5 @@ end
 function integral(a::PSDModelPolynomial{d, T}, dim::Int) where {d, T<:Number}
     @assert 1 ≤ dim ≤ d
     M = SquaredPolynomialMatrix(a.Φ, Int[dim])
-    return TensorizedPolynomialTraceModel(a.B, M)
+    return PolynomialTraceModel(a.B, M)
 end

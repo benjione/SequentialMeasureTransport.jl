@@ -67,24 +67,27 @@ function add_order(p::FMTensorPolynomial{d}, dim::Int) where {d}
     return FMTensorPolynomial{d}(p.space, normal_vecs, triv_new_N, ten_new, p.highest_order+1)
 end
 
+(p::FMTensorPolynomial{d, T})(x::T) where {d, T} = p(T[x])
 function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T}) where {d, T}
-    A = T[Fun(p.space.spaces[i], [zeros(T, k);p.normal_factor[d][k+1]])(x[i]) for k=0:p.highest_order, i=1:d]
+    @assert length(x) == d
+    A = zeros(T, p.highest_order+1, d)
+    poly(k,i) = Fun(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]])(x[i])
+    map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
+
     @inline Ψ(k) = mapreduce(j->A[k[j], j], *, 1:d)
     map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
 
-function (p::FMTensorPolynomial{d, T})(x::T) where {d, T}
-    @assert d == 1
-    A = T[Fun(p.space.spaces[1], [zeros(T, k);p.normal_factor[1][k+1]])(x) for k=0:p.highest_order]
-    return map(i -> A[σ_inv(p, i)], 1:p.N)
-end
 
 _eval(p::FMTensorPolynomial{d, T}, x::T, ignore_dim::Vector{Int}) where {d, T} = _eval(p, T[x], ignore_dim)
 function _eval(p::FMTensorPolynomial{d, T}, 
                x::AbstractVector{T},
                ignore_dim::Vector{Int}) where {d, T}
+    @assert length(x) == d
     iter_dim = setdiff(1:d, ignore_dim)
-    A = T[Fun(p.space.spaces[i], [zeros(T, k);p.normal_factor[d][k+1]])(x[i]) for k=0:p.highest_order, i=1:d]
+    A = zeros(T, p.highest_order+1, d)
+    poly(k,i) = Fun(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]])(x[i])
+    map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
     @inline Ψ(k) = mapreduce(j->A[k[j], j], *, iter_dim, init=1.0)
     return map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
@@ -100,11 +103,19 @@ function calculate_M_quadrature(p::FMTensorPolynomial{d, T},
                         ) where {d, T<:Number}
     M = zeros(T, p.N, p.N)
     x, w = gausslegendre(Int(ceil(((p.highest_order+1)/2)+1)))
+    ## scale Gauss quadrature to domain
+    l = leftendpoint(p.space.spaces[dim].domain)
+    r = rightendpoint(p.space.spaces[dim].domain)
+    x .*= ((r - l)/2)
+    x .+= ((r + l)/2)
+    corr = ((r - l)/2)
+
     A = T[Fun(p.space.spaces[dim], [zeros(T, k);p.normal_factor[dim][k+1]])(x_i) for k=0:p.highest_order, x_i in x]
     meas_vec = measure.(x)
-    integrate(i,j) = dot(w, meas_vec.*A[i,:].*A[j,:])
+
+    integrate(i,j) = corr * dot(w, meas_vec.*A[i,:].*A[j,:])
     for i=1:p.N
-        for j=1:p.N
+        for j=i:p.N
             M[i,j] = integrate(σ_inv(p, i)[dim],σ_inv(p, j)[dim])
         end
     end

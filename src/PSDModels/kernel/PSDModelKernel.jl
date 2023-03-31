@@ -49,7 +49,7 @@ function PSDModel_gradient_descent(
 
     f_A(i, A) = begin
         v = K[i,:]
-        return v' * A * v
+        return dot(v, A, v)
     end
     f_A(A) = (1.0/N) * mapreduce(i-> (f_A(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
 

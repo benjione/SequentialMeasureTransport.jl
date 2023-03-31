@@ -8,6 +8,8 @@ using ApproxFun
         @test model.B == diagm([1.0, 2.0, 1.0, 1.0])
         model_marginalized = marginalize_orth_measure(model, 1)
         @test model_marginalized.B == diagm([3.0, 2.0])
+        model_marginalized2 = marginalize(model, 1)
+        @test model_marginalized2.B ≈ model_marginalized.B
     end
 
     @testset "non-orthogonal 2D" begin

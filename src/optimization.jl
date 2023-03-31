@@ -26,6 +26,7 @@ function optimize_PSD_model(initial::AbstractMatrix,
                     tol::Real=1e-6,
                     smooth::Bool=true,
                     opt_algo=nothing,
+                    optimizer=nothing,
                     vectorize_matrix::Bool=true,
                     normalization_constraint::Bool=false,
                 )
@@ -34,6 +35,7 @@ function optimize_PSD_model(initial::AbstractMatrix,
                 trace=trace,
                 maxit=maxit,
                 tol=tol,
+                optimizer=optimizer,
                 smooth=smooth,
                 normalization_constraint=normalization_constraint,
             )
@@ -83,6 +85,7 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
                     tol::Real=1e-6,
                     smooth::Bool=true,
                     normalization_constraint=false,
+                    optimizer=nothing,
                 )
     verbose_solver = trace ? true : false
     N = size(initial, 1)

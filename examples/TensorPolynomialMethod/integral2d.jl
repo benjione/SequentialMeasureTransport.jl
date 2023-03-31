@@ -7,7 +7,7 @@ f(x) = 1/(2.0 * π) * exp(-x[1]^2/2) * exp(-x[2]^2/2)
 
 # Create an empty model using Legendre polynimials, since they are orthogonal
 # to the Lebesgue measure.
-model = PSDModel(Legendre()^2, :trivial, 25)
+model = PSDModel(Legendre()^2, :trivial, 50)
 
 # generate some data
 X = [(rand(2) * 2 .- 1) for i in 1:300]
