@@ -134,7 +134,7 @@ function minimize!(a::PSDModel{T},
                    kwargs...
             ) where {T<:Number}
 
-    if normalization_constraint && (typeof(a) != PSDModelFMTensorPolynomial{T})
+    if normalization_constraint && (typeof(a) != PSDModelPolynomial)
         @error "Normalization constraint only implemented for tensorized polynomial model!"
         return nothing
     end
