@@ -93,7 +93,7 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
 
     if optimizer === nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            optimizer, 
+            SCS.Optimizer, 
             "max_iters" => maxit
         )
     else

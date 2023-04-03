@@ -6,7 +6,7 @@ optimal weighted sampling, closed form derivatives and integration, etc.
 For orthogonal polynomials, the package ApproxFun is used.
 """
 struct PSDModelPolynomial{d, T<:Number} <: AbstractPSDModelPolynomial{T}
-    B::Hermitian{T, AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
+    B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     Φ::FMTensorPolynomial{d, T}
     function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
                                     Φ::FMTensorPolynomial{d, T}

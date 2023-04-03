@@ -154,9 +154,9 @@ end
     k = MaternKernel(ν=1.0)
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
-    for x in rand(100) .- 0.5
-        @test isapprox(integrate(model, 0..x), f_int(x), atol=1e-1)
-    end
+    @inline interval(x) = 0..x
+    int_vec = integrate.(Ref(model), interval.(X))
+    @test norm(int_vec - f_int.(X)) < 1e-1
 end
 
 ## has probabilistic behavior in testing, skip for now

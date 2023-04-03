@@ -10,9 +10,9 @@ const _PSDModelFM_kwargs =
         Symbol[]
 
 struct PSDModelFM{T<:Number} <: AbstractPSDModelFM{T}
-    B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij Φ(x)_i * B_ij * Φ(x)_j
+    B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij Φ(x)_i * B_ij * Φ(x)_j
     Φ::Function                             # Φ(x) is the feature map
-    function PSDModelFM{T}(B::Hermitian{Float64, Matrix{Float64}}, 
+    function PSDModelFM{T}(B::Hermitian{T, <:AbstractMatrix{T}}, 
                     Φ
                     ) where {T<:Number}
         new{T}(B, Φ)
