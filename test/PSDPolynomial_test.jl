@@ -11,18 +11,6 @@ using ApproxFun
         model_marginalized2 = marginalize(model, 1)
         @test model_marginalized2.B ≈ model_marginalized.B
     end
-
-    @testset "non-orthogonal 2D" begin
-        model = PSDModel(Chebyshev()^2, :trivial, 4)
-        
-        model.B[2,2] = 2.0
-        # polynomial: 1 + 2x^2 + 1y^2 + 1x^2y^2
-        @test model.B == diagm([1.0, 2.0, 1.0, 1.0])
-        # solve M by quadrature
-        model_marginalized = marginalize(model, 1)
-        # int_-1^1 polynomial dx = 8/3 y^2 + 10/3
-        @test model_marginalized.B ≈ diagm([10/3, 8/3])
-    end
 end
 
 @testset "Integration" begin

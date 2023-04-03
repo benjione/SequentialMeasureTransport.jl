@@ -155,7 +155,7 @@ end
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
     @inline interval(x) = 0..x
-    int_vec = integrate.(Ref(model), interval.(X))
+    int_vec = PSDModels.integrate.(Ref(model), interval.(X))
     @test norm(int_vec - f_int.(X)) < 1e-1
 end
 
