@@ -2,7 +2,9 @@ using ProximalOperators: IndPSD, prox, prox!
 import ProximalAlgorithms
 
 const _optimize_PSD_kwargs = 
-    (:convex, :trace, :maxit, :tol, :smooth, :opt_algo, :vectorize_matrix)
+    (:convex, :trace, :maxit, :tol, 
+    :smooth, :opt_algo, :vectorize_matrix, 
+    :normalization_constraint, :optimizer)
 
 """
 optimize_PSD_model(initial::AbstractMatrix, 
@@ -26,17 +28,24 @@ function optimize_PSD_model(initial::AbstractMatrix,
                     tol::Real=1e-6,
                     smooth::Bool=true,
                     opt_algo=nothing,
+                    optimizer=nothing,
                     vectorize_matrix::Bool=true,
+                    normalization_constraint::Bool=false,
                 )
     if convex
         return optimize_PSD_model_convex(initial, loss;
                 trace=trace,
                 maxit=maxit,
                 tol=tol,
+                optimizer=optimizer,
                 smooth=smooth,
+                normalization_constraint=normalization_constraint,
             )
     end
 
+    if normalization_constraint
+        @error "Only implemented for the convex case."
+    end
     # set default parameters
     # TODO
 
@@ -77,16 +86,31 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
                     maxit::Int=5000,
                     tol::Real=1e-6,
                     smooth::Bool=true,
+                    normalization_constraint=false,
+                    optimizer=nothing,
                 )
     verbose_solver = trace ? true : false
+
+    if optimizer === nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer, 
+            "max_iters" => maxit
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
     N = size(initial, 1)
     B = con.Variable((N, N))
     problem = con.minimize(loss(B), con.isposdef(B))
-
-    solver = con.MOI.OptimizerWithAttributes(SCS.Optimizer, "max_iters" => maxit)
+    if normalization_constraint
+        # IMPORTANT: only valid for tensorized polynomial maps.
+        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
+        problem.constraints += con.tr(B) == 1
+    end
 
     con.solve!(problem,
-        solver;
+        optimizer;
         silent_solver = !verbose_solver
     )
     return Hermitian(con.evaluate(B))

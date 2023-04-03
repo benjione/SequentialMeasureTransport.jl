@@ -1,48 +1,86 @@
 """
-A PSD model where the feature map is made out of polynomial functions such as
-Chebyshev polynomials. There is an own implementation in order to provide
+A PSD model where the feature map is made out of orthonormal 
+polynomial functions such as Chebyshev polynomials. There is an own 
+implementation in order to provide orthonormal polynomials,
 optimal weighted sampling, closed form derivatives and integration, etc.
-As a polynomial package, ApproxFun is used.
+For orthogonal polynomials, the package ApproxFun is used.
 """
-struct PSDModelFMPolynomial{T<:Number} <: AbstractPSDModelFMPolynomial{T}
-    B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
-    Π::Space                                # Polynomial space of the feature map
-    func_vec::Vector{Fun}                   # Vector of functions that make up the feature map
-    function PSDModelFMPolynomial{T}(B::Hermitian{Float64, Matrix{Float64}}, 
-                                    Π::Space,
-                                    func_vec::Vector{<:Fun}
-                    ) where {T<:Number}
-        @assert length(func_vec) == size(B, 1)
-        new{T}(B, Π, func_vec)
+struct PSDModelPolynomial{d, T<:Number} <: AbstractPSDModelPolynomial{T}
+    B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
+    Φ::FMTensorPolynomial{d, T}
+    function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
+                                    Φ::FMTensorPolynomial{d, T}
+                    ) where {d, T<:Number}
+        new{d, T}(B, Φ)
+    end
+    function PSDModelPolynomial{T}(B::Hermitian{T, <:AbstractMatrix{T}},
+                                    Φ::FMTensorPolynomial{d, T}
+                        )where {d, T<:Number}
+        new{d, T}(B, Φ)
     end
 end
 
-function PSDModelFMPolynomial{T}(B::Hermitian{Float64, Matrix{Float64}}, 
-                Π::Space
-            ) where {T<:Number}
-    N = size(B, 1)
-    func_vec = Fun[Fun(Π, Float64[zeros(d); 1.0]) for d=0:(N-1)]
-    PSDModelFMPolynomial{T}(B, Π, func_vec)
-end
-
-@inline _of_same_PSD(a::PSDModelFMPolynomial{T}, B::AbstractMatrix{T}) where {T<:Number} =
-                PSDModelFMPolynomial{T}(Hermitian(B), a.Π, a.func_vec)
+@inline _of_same_PSD(a::PSDModelPolynomial{<:Any, T}, B::AbstractMatrix{T}) where {T<:Number} =
+                PSDModelPolynomial(Hermitian(B), a.Φ)
 
 """
-Φ(a::PSDModelFMPolynomial, x::PSDdata{T}) where {T<:Number}
-
-Returns the feature map of the PSD model at x.
+Marginalize the model along a given dimension according to the measure to which
+the polynomials are orthogonal to.
 """
-function Φ(a::PSDModelFMPolynomial{T}, x::PSDdata{T}) where {T<:Number}
-    return map(f-> f(x), a.func_vec)
+function marginalize_orth_measure(a::PSDModelPolynomial{d, T}, dim::Int;
+                                  measure_scale::T=1.0) where {d, T<:Number}
+    @assert 1 ≤ dim ≤ d
+    M = spzeros(T, size(a.B))
+    @inline δ(i::Int, j::Int) = i == j ? 1 : 0
+    @inline comp_ind(x,y) = mapreduce(k->k<dim ? δ(x[k], y[k]) : δ(x[k], y[k+1]), *, 1:(d-1))
+    for i=1:size(a.B, 1)
+        for j=i:size(a.B, 2)
+            M[i, j] = measure_scale * δ(σ_inv(a.Φ, i)[dim], σ_inv(a.Φ, j)[dim])
+        end
+    end
+    M = Symmetric(M)
+    if d-1 == 0  ## no dimension left
+        return tr(M.*a.B)
+    end
+    new_Φ = reduce_dim(a.Φ, dim)
+    P = spzeros(T, new_Φ.N, a.Φ.N)
+    for i=1:new_Φ.N
+        for j=1:a.Φ.N
+            P[i, j] = comp_ind(σ_inv(new_Φ, i), σ_inv(a.Φ, j))
+        end
+    end
+
+    B = P * (M .* a.B) * P'
+    return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
 end
 
-function integral(a::PSDModelFMPolynomial{T}, dim::AbstractVector) where {T<:Number}
-    return integral(_to_FMMat(a), dim)
+marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int) where {T<:Number} = marginalize(a, dim, x->1.0)
+function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
+                     measure::Function) where {d, T<:Number}
+    @assert 1 ≤ dim ≤ d
+
+    M = calculate_M_quadrature(a.Φ, dim, measure)
+    if d-1 == 0  ## no dimension left
+        return tr(M.*a.B)
+    end
+
+    @inline δ(i::Int, j::Int) = i == j ? 1 : 0
+    @inline comp_ind(x,y) = mapreduce(k->k<dim ? δ(x[k], y[k]) : δ(x[k], y[k+1]), *, 1:(d-1))
+    new_Φ = reduce_dim(a.Φ, dim)
+    P = spzeros(T, new_Φ.N, a.Φ.N)
+    for i=1:new_Φ.N
+        for j=1:a.Φ.N
+            P[i, j] = comp_ind(σ_inv(new_Φ, i), σ_inv(a.Φ, j))
+        end
+    end
+
+    B = P * (M .* a.B) * P'
+    return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
 end
 
-function _to_FMMat(a::PSDModelFMPolynomial{T}) where {T<:Number}
-    func_mat = Fun[f1 * f2 for f1 in a.func_vec, f2 in a.func_vec]
-    Π = func_mat[1, 1].space
-    return PolynomialTraceModel{T}(copy(a.B), a.Π, func_mat)
+
+function integral(a::PSDModelPolynomial{d, T}, dim::Int) where {d, T<:Number}
+    @assert 1 ≤ dim ≤ d
+    M = SquaredPolynomialMatrix(a.Φ, Int[dim])
+    return PolynomialTraceModel(a.B, M)
 end

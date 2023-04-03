@@ -1,6 +1,3 @@
-
-
-
 include("kernel/PSDModelKernel.jl")
 include("feature_map/PSDModelFM.jl")
 
@@ -11,30 +8,36 @@ function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
 end
 
 PSDModel(Φ::Function, N::Int; kwargs...) = PSDModel{Float64}(Φ, N; kwargs...)
-function PSDModel{T}(Φ::Function, N::Int; kwargs...) where {T<:Number}
-    B = diagm(ones(Float64, N))
+function PSDModel{T}(Φ::Function, N::Int; sparse=false, kwargs...) where {T<:Number}
+    B = if sparse
+        spdiagm(ones(Float64, N))
+    else
+        diagm(ones(Float64, N))
+    end
     return PSDModelFM{T}(Hermitian(B), Φ; 
                     _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
 PSDModel(sp::Space, N::Int; kwargs...) = PSDModel{Float64}(sp, N; kwargs...)
 function PSDModel{T}(sp::Space, N::Int; kwargs...) where {T<:Number}
-    B = diagm(ones(Float64, N))
-    return PSDModelFMPolynomial{T}(Hermitian(B), sp; 
-                    _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
+    return PSDModel{T}(sp, :trivial, N; kwargs...)
 end
-
 PSDModel(sp::Space, tensorizer::Symbol, N::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, N; kwargs...)
-function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int; kwargs...) where {T<:Number}
-    B = diagm(ones(Float64, N))
+function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int; 
+                     sparse=false, kwargs...) where {T<:Number}
+    B = if sparse
+        spdiagm(ones(Float64, N))
+    else
+        diagm(ones(Float64, N))
+    end
 
     Φ = if tensorizer == :trivial
         trivial_TensorPolynomial(sp, N)
     else
         @error "Tensorizer not implemented"
     end
-    return PSDModelFMTensorPolynomial{T}(Hermitian(B), Φ; 
-                    _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
+    return PSDModelPolynomial{T}(Hermitian(B), Φ; 
+            _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
 function PSDModel(
@@ -56,12 +59,12 @@ end
 
 function (a::PSDModel)(x::PSDdata{T}) where {T<:Number}
     v = Φ(a, x)
-    return v' * a.B * v
+    return dot(v, a.B, v)
 end
 
 function (a::PSDModel)(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     v = Φ(a, x)
-    return v' * B * v
+    return dot(v, B, v)
 end
 
 
@@ -86,7 +89,7 @@ function fit!(a::PSDModel{T},
         let K = reduce(hcat, Φ.(Ref(a), X))
             (i, A) -> begin
                 v = K[:,i]
-                return v' * A * v
+                return dot(v, A, v)
             end
         end
     else
@@ -127,14 +130,20 @@ function minimize!(a::PSDModel{T},
                    trace=false,
                    pre_eval=true,
                    pre_eval_thresh=5000,
+                   normalization_constraint=false,
                    kwargs...
             ) where {T<:Number}
+
+    if normalization_constraint && (typeof(a) != PSDModelPolynomial)
+        @error "Normalization constraint only implemented for tensorized polynomial model!"
+        return nothing
+    end
     N = length(X)
     f_B = if pre_eval && (N < pre_eval_thresh)
         let K = reduce(hcat, Φ.(Ref(a), X))
             (i, A) -> begin
                 v = K[:, i]
-                return v' * A * v
+                return dot(v, A, v)
             end
         end
     else
@@ -146,6 +155,7 @@ function minimize!(a::PSDModel{T},
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,
+                                normalization_constraint=normalization_constraint,
                                 _filter_kwargs(kwargs, 
                                         _optimize_PSD_kwargs
                                 )...)

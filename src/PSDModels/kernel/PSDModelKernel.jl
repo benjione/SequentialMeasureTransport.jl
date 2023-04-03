@@ -4,10 +4,10 @@ const _PSDModelKernel_kwargs =
 
 
 struct PSDModelKernel{T<:Number} <: PSDModel{T}
-    B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
+    B::Hermitian{Float64, <:AbstractMatrix{Float64}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     k::Kernel                               # k(x, y) is the kernel function
     X::PSDDataVector{T}                     # X is the set of points for the feature map
-    function PSDModelKernel(B::Hermitian{Float64, Matrix{Float64}}, 
+    function PSDModelKernel(B::Hermitian{Float64, <:AbstractMatrix{Float64}}, 
                         k::Kernel, 
                         X::PSDDataVector{T};
                         use_view=false
@@ -49,7 +49,7 @@ function PSDModel_gradient_descent(
 
     f_A(i, A) = begin
         v = K[i,:]
-        return v' * A * v
+        return dot(v, A, v)
     end
     f_A(A) = (1.0/N) * mapreduce(i-> (f_A(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
 

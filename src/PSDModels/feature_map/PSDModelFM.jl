@@ -1,19 +1,18 @@
 
 abstract type AbstractPSDModelFM{T} <: PSDModel{T} end
-abstract type AbstractPSDModelFMPolynomial{T} <: AbstractPSDModelFM{T} end
+abstract type AbstractPSDModelPolynomial{T} <: AbstractPSDModelFM{T} end
 
 ## special feature map models:
 include("polynomial.jl")
-include("tensorized_polynomial.jl")
 
 # kwargs definition of PSDModelKernel
 const _PSDModelFM_kwargs =
         Symbol[]
 
 struct PSDModelFM{T<:Number} <: AbstractPSDModelFM{T}
-    B::Hermitian{Float64, Matrix{Float64}}  # B is the PSD so that f(x) = ∑_ij Φ(x)_i * B_ij * Φ(x)_j
+    B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij Φ(x)_i * B_ij * Φ(x)_j
     Φ::Function                             # Φ(x) is the feature map
-    function PSDModelFM{T}(B::Hermitian{Float64, Matrix{Float64}}, 
+    function PSDModelFM{T}(B::Hermitian{T, <:AbstractMatrix{T}}, 
                     Φ
                     ) where {T<:Number}
         new{T}(B, Φ)
