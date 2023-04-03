@@ -36,7 +36,7 @@ end
 @inline σ_inv(t::TrivialTensorizer, i) = t.CI[i]
 @inline max_N(t::TrivialTensorizer) = prod(size(t.order))
 
-function reduce_dim(t::TrivialTensorizer{d}) where {d}
+function reduce_dim(t::TrivialTensorizer{d}, dim::Int) where {d}
     highest_order = size(t.order, 1)
     N = highest_order^(d-1)
     return TrivialTensorizer(d-1, N)

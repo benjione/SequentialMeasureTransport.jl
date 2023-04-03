@@ -2,6 +2,7 @@
 abstract type Tensorizer{d} end
 
 include("TrivialTensorizer.jl")
+include("DownwardClosed.jl")
 
 
 ### Interface for Tensorizers
@@ -9,7 +10,7 @@ include("TrivialTensorizer.jl")
 @inline σ_inv(t::Tensorizer, i) = @error "not implemented for this tensorizer"
 @inline max_N(t::Tensorizer) = @error "not implemented for this tensorizer"
 
-function reduce_dim(t::Tensorizer{d}) where {d}
+function reduce_dim(t::Tensorizer{d}, dim::Int) where {d}
     @error "not implemented for this tensorizer"
 end
 

@@ -27,11 +27,11 @@ FMTensorPolynomial{d}(space::TensorSpace, normal_factor::Vector{Vector{Float64}}
 @inline σ_inv(p::FMTensorPolynomial, i) = σ_inv(p.ten, i)
 
 function reduce_dim(p::FMTensorPolynomial{d, T}, dim::Int) where {d, T}
-    ten_new = reduce_dim(p.ten)
+    ten_new = reduce_dim(p.ten, dim)
     if d-1 == 0
         return FMTensorPolynomial{0}(TensorSpace(ConstantSpace()), Vector{T}[], 1, ten_new, 0)
     end
-    triv_new_N = highest_order(ten_new)^(d-1)
+    triv_new_N = max_N(ten_new)
     new_N = 0
     # x is new index, y is old index
     @inline comp_ind(x,y) = mapreduce(i->i<dim ? x[i]==y[i] : x[i]==y[i+1], *, 1:d-1)
@@ -143,11 +143,18 @@ function set_normalization_factors(poly_space::Space, highest_order::Int)
 end
 
 # default volume of Chebyshev is 2.0
-norm_func(sp::Chebyshev, n) = return sqrt(2.0/volume(sp.domain))
+function norm_func(sp::Chebyshev, n)
+    vol_change = sqrt(2.0/volume(sp.domain))
+    if n==0
+        return vol_change/sqrt(π)
+    else
+        return sqrt(2.0)*vol_change/sqrt(π)
+    end
+end
 function norm_func(sp::Jacobi, n)
     vol_change = sqrt(2.0/volume(sp.domain))
     if sp.a == sp.b == 0 # Legendre
-        return sqrt((2n+1)/2)/vol_change
+        return sqrt((2n+1)/2) * vol_change
     else
         @error "Not implemented"
     end
