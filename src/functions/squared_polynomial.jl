@@ -1,10 +1,10 @@
 
 
-struct SquaredPolynomialMatrix{d, T}
-    Φ::FMTensorPolynomial{d, T}
+struct SquaredPolynomialMatrix{d, T, S}
+    Φ::FMTensorPolynomial{d, T, S}
     int_dim::Vector{Int}                    # dimension which are integrated over
-    int_Fun::Vector{AbstractMatrix{Fun}}    # integral of Φ[i] * Φ[j] over dimension int_dim
-    function SquaredPolynomialMatrix(Φ::FMTensorPolynomial{d, T}, int_dim::Vector{Int}) where {d, T}
+    int_Fun::Vector{<:AbstractMatrix{Fun}}    # integral of Φ[i] * Φ[j] over dimension int_dim
+    function SquaredPolynomialMatrix(Φ::FMTensorPolynomial{d, T, S}, int_dim::Vector{Int}) where {d, T, S}
         int_Fun = [Matrix{Fun}(undef, Φ.highest_order+1, Φ.highest_order+1) for _=1:length(int_dim)]
         
         for i=1:Φ.highest_order+1
@@ -20,21 +20,34 @@ struct SquaredPolynomialMatrix{d, T}
                 end
             end
         end
-        return new{d, T}(Φ, int_dim, int_Fun)
+        return new{d, T, S}(Φ, int_dim, int_Fun)
     end
 end
 
-function (a::SquaredPolynomialMatrix)(x::PSDdata{T}) where {T<:Number}
-    vec = _eval(a.Φ, x, a.int_dim)
-    M = vec * vec'
-    for i = 1:size(M, 1)
-        for j = i:size(M, 2)
-            for k_index=1:length(a.int_dim)
+function (a::SquaredPolynomialMatrix{<:Any, T})(x::PSDdata{T}) where {T<:Number}
+    vec = _eval(a.Φ, x, a.int_dim)::Vector{T}
+    M = (vec * vec')::Matrix{T}
+    eval_Fun = Symmetric{T, Matrix{T}}[]
+    for k_index=1:length(a.int_dim)
+        k = a.int_dim[k_index]
+        tmp_mat = zeros(T, size(a.int_Fun[k_index]))
+        for i=1:size(a.int_Fun[k_index], 1), j=i:size(a.int_Fun[k_index], 2)
+            tmp_mat[i, j] = a.int_Fun[k_index][i, j](x[k])
+        end
+        sym_mat = Symmetric(tmp_mat)
+        push!(eval_Fun, sym_mat)
+    end
+    # eval_Fun = map((M, xk)->map(f->f(xk), M), a.int_Fun, x[a.int_dim])
+
+    for i::Int = 1:size(M, 1)
+        ind_i = σ_inv(a.Φ, i)
+        for j::Int = i::Int:size(M, 2)
+            ind_j = σ_inv(a.Φ, j)
+            @inbounds for k_index=1:length(a.int_dim)
                 k = a.int_dim[k_index]
-                i1 = σ_inv(a.Φ, i)[k]
-                i2 = σ_inv(a.Φ, j)[k]
-                res = a.int_Fun[k_index][i1, i2](x[k])
-                M[i, j] *= res
+                i1 = ind_i[k]::Int
+                i2 = ind_j[k]::Int
+                M[i, j] *= eval_Fun[k_index][i1, i2]::T
             end
         end
     end

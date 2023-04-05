@@ -1,14 +1,11 @@
 
 struct TrivialTensorizer{d} <: Tensorizer{d}
-    σ::Function
-    σ_inv::Function
     order::AbstractArray{Int, d}
     CI::CartesianIndices{d}
-    function TrivialTensorizer{d}(σ::Function, 
-                σ_inv::Function, 
+    function TrivialTensorizer{d}(
                 order::AbstractArray{Int, d}, 
                 CI::CartesianIndices{d}) where {d}
-        return new{d}(σ, σ_inv, order, CI)
+        return new{d}(order, CI)
     end
 end
 
@@ -19,7 +16,7 @@ function TrivialTensorizer(r_list::Vector{Int})
     vec = collect(1:prod(r_list))
     order = @views reshape(vec[:], [r_list[i] for i=1:d]...)
     CI = CartesianIndices(order)
-    return TrivialTensorizer{d}(σ, σ_inv, order, CI)
+    return TrivialTensorizer{d}(order, CI)
 end
 
 function TrivialTensorizer(d::Int, N::Int)
@@ -27,13 +24,13 @@ function TrivialTensorizer(d::Int, N::Int)
     vec = collect(1:highest_order^d)
     order = @views reshape(vec[:], [highest_order for i=1:d]...)
     CI = CartesianIndices(order)
-    return TrivialTensorizer{d}(σ, σ_inv, order, CI)
+    return TrivialTensorizer{d}(order, CI)
 end
 
 ### Functions common to all Tensorizers
 
 @inline σ(t::TrivialTensorizer, i) = t.order[i...]
-@inline σ_inv(t::TrivialTensorizer, i) = t.CI[i]
+@inline σ_inv(t::TrivialTensorizer, i::Int) = t.CI[i]
 @inline max_N(t::TrivialTensorizer) = prod(size(t.order))
 
 function reduce_dim(t::TrivialTensorizer{d}, dim::Int) where {d}

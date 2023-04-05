@@ -18,23 +18,25 @@ function PSDModel{T}(Φ::Function, N::Int; sparse=false, kwargs...) where {T<:Nu
                     _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
-PSDModel(sp::Space, N::Int; kwargs...) = PSDModel{Float64}(sp, N; kwargs...)
-function PSDModel{T}(sp::Space, N::Int; kwargs...) where {T<:Number}
-    return PSDModel{T}(sp, :trivial, N; kwargs...)
+PSDModel(sp::Space, ten_size::Int; kwargs...) = PSDModel{Float64}(sp, ten_size; kwargs...)
+function PSDModel{T}(sp::Space, ten_size::Int; kwargs...) where {T<:Number}
+    return PSDModel{T}(sp, :trivial, ten_size; kwargs...)
 end
-PSDModel(sp::Space, tensorizer::Symbol, N::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, N; kwargs...)
-function PSDModel{T}(sp::Space, tensorizer::Symbol, N::Int; 
+PSDModel(sp::Space, tensorizer::Symbol, ten_size::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, ten_size; kwargs...)
+function PSDModel{T}(sp::Space, tensorizer::Symbol, ten_size::Int; 
                      sparse=false, kwargs...) where {T<:Number}
+    Φ, N = if tensorizer == :trivial
+        trivial_TensorPolynomial(sp, ten_size), ten_size
+    elseif tensorizer == :downward_closed
+        poly = downwardClosed_Polynomial(sp, ten_size)
+        poly, max_N(poly.ten)
+    else
+        @error "Tensorizer not implemented"
+    end
     B = if sparse
         spdiagm(ones(Float64, N))
     else
         diagm(ones(Float64, N))
-    end
-
-    Φ = if tensorizer == :trivial
-        trivial_TensorPolynomial(sp, N)
-    else
-        @error "Tensorizer not implemented"
     end
     return PSDModelPolynomial{T}(Hermitian(B), Φ; 
             _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)

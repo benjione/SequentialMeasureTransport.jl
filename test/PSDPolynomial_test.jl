@@ -45,4 +45,23 @@ end
         int_model2 = integral(model, 2)
         @test norm(int_model2.(X) .- f_int2.(X))/norm(f_int2.(X)) < 1e-2
     end
+
+    @testset "2D downward_closed" begin
+        f(x) = x[1]^2 + x[2]^2
+        f_int(x) = (1/3) * x[1]^3 + x[2]^2 * x[1]
+        f_int2(x) = x[1]^2 * x[2] + (1/3) * x[2]^3
+        model = PSDModel(Legendre()^2, :downward_closed, 2)
+        
+        X = [[x,y] for x=collect(range(-1, 1, length=20)), y=collect(range(-1, 1, length=20))]
+        X = reshape(X, length(X))
+        Y = f.(X)
+        fit!(model, X, Y)
+        @test norm(model.(X) .- f.(X))/norm(f.(X)) < 1e-2
+
+        int_model = integral(model, 1)
+        @test norm(int_model.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
+
+        int_model2 = integral(model, 2)
+        @test norm(int_model2.(X) .- f_int2.(X))/norm(f_int2.(X)) < 1e-2
+    end
 end

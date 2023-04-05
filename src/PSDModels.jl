@@ -5,6 +5,7 @@ using KernelFunctions: Kernel, kernelmatrix
 using DomainSets
 using FastGaussQuadrature: gausslegendre
 using ApproxFun
+using Combinatorics: multiexponents
 import ForwardDiff as FD
 import Base
 

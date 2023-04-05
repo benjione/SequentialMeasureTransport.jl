@@ -3,18 +3,18 @@ A feature map of tensorization of polynimials, where ``\\sigma``
 is the function that maps a multiindex to a coefficient index
 in the tensorization.
 """
-struct FMTensorPolynomial{d, T} <: Function
+struct FMTensorPolynomial{d, T, S<:Tensorizer} <: Function
     space::TensorSpace
     normal_factor::Vector{Vector{T}} # Normalization factor for polynomials
     N::Int                  # order of feature map
-    ten::Tensorizer         # tensorizer
+    ten::S                  # tensorizer
     highest_order::Int      # max(order(p_i)) for all p_i in dimensions
     function FMTensorPolynomial{d, T}(space::TensorSpace,
                     normal_factor::Vector{Vector{T}}, 
                     N::Int,
-                    ten::Tensorizer,
-                    highest_order::Int) where {d, T}
-        return new{d, T}(space, normal_factor, N, ten, highest_order)
+                    ten::S,
+                    highest_order::Int) where {d, T, S<:Tensorizer}
+        return new{d, T, S}(space, normal_factor, N, ten, highest_order)
     end
 end
 
@@ -24,7 +24,7 @@ FMTensorPolynomial{d}(space::TensorSpace, normal_factor::Vector{Vector{Float64}}
     highest_order::Int) where {d} = FMTensorPolynomial{d, Float64}(space, normal_factor, N, ten, highest_order)
 
 @inline σ(p::FMTensorPolynomial, i) = σ(p.ten, i)
-@inline σ_inv(p::FMTensorPolynomial, i) = σ_inv(p.ten, i)
+@inline σ_inv(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S} = σ_inv(p.ten, i)
 
 function reduce_dim(p::FMTensorPolynomial{d, T}, dim::Int) where {d, T}
     ten_new = reduce_dim(p.ten, dim)
@@ -59,6 +59,16 @@ function trivial_TensorPolynomial(space::TensorSpace,
     return FMTensorPolynomial{d}(space, normal_factor, N, ten, high_order)
 end
 
+downwardClosed_Polynomial(sp::Space, max_order::Int) = trivial_TensorPolynomial(TensorSpace(sp), max_order)
+function downwardClosed_Polynomial(space::TensorSpace, 
+                                   max_order::Int)
+    d = length(space.spaces)
+    ten = DownwardClosedTensorizer(d, max_order)
+    normal_factor = set_normalization_factors(space, max_order)
+    N = max_N(ten)
+    return FMTensorPolynomial{d}(space, normal_factor, N, ten, max_order)
+end
+
 function add_order(p::FMTensorPolynomial{d}, dim::Int) where {d}
     ten_new = add_order(p.ten, dim)
     triv_new_N = max_N(ten_new)
@@ -80,9 +90,9 @@ end
 
 
 _eval(p::FMTensorPolynomial{d, T}, x::T, ignore_dim::Vector{Int}) where {d, T} = _eval(p, T[x], ignore_dim)
-function _eval(p::FMTensorPolynomial{d, T}, 
+function _eval(p::FMTensorPolynomial{d, T, S}, 
                x::AbstractVector{T},
-               ignore_dim::Vector{Int}) where {d, T}
+               ignore_dim::Vector{Int}) where {d, T, S}
     @assert length(x) == d
     iter_dim = setdiff(1:d, ignore_dim)
     A = zeros(T, p.highest_order+1, d)

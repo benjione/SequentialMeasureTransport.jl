@@ -1,28 +1,36 @@
 
 
 struct DownwardClosedTensorizer{d} <: Tensorizer{d}
-    index_list::AbstractVector{Vector{Int}}
-    highest_order_list::AbstractVector{Int}
+    index_list::Vector{Vector{Int}}
+    max_element_list::Vector{Int}
 end
 
 function DownwardClosedTensorizer(d::Int, max_order::Int)
     index_list = Vector{Int}[];
-    for i=1:max_order
-        push!(index_list, colllect(multiexponents(i,d)))
+    for i=0:max_order
+        vec = map(i->i.+1, collect(multiexponents(d, i)))
+        push!(index_list, vec...)
     end
-    highest_order_list = max_order * ones(Int, d)
-    return DownwardClosedTensorizer{d}(index_list, highest_order_list)
+    max_element_list = max_order * ones(Int, d)
+    return DownwardClosedTensorizer{d}(index_list, max_element_list)
 end
 
-function DownwardClosedTensorizer(highest_order_list::AbstractVector{Int})
-    d = length(highest_order_list)
-    index_list = Vector{Int}[];
-    max_order = max(highest_order_list...)
-    for i=1:max_order
-        push!(index_list, colllect(multiexponents(i,d)))
-    end
-    filter!(x -> all(i->i<0, x.-highest_order_list), index_list)
-    return DownwardClosedTensorizer{d}(index_list, highest_order_list)
+function DownwardClosedTensorizer(max_element_list::Vector{Int})
+    d = length(max_element_list)
+    ten = DownwardClosedTensorizer(d, max(max_element_list...))
+    new_index_list = filter(x -> all(i->i<0, x.-max_element_list), ten.index_list)
+    return DownwardClosedTensorizer{d}(new_index_list, max_element_list)
+end
+
+function add_index(t::DownwardClosedTensorizer{d}, index::Vector{Int}) where {d}
+    @assert length(index) == d
+    vec = index.-t.max_element_list
+    vec[vec .< 0] = 0
+    max_element_list = copy(t.max_element_list)
+    max_element_list .+= vec
+    new_index_list = copy(t.index_list)
+    push!(new_index_list, index)
+    return DownwardClosedTensorizer{d}(new_index_list, max_element_list)
 end
 
 ### Functions common to all Tensorizers
@@ -33,10 +41,11 @@ end
 
 function reduce_dim(t::DownwardClosedTensorizer{d}, dim::Int) where {d}
     @assert 1≤dim≤d
-    highest_order_list = t.highest_order_list[1:end .!= dim]
-    return DownwardClosedTensorizer(highest_order_list)
+    max_element_list = t.max_element_list[1:end .!= dim]
+    max_element_list = unique(map(i->i[1:end .!= dim], t.index_list))
+    return DownwardClosedTensorizer{d-1}(reduced_index_list, max_element_list)
 end
 
 function highest_order(t::DownwardClosedTensorizer)
-    return max(t.highest_order_list...)
+    return max(t.max_element_list...)
 end
