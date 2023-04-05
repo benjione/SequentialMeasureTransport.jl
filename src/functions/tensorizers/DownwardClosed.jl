@@ -42,7 +42,7 @@ end
 function reduce_dim(t::DownwardClosedTensorizer{d}, dim::Int) where {d}
     @assert 1≤dim≤d
     max_element_list = t.max_element_list[1:end .!= dim]
-    max_element_list = unique(map(i->i[1:end .!= dim], t.index_list))
+    reduced_index_list = unique(map(i->i[1:end .!= dim], t.index_list))
     return DownwardClosedTensorizer{d-1}(reduced_index_list, max_element_list)
 end
 

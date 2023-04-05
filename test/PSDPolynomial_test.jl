@@ -11,6 +11,38 @@ using ApproxFun
         model_marginalized2 = marginalize(model, 1)
         @test model_marginalized2.B ≈ model_marginalized.B
     end
+
+    @testset "orthogonal 2D scaled" begin
+        @testset "trivial tensorization" begin
+            f(x) = 2*(x[2]-0.5)^2 * (x[2]+0.5)^2 + 2*(x[1]-0.5)^2 * (x[1]+0.5)^2
+            model = PSDModel(Legendre(-15..15)^2, :trivial, 20)
+            # generate some data
+            X = [(rand(2) * 2 .- 1) for i in 1:200]
+            Y = f.(X)
+
+            fit!(model, X, Y, maxit=2000)
+            model_marginalized = marginalize_orth_measure(model, 1)
+            model_marginalized2 = marginalize(model, 1)
+            @test model_marginalized2.B ≈ model_marginalized.B
+
+            @test marginalize(model_marginalized, 1) ≈ marginalize(model_marginalized2, 1)
+        end
+
+        @testset "downward closed tensorization" begin
+            f(x) = 2*(x[2]-0.5)^2 * (x[2]+0.5)^2 + 2*(x[1]-0.5)^2 * (x[1]+0.5)^2
+            model = PSDModel(Legendre(-15..15)^2, :downward_closed, 5)
+            # generate some data
+            X = [(rand(2) * 2 .- 1) for i in 1:200]
+            Y = f.(X)
+
+            fit!(model, X, Y, maxit=2000)
+            model_marginalized = marginalize_orth_measure(model, 1)
+            model_marginalized2 = marginalize(model, 1)
+            @test model_marginalized2.B ≈ model_marginalized.B
+
+            @test marginalize(model_marginalized, 1) ≈ marginalize(model_marginalized2, 1)
+        end
+    end
 end
 
 @testset "Integration" begin
@@ -63,5 +95,27 @@ end
 
         int_model2 = integral(model, 2)
         @test norm(int_model2.(X) .- f_int2.(X))/norm(f_int2.(X)) < 1e-2
+    end
+end
+
+@testset "Density estimation" begin
+    @testset "1D" begin
+        pdf(x) = exp(-x^2/2)/sqrt(2*pi)
+        X = randn(500)
+        model = PSDModel(Legendre(-15..15), :trivial, 30)
+        loss(Z) = -1/length(Z) * sum(log.(Z))
+        minimize!(model, loss, X, maxit=3000, normalization_constraint=true)
+        domx = collect(range(-15, 15, length=2000))
+        @test norm(model.(domx) .- pdf.(domx))/norm(pdf.(domx)) < 1e-1
+    end
+
+    @testset "1D downward_closed" begin
+        pdf(x) = exp(-x^2/2)/sqrt(2*pi)
+        X = randn(500)
+        model = PSDModel(Legendre(-15..15), :downward_closed, 30)
+        loss(Z) = -1/length(Z) * sum(log.(Z))
+        minimize!(model, loss, X, maxit=3000, normalization_constraint=true)
+        domx = collect(range(-15, 15, length=2000))
+        @test norm(model.(domx) .- pdf.(domx))/norm(pdf.(domx)) < 1e-1
     end
 end

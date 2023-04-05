@@ -112,7 +112,7 @@ function calculate_M_quadrature(p::FMTensorPolynomial{d, T},
                                 measure::Function
                         ) where {d, T<:Number}
     M = zeros(T, p.N, p.N)
-    x, w = gausslegendre(Int(ceil(((p.highest_order+1)/2)+1)))
+    x, w = gausslegendre(p.highest_order+1)
     ## scale Gauss quadrature to domain
     l = leftendpoint(p.space.spaces[dim].domain)
     r = rightendpoint(p.space.spaces[dim].domain)
