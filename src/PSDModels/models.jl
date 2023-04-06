@@ -59,14 +59,14 @@ function PSDModel(
     end
 end
 
-function (a::PSDModel)(x::PSDdata{T}) where {T<:Number}
+function (a::PSDModel{T})(x::PSDdata{T}) where {T<:Number}
     v = Φ(a, x)
-    return dot(v, a.B, v)
+    return dot(v, a.B, v)::T
 end
 
-function (a::PSDModel)(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
+function (a::PSDModel{T})(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     v = Φ(a, x)
-    return dot(v, B, v)
+    return dot(v, B, v)::T
 end
 
 
