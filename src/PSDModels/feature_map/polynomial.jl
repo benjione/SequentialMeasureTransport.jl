@@ -54,6 +54,16 @@ function marginalize_orth_measure(a::PSDModelPolynomial{d, T}, dim::Int;
     return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
 end
 
+function marginalize_orth_measure(a::PSDModelPolynomial{d, T}, 
+                        dims::Vector{Int}) where {d, T<:Number}
+    @assert 1 ≤ minimum(dims) ≤ maximum(dims) ≤ d
+    dims = sort(dims)
+    for dim in reverse(dims) ## reverse order to avoid changing the indices
+        a = marginalize_orth_measure(a, dim)
+    end
+    return a
+end
+
 marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int) where {T<:Number} = marginalize(a, dim, x->1.0)
 function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
                      measure::Function) where {d, T<:Number}
@@ -78,6 +88,17 @@ function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
     return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
 end
 
+marginalize(a::PSDModelPolynomial{<:Any, T}, dims::Vector{Int}) where {T<:Number} = marginalize(a, dims, x->1.0)
+function marginalize(a::PSDModelPolynomial{d, T}, dims::Vector{Int},
+                    measure::Function) where {d, T<:Number}
+    @assert 1 ≤ minimum(dims) ≤ maximum(dims) ≤ d
+    dims = sort(dims)
+    for dim in reverse(dims) ## reverse order to avoid changing the indices
+        a = marginalize(a, dim, measure)
+    end
+    return a
+end
+
 """
     function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing)
 
@@ -94,4 +115,6 @@ function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing) where {d, T<
     return PolynomialTraceModel(a.B, M)
 end
 
-normalize_orth_measure!(a::PSDModelPolynomial{T}) where {T<:Number} = a.B .= a.B * (1/tr(a.B))
+normalize_orth_measure!(a::PSDModelPolynomial{<:Any, T}) where {T<:Number} = a.B .= a.B * (1/tr(a.B))
+normalize!(a::PSDModelPolynomial{d, T}) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d)))
+normalize!(a::PSDModelPolynomial{d, T}, measure::Function) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d), measure))

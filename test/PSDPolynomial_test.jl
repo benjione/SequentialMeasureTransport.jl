@@ -119,3 +119,34 @@ end
         @test norm(model.(domx) .- pdf.(domx))/norm(pdf.(domx)) < 1e-1
     end
 end
+
+
+@testset "Normalization" begin
+    @testset "2D" begin
+        model = PSDModel(Legendre()^2, :trivial, 4)
+        
+        model.B[2,2] = 2.0
+        normalize_orth_measure!(model)
+        @test tr(model.B) ≈ 1.0
+
+        PSDModels.normalize!(model)
+        @test tr(model.B) ≈ 1.0
+    end
+
+    @testset "2D scaled" begin
+        @testset "trivial tensorization" begin
+            f(x) = 2*(x[2]-0.5)^2 * (x[2]+0.5)^2 + 2*(x[1]-0.5)^2 * (x[1]+0.5)^2
+            model = PSDModel(Legendre(-15..15)^2, :trivial, 20)
+            # generate some data
+            X = [(rand(2) * 2 .- 1) for i in 1:200]
+            Y = f.(X)
+
+            fit!(model, X, Y, maxit=2000)
+            normalize_orth_measure!(model)
+            @test tr(model.B) ≈ 1.0
+
+            PSDModels.normalize!(model)
+            @test tr(model.B) ≈ 1.0
+        end
+    end
+end

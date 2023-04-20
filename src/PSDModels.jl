@@ -18,7 +18,8 @@ export fit!, minimize!
 
 ## export differentiation and integration
 export gradient, integrate
-export integral
+export integral, normalize_orth_measure!
+export normalize!, normalize_orth_measure!
 export marginalize_orth_measure, marginalize
 
 ## export arithmetic
