@@ -109,7 +109,7 @@ the beginning of the interval.
 function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing) where {d, T<:Number}
     @assert 1 ≤ dim ≤ d
     if C === nothing
-        C = leftendpoint(p.space.spaces[dim].domain)
+        C = leftendpoint(a.space.spaces[dim].domain)
     end
     M = SquaredPolynomialMatrix(a.Φ, Int[dim]; C=C)
     return PolynomialTraceModel(a.B, M)
