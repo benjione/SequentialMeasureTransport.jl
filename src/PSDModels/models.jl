@@ -64,6 +64,12 @@ function (a::PSDModel{T})(x::PSDdata{T}) where {T<:Number}
     return dot(v, a.B, v)::T
 end
 
+# define this for Zygote, ForwardDiff, etc.
+function (a::PSDModel)(x::PSDdata{T}) where {T<:Number}
+    v = Φ(a, x)
+    return dot(v, a.B, v)::T
+end
+
 function (a::PSDModel{T})(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     v = Φ(a, x)
     return dot(v, B, v)::T

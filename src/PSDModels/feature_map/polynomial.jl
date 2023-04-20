@@ -78,9 +78,20 @@ function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
     return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
 end
 
+"""
+    function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing)
 
-function integral(a::PSDModelPolynomial{d, T}, dim::Int) where {d, T<:Number}
+Integrate the model along a given dimension. The integration constant C gives
+the x value of where it should start. If C is not given, it is assumed to be
+the beginning of the interval.
+"""
+function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing) where {d, T<:Number}
     @assert 1 ≤ dim ≤ d
-    M = SquaredPolynomialMatrix(a.Φ, Int[dim])
+    if C === nothing
+        C = leftendpoint(p.space.spaces[dim].domain)
+    end
+    M = SquaredPolynomialMatrix(a.Φ, Int[dim]; C=C)
     return PolynomialTraceModel(a.B, M)
 end
+
+normalize_orth_measure!(a::PSDModelPolynomial{T}) where {T<:Number} = a.B .= a.B * (1/tr(a.B))

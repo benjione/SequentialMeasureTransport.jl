@@ -55,7 +55,7 @@ end
         Y = f.(X)
         fit!(model, X, Y, maxit=500)
 
-        int_model = integral(model, 1)
+        int_model = integral(model, 1; C=0.0)
         @test norm(int_model.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
     end
 
@@ -71,10 +71,10 @@ end
         fit!(model, X, Y)
         @test norm(model.(X) .- f.(X))/norm(f.(X)) < 1e-2
 
-        int_model = integral(model, 1)
+        int_model = integral(model, 1; C=0.0)
         @test norm(int_model.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
 
-        int_model2 = integral(model, 2)
+        int_model2 = integral(model, 2; C=0.0)
         @test norm(int_model2.(X) .- f_int2.(X))/norm(f_int2.(X)) < 1e-2
     end
 
@@ -90,10 +90,10 @@ end
         fit!(model, X, Y)
         @test norm(model.(X) .- f.(X))/norm(f.(X)) < 1e-2
 
-        int_model = integral(model, 1)
+        int_model = integral(model, 1; C=0.0)
         @test norm(int_model.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
 
-        int_model2 = integral(model, 2)
+        int_model2 = integral(model, 2; C=0.0)
         @test norm(int_model2.(X) .- f_int2.(X))/norm(f_int2.(X)) < 1e-2
     end
 end

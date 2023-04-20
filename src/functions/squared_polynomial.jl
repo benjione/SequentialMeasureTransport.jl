@@ -4,7 +4,11 @@ struct SquaredPolynomialMatrix{d, T, S}
     Φ::FMTensorPolynomial{d, T, S}
     int_dim::Vector{Int}                    # dimension which are integrated over
     int_Fun::Vector{<:AbstractMatrix{Fun}}    # integral of Φ[i] * Φ[j] over dimension int_dim
-    function SquaredPolynomialMatrix(Φ::FMTensorPolynomial{d, T, S}, int_dim::Vector{Int}) where {d, T, S}
+    function SquaredPolynomialMatrix(Φ::FMTensorPolynomial{d, T, S}, int_dim::Vector{Int}; C=nothing) where {d, T, S}
+        if C === nothing
+            C = leftendpoint(Φ.space.spaces[int_dim].domain)
+        end
+        
         int_Fun = [Matrix{Fun}(undef, Φ.highest_order+1, Φ.highest_order+1) for _=1:length(int_dim)]
         
         for i=1:Φ.highest_order+1
@@ -14,7 +18,7 @@ struct SquaredPolynomialMatrix{d, T, S}
                     f1 = Fun(Φ.space.spaces[k], [zeros(T, i-1);Φ.normal_factor[k][i]])
                     f2 = Fun(Φ.space.spaces[k], [zeros(T, j-1);Φ.normal_factor[k][j]])
                     res = Integral() * (f1 * f2)
-                    res = res - res(0.0)  ## let integral start from 0
+                    res = res + res(C)  ## let integral start from 0
                     int_Fun[k_index][i, j] = res
                     int_Fun[k_index][j, i] = res
                 end
