@@ -85,39 +85,12 @@ function fit!(a::PSDModel{T},
                 X::PSDDataVector{T}, 
                 Y::Vector{T},
                 weights::Vector{T}; 
-                λ_1=0.0,
-                λ_2=1e-8,
-                trace=false,
-                pre_eval=true,
-                pre_eval_thresh=5000,
                 kwargs...
             ) where {T<:Number}
     N = length(X)
+    loss(Z) = (1.0/N) * sum((Z .- Y).^2 .* weights)
 
-    f_B = if pre_eval && (N < pre_eval_thresh)
-        let K = reduce(hcat, Φ.(Ref(a), X))
-            (i, A) -> begin
-                v = K[:,i]
-                return dot(v, A, v)
-            end
-        end
-    else
-        (i, A) -> begin
-            return a(X[i], A)
-        end
-    end
-    f_A(A) = begin
-        (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
-    end
-
-    solution = optimize_PSD_model(a.B, f_A;
-                                convex=true,
-                                trace=trace,
-                                _filter_kwargs(kwargs, 
-                                        _optimize_PSD_kwargs,
-                                        (:convex, :trace)
-                                )...)
-    set_coefficients!(a, solution)
+    minimize!(a, loss, X; kwargs...)
     return nothing
 end
 
@@ -161,7 +134,24 @@ function minimize!(a::PSDModel{T},
             return a(X[i], A)
         end
     end
-    loss(A) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
+    loss =
+        if λ_1 == 0.0 && λ_2 == 0.0
+            (A) -> begin
+                return L([f_B(i, A) for i in 1:length(X)])
+            end
+        elseif λ_1 == 0.0
+            (A) -> begin
+                return L([f_B(i, A) for i in 1:length(X)]) + λ_2 * opnorm(A, 2)^2
+            end
+        elseif λ_2 == 0.0
+            (A) -> begin
+                return L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A)
+            end
+        else
+            (A) -> begin
+                return L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
+            end
+        end
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,
