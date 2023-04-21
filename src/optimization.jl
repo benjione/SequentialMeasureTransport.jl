@@ -106,6 +106,7 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
 
     N = size(initial, 1)
     B = con.Variable((N, N))
+    B.value = initial
     problem = con.minimize(loss(B), con.isposdef(B))
     if normalization_constraint
         # IMPORTANT: only valid for tensorized polynomial maps.
