@@ -23,3 +23,8 @@ function low_vec_to_Symmetric(vec::AbstractVector)
     return low_vec_to_Symmetric(vec, view_mat_for_to_symmetric(N))
 end
 @inline low_vec_to_Symmetric(vec::AbstractVector, vm::AbstractMatrix) = @view vec[vm]
+
+
+## norm utilitys
+
+nuclearnorm(A::AbstractMatrix) = sum(svdvals(A))

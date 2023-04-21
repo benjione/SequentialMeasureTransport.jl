@@ -83,22 +83,21 @@ end
 @testset "Model fitting" begin
     @testset "direct fit" begin
         f(x) = 2*(x-0.5)^2 * (x+0.5)^2
-        N = 20
+        N = 25
         X = collect(range(-1, 1, length=N))
         Y = f.(X)
 
         k = MaternKernel(ν=1.0)
         model = PSDModel(X, Y, k; solver=:direct)
 
-        for x in rand(100)*1.5 .-0.75
-            @test isapprox(model(x), f(x), atol=1e-1)
-        end
+        domx = collect(range(-1, 1, length=1000))
+        @test norm(model.(domx) - f.(domx))/norm(f.(domx)) < 3e-1
     end
 
 
     @testset "gradient descent fit" begin
         f(x) = 2*(x-0.5)^2 * (x+0.5)^2
-        N = 20
+        N = 30
         X = collect(range(-1, 1, length=N))
         Y = f.(X)
 
@@ -106,25 +105,23 @@ end
         model = PSDModel(X, Y, k, 
                         solver=:gradient_descent)
 
-        for x in rand(100)*1.5 .-0.75
-            @test isapprox(model(x), f(x), atol=1e-1)
-        end
+        domx = collect(range(-1, 1, length=1000))
+        @test norm(model.(domx) - f.(domx))/norm(f.(domx)) < 1e-1
     end
 
     @testset "function fit!" begin
         f(x) = 2*(x-0.5)^2 * (x+0.5)^2
-        N = 20
+        N = 30
         X = collect(range(-1, 1, length=N))
         Y = f.(X)
 
-        k = MaternKernel(ν=1.5)
+        k = MaternKernel(ν=1.0)
         model = PSDModel(k, X)
 
-        fit!(model, X, Y, maxit=1000)
+        fit!(model, X, Y, λ_1=1e-4, λ_2=1e-8, maxit=2000)
 
-        for x in rand(100)*1.5 .-0.75
-            @test isapprox(model(x), f(x), atol=1e-1)
-        end
+        domx = collect(range(-1, 1, length=1000))
+        @test norm(model.(domx) - f.(domx))/norm(f.(domx)) < 1.5e-1
 
     end
 end

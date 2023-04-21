@@ -85,7 +85,8 @@ function fit!(a::PSDModel{T},
                 X::PSDDataVector{T}, 
                 Y::Vector{T},
                 weights::Vector{T}; 
-                λ_1=1e-8,
+                λ_1=0.0,
+                λ_2=1e-8,
                 trace=false,
                 pre_eval=true,
                 pre_eval_thresh=5000,
@@ -106,7 +107,7 @@ function fit!(a::PSDModel{T},
         end
     end
     f_A(A) = begin
-        (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
+        (1.0/N) * mapreduce(i-> weights[i]*(f_B(i, A) - Y[i])^2, +, 1:N) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
     end
 
     solution = optimize_PSD_model(a.B, f_A;
@@ -134,7 +135,8 @@ Minimizes ``B^* = \\argmin_B L(a_B(x_1), a_B(x_2), ...) + λ_1 tr(B) `` and retu
 function minimize!(a::PSDModel{T}, 
                    L::Function, 
                    X::PSDDataVector{T};
-                   λ_1=1e-8,
+                   λ_1=0.0,
+                   λ_2=1e-8,
                    trace=false,
                    pre_eval=true,
                    pre_eval_thresh=5000,
@@ -159,7 +161,7 @@ function minimize!(a::PSDModel{T},
             return a(X[i], A)
         end
     end
-    loss(A) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * tr(A)
+    loss(A) = L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,

@@ -73,12 +73,16 @@ function optimize_PSD_model(initial::AbstractMatrix,
 end
 
 import Convex as con
+using Convex: opnorm
 import SCS
 ## utils Convex for least squares
 Base.:^(x::con.AbstractExpr, p::Int) = begin
     @assert p == 2
     return con.sumsquares(x)
 end
+
+nuclearnorm(A::AbstractMatrix) = sum(svdvals(A))
+nuclearnorm(A::con.AbstractExpr) = con.nuclearnorm(A)
 
 function optimize_PSD_model_convex(initial::AbstractMatrix, 
                     loss::Function;
