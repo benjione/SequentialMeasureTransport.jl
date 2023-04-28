@@ -2,17 +2,19 @@ using PSDModels
 using LinearAlgebra
 using ApproxFun
 using Plots
+# using Hypatia
 
 f(x) = 2*(x[2]-0.5)^2 * (x[2]+0.5)^2 + 2*(x[1]-0.5)^2 * (x[1]+0.5)^2
 
 # Create an empty model
-model = PSDModel(Chebyshev()^2, :trivial, 20)
+model = PSDModel(Chebyshev()^2, :downward_closed, 5)
 
 # generate some data
 X = [(rand(2) * 2 .- 1) for i in 1:300]
 Y = f.(X)
 
 # fit the model
+# fit!(model, X, Y, trace=true, optimizer=Hypatia.Optimizer())
 fit!(model, X, Y, trace=true)
 
 # Plot the model

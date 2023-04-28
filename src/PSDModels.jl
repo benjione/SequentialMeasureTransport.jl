@@ -14,11 +14,11 @@ include("optimization.jl")
 
 export PSDModel
 ## export optimization
-export fit!, minimize!
+export fit!, minimize!, IRLS!
 
 ## export differentiation and integration
 export gradient, integrate
-export integral, normalize_orth_measure!
+export integral
 export normalize!, normalize_orth_measure!
 export marginalize_orth_measure, marginalize
 
@@ -35,5 +35,9 @@ abstract type TraceModel{T} end
 include("functions/functions.jl")
 include("PSDModels/models.jl")
 include("TraceModels/models.jl")
+
+# tailored statistics for PSD models
+include("statistics.jl")
+using .Statistics
 
 end # module PositiveSemidefiniteModels

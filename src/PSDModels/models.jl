@@ -1,6 +1,9 @@
 include("kernel/PSDModelKernel.jl")
 include("feature_map/PSDModelFM.jl")
 
+# optimization algorithms acting on PSDModels
+include("optimization.jl")
+
 function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
     B = diagm(ones(Float64, length(X)))
     return PSDModelKernel(Hermitian(B), k, X; 
@@ -74,94 +77,6 @@ function (a::PSDModel{T})(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     v = Φ(a, x)
     return dot(v, B, v)::T
 end
-
-
-fit!(a::PSDModel, 
-        X::PSDDataVector{T}, 
-        Y::Vector{T}; 
-        kwargs...
-    ) where {T<:Number} = fit!(a, X, Y, ones(T, length(X)); kwargs...)
-function fit!(a::PSDModel{T}, 
-                X::PSDDataVector{T}, 
-                Y::Vector{T},
-                weights::Vector{T}; 
-                kwargs...
-            ) where {T<:Number}
-    N = length(X)
-    loss(Z) = (1.0/N) * sum((Z .- Y).^2 .* weights)
-
-    minimize!(a, loss, X; kwargs...)
-    return nothing
-end
-
-"""
-minimize!(a::PSDModel{T}, L::Function, X::PSDDataVector{T}; λ_1=1e-8,
-                    trace=false,
-                    maxit=5000,
-                    tol=1e-6,
-                    pre_eval=true,
-                    pre_eval_thresh=5000,
-                ) where {T<:Number}
-
-Minimizes ``B^* = \\argmin_B L(a_B(x_1), a_B(x_2), ...) + λ_1 tr(B) `` and returns the modified PSDModel with the right matrix B.
-"""
-function minimize!(a::PSDModel{T}, 
-                   L::Function, 
-                   X::PSDDataVector{T};
-                   λ_1=0.0,
-                   λ_2=1e-8,
-                   trace=false,
-                   pre_eval=true,
-                   pre_eval_thresh=5000,
-                   normalization_constraint=false,
-                   kwargs...
-            ) where {T<:Number}
-
-    if normalization_constraint && !(a isa PSDModelPolynomial)
-        @error "Normalization constraint only implemented for tensorized polynomial model!"
-        return nothing
-    end
-    N = length(X)
-    f_B = if pre_eval && (N < pre_eval_thresh)
-        let K = reduce(hcat, Φ.(Ref(a), X))
-            (i, A) -> begin
-                v = K[:, i]
-                return dot(v, A, v)
-            end
-        end
-    else
-        (i, A) -> begin
-            return a(X[i], A)
-        end
-    end
-    loss =
-        if λ_1 == 0.0 && λ_2 == 0.0
-            (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)])
-            end
-        elseif λ_1 == 0.0
-            (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)]) + λ_2 * opnorm(A, 2)^2
-            end
-        elseif λ_2 == 0.0
-            (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A)
-            end
-        else
-            (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
-            end
-        end
-
-    solution = optimize_PSD_model(a.B, loss;
-                                trace=trace,
-                                normalization_constraint=normalization_constraint,
-                                _filter_kwargs(kwargs, 
-                                        _optimize_PSD_kwargs
-                                )...)
-    set_coefficients!(a, solution)
-end
-
 
 function set_coefficients!(a::PSDModel{T}, B::Hermitian{T}) where {T<:Number}
     a.B .= B
