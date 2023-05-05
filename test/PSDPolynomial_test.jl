@@ -46,7 +46,7 @@ using ApproxFun
 end
 
 @testset "Integration" begin
-    @testset "simple 1D" begin
+    @testset "1D custom C" begin
         f(x) = x^2
         f_int(x) = 1/3 * x^3
         model = PSDModel(Legendre(), :trivial, 5)
@@ -59,7 +59,22 @@ end
         @test norm(int_model.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
     end
 
-    @testset "2D" begin
+    @testset "1D default C" begin
+        f(x) = x^2
+        f_int(x) = 1/3 * x^3 + 1/3
+        model = PSDModel(Legendre(), :trivial, 5)
+        
+        X = collect(range(-1, 1, length=100))
+        Y = f.(X)
+        fit!(model, X, Y, maxit=1000, λ_1=1e-5, λ_2=0.0)
+
+        int_model = integral(model, 1; C=-1.0)
+        int_model2 = integral(model, 1)
+        @test norm(int_model.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
+        @test norm(int_model2.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
+    end
+
+    @testset "2D custom C" begin
         f(x) = x[1]^2 + x[2]^2
         f_int(x) = (1/3) * x[1]^3 + x[2]^2 * x[1]
         f_int2(x) = x[1]^2 * x[2] + (1/3) * x[2]^3
@@ -78,7 +93,7 @@ end
         @test norm(int_model2.(X) .- f_int2.(X))/norm(f_int2.(X)) < 1e-2
     end
 
-    @testset "2D downward_closed" begin
+    @testset "2D downward_closed custom C" begin
         f(x) = x[1]^2 + x[2]^2
         f_int(x) = (1/3) * x[1]^3 + x[2]^2 * x[1]
         f_int2(x) = x[1]^2 * x[2] + (1/3) * x[2]^3

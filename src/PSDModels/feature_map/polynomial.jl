@@ -5,7 +5,7 @@ implementation in order to provide orthonormal polynomials,
 optimal weighted sampling, closed form derivatives and integration, etc.
 For orthogonal polynomials, the package ApproxFun is used.
 """
-struct PSDModelPolynomial{d, T<:Number} <: AbstractPSDModelPolynomial{T}
+struct PSDModelPolynomial{d, T<:Number} <: AbstractPSDModelOrthonormal{d, T}
     B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     Φ::FMTensorPolynomial{d, T}
     function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
@@ -22,6 +22,13 @@ end
 
 @inline _of_same_PSD(a::PSDModelPolynomial{<:Any, T}, B::AbstractMatrix{T}) where {T<:Number} =
                 PSDModelPolynomial(Hermitian(B), a.Φ)
+
+
+domain_interval(a::PSDModelPolynomial{d, T}, k::Int) where {d, T<:Number} = begin
+    @assert 1 ≤ k ≤ d
+    return domain_interval(a.Φ, k)
+end
+
 
 """
 Marginalize the model along a given dimension according to the measure to which
@@ -64,12 +71,23 @@ function marginalize_orth_measure(a::PSDModelPolynomial{d, T},
     return a
 end
 
-marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int) where {T<:Number} = marginalize(a, dim, x->1.0)
+function marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int) where {T<:Number}
+    # if the space is Legendre, the orthonormal measure is Lebesgue.
+    if typeof(a.Φ.space.spaces[dim]) isa Jacobi &&
+            a.Φ.space.spaces[dim].a == a.Φ.space.spaces[dim].b == 0.0
+        return marginalize_orth_measure(a, dim)
+    end
+    return marginalize(a, dim, x->1.0)
+end
 function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
-                     measure::Function) where {d, T<:Number}
+                     measure::Function; domain=nothing) where {d, T<:Number}
     @assert 1 ≤ dim ≤ d
 
-    M = calculate_M_quadrature(a.Φ, dim, measure)
+    M = if domain===nothing
+        calculate_M_quadrature(a.Φ, dim, measure)
+    else
+        calculate_M_quadrature(a.Φ, dim, measure, domain)
+    end
     if d-1 == 0  ## no dimension left
         return tr(M.*a.B)
     end
@@ -99,6 +117,11 @@ function marginalize(a::PSDModelPolynomial{d, T}, dims::Vector{Int},
     return a
 end
 
+function integrate(a::PSDModelPolynomial, dim::Int, p::Function, domain::Domain)
+    marginalize(a, dim, p, domain=domain)
+end
+
+
 """
     function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing)
 
@@ -109,12 +132,16 @@ the beginning of the interval.
 function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing) where {d, T<:Number}
     @assert 1 ≤ dim ≤ d
     if C === nothing
-        C = leftendpoint(a.space.spaces[dim].domain)
+        C = leftendpoint(a.Φ.space.spaces[dim].domain)
     end
     M = SquaredPolynomialMatrix(a.Φ, Int[dim]; C=C)
     return PolynomialTraceModel(a.B, M)
 end
 
+import LinearAlgebra: normalize, normalize!
+normalize(a::PSDModelPolynomial{d, <:Number}, measure::Function) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d), measure)))
+normalize(a::PSDModelPolynomial{d, <:Number}) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d))))
+normalize_orth_measure(a::PSDModelPolynomial{<:Any, <:Number}) = _of_same_PSD(a, a.B * (1/tr(a.B)))
 normalize_orth_measure!(a::PSDModelPolynomial{<:Any, T}) where {T<:Number} = a.B .= a.B * (1/tr(a.B))
 normalize!(a::PSDModelPolynomial{d, T}) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d)))
 normalize!(a::PSDModelPolynomial{d, T}, measure::Function) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d), measure))

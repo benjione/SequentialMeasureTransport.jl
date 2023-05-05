@@ -25,6 +25,10 @@ end
 @inline low_vec_to_Symmetric(vec::AbstractVector, vm::AbstractMatrix) = @view vec[vm]
 
 
+## slicing
+slice_matrix(A::Array{T}) where {T<:Number} = ndims(A)>1 ? Vector{T}[c for c in eachcol(A)] : A
+unslice_matrix(A::Vector{Vector{T}}) where {T<:Number} = reduce(hcat, A)
+
 ## norm utilitys
 
 nuclearnorm(A::AbstractMatrix) = sum(svdvals(A))

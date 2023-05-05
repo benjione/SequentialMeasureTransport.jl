@@ -1,6 +1,6 @@
 
 abstract type AbstractPSDModelFM{T} <: PSDModel{T} end
-abstract type AbstractPSDModelPolynomial{T} <: AbstractPSDModelFM{T} end
+abstract type AbstractPSDModelOrthonormal{d, T} <: AbstractPSDModelFM{T} end
 
 ## special feature map models:
 include("polynomial.jl")

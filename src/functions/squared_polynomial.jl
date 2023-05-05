@@ -18,7 +18,7 @@ struct SquaredPolynomialMatrix{d, T, S}
                     f1 = Fun(Φ.space.spaces[k], [zeros(T, i-1);Φ.normal_factor[k][i]])
                     f2 = Fun(Φ.space.spaces[k], [zeros(T, j-1);Φ.normal_factor[k][j]])
                     res = Integral() * (f1 * f2)
-                    res = res + res(C)  ## let integral start from 0
+                    res = res - res(C)  ## let integral start from 0
                     int_Fun[k_index][i, j] = res
                     int_Fun[k_index][j, i] = res
                 end

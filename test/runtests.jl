@@ -22,3 +22,7 @@ end
 @testset "PSDModelPolynomial test" begin
     include("PSDPolynomial_test.jl")
 end
+
+@testset "Sampler test" begin
+    include("Sampler_test.jl")
+end

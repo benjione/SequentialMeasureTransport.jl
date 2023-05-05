@@ -19,6 +19,10 @@ struct FMTensorPolynomial{d, T, S<:Tensorizer} <: Function
 end
 
 dimensions(::FMTensorPolynomial{d}) where {d} = d
+domain_interval(p::FMTensorPolynomial, dim::Int) = begin
+    return (leftendpoint(p.space.spaces[dim].domain),
+    rightendpoint(p.space.spaces[dim].domain))
+end
 
 FMTensorPolynomial{d}(space::TensorSpace, normal_factor::Vector{Vector{Float64}}, N::Int, ten::Tensorizer, 
     highest_order::Int) where {d} = FMTensorPolynomial{d, Float64}(space, normal_factor, N, ten, highest_order)
@@ -103,19 +107,29 @@ function _eval(p::FMTensorPolynomial{d, T, S},
 end
 
 
+
+
 """
 Calculates M_{σ(i)σ(j)} = \\int measure(x) \\phi_{i_dim}(x) \\phi_{j_dim}(x) dx
 using Gauss-Legendre quadrature.
 """
 function calculate_M_quadrature(p::FMTensorPolynomial{d, T}, 
+    dim::Int, 
+    measure::Function
+) where {d, T<:Number}
+    calculate_M_quadrature(p,dim,measure,domain_interval(p, dim))
+end
+
+
+function calculate_M_quadrature(p::FMTensorPolynomial{d, T}, 
                                 dim::Int, 
-                                measure::Function
+                                measure::Function,
+                                domain_endpoints::Tuple{<:Number, <:Number}
                         ) where {d, T<:Number}
     M = zeros(T, p.N, p.N)
     x, w = gausslegendre(p.highest_order+1)
     ## scale Gauss quadrature to domain
-    l = leftendpoint(p.space.spaces[dim].domain)
-    r = rightendpoint(p.space.spaces[dim].domain)
+    l, r = domain_endpoints
     x .*= ((r - l)/2)
     x .+= ((r + l)/2)
     corr = ((r - l)/2)

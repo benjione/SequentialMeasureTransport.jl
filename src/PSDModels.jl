@@ -25,6 +25,10 @@ export marginalize_orth_measure, marginalize
 ## export arithmetic
 export mul!
 
+# export sampler
+export Sampler
+export sample
+
 # for working with 1D and nD data
 const PSDdata{T} = Union{T, Vector{T}} where {T<:Number}
 const PSDDataVector{T} = Union{Vector{T}, Vector{Vector{T}}} where {T<:Number}
@@ -39,5 +43,8 @@ include("TraceModels/models.jl")
 # tailored statistics for PSD models
 include("statistics.jl")
 using .Statistics
+
+# Samplers for PSD models
+include("Samplers/sampler.jl")
 
 end # module PositiveSemidefiniteModels

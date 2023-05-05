@@ -1,37 +1,30 @@
 using PSDModels
+using PSDModels.Statistics # for ML estimation
 using LinearAlgebra
 using Plots
 using ApproxFun
+# using Hypatia
 # amount data to generate
-N = 500
+N = 200
 
 # generate data according to some distribution
-X = randn(N) * 0.75 .+ 0.5
-pdf_X(x) = 1/(2*0.75*π)^(0.5) * exp(-(x - 0.5)^2/(2*0.75))
+X1 = randn(N) * 0.75 .+ 1.5
+X2 = randn(N) * 0.75 .- 1.5
+X = [X1; X2]
+pdf_X1(x) = 1/(2*0.75*π)^(0.5) * exp(-(x - 1.5)^2/(2*0.75))
+pdf_X2(x) = 1/(2*0.75*π)^(0.5) * exp(-(x + 1.5)^2/(2*0.75))
+pdf_X(x) = (pdf_X1(x) + pdf_X2(x)) / 2
+
+X_chi = (rand(400) .-0.5) * 10.0
 
 # Create an empty model
-model = PSDModel(Legendre(-15..15), :trivial, 20)
+model_KL = PSDModel(Legendre(-5..5), :downward_closed, 7)
+model_chi = PSDModel(Legendre(-5..5), :downward_closed, 7)
 
-# use log-likelihood loss
-loss(Z) = -(1/length(Z)) * sum(log.(Z))
-
-# minimize loss
-minimize!(model, loss, X, trace=true, λ_1=0.1, maxit=500)
-
-# margin = marginalize_orth_measure(model, 1, measure_scale=1.0)
-margin = marginalize(model, 1)
-model = model * (1/margin)
-
-real_fac = PSDModels.integrate(model, -15..15, amount_quadrature_points=50)
-model = model * (1/real_fac)
-# plot all
-domx = range(-15, 15, length=400)
-plot(domx, model.(domx), label="fitted model")
-plot!(X, model.(X), seriestype=:scatter, label="data points")
+# use ML estimation of samples
+ML_fit!(model_KL, X, trace=true, λ_2=1e-8)
 
 # Plot the model
-dom_x = range(-2, 2.5, length=100)
-plot(dom_x, model.(dom_x), label="fitted model")
-plot!(dom_x, pdf_X.(dom_x), label="f(x)")
-# plot!(X, Y, seriestype=:scatter, label="data")
-# plot!(model.X, model.(model.X), seriestype=:scatter, label="data points")
+dom_x = range(-5, 5, length=400)
+plot(dom_x, model_KL.(dom_x), label="ML estimation")
+plot!(dom_x, pdf_X.(dom_x), label="\$f(x)\$")

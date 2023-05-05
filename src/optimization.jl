@@ -83,7 +83,7 @@ Base.:/(x::Number, y::con.AbstractExpr) = begin
     return x * con.invpos(y)
 end
 
-nuclearnorm(A::AbstractMatrix) = sum(svdvals(A))
+# nuclearnorm(A::AbstractMatrix) = sum(svdvals(A))
 nuclearnorm(A::con.AbstractExpr) = con.nuclearnorm(A)
 
 function optimize_PSD_model_convex(initial::AbstractMatrix, 
