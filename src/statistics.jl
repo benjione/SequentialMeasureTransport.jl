@@ -37,7 +37,7 @@ function Chi2_fit!(model::PSDModel{T},
     # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
 
     # Reweighting of the IRLS algorithm
-    reweight(z) = 1 / (z + ϵ)
+    reweight(z) = 1 / (abs(z) + ϵ)
  
     IRLS!(model, X, Y, reweight; kwargs...)
 end
