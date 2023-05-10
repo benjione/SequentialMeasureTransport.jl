@@ -62,6 +62,11 @@ function PSDModel(
     end
 end
 
+function PSDModel_from_polynomial(p::Fun)
+    return @error("not implemented yet")
+    return PSDModel{Float64}(p.sp, p.ten_size, sparse=true)
+end
+
 function (a::PSDModel{T})(x::PSDdata{T}) where {T<:Number}
     v = Φ(a, x)
     return dot(v, a.B, v)::T
