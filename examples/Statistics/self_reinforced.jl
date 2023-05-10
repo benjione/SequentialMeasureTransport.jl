@@ -36,7 +36,7 @@ model_sr = PSDModel(Legendre(a..b)^2, :downward_closed, 3)
 sar = SelfReinforcedSampler(f, model_sr, 4, :Chi2, trace=true,
                             ϵ=1e-6, λ_2=0.0, λ_1=0.0)
 
-pb_f = PSDModels.pushforward_pdf_function(sar, x->16.0^4)
+pb_f = PSDModels.pushforward_pdf_function(sar, x->1/16.0)
 
 rng2 = range(-4, 4, length=100)
 surface(rng2, rng2, (x,y)->pb_f([x,y]), levels=20, c=:blues, label="true")
