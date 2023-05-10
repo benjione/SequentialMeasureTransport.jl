@@ -5,7 +5,7 @@ implementation in order to provide orthonormal polynomials,
 optimal weighted sampling, closed form derivatives and integration, etc.
 For orthogonal polynomials, the package ApproxFun is used.
 """
-struct PSDModelPolynomial{d, T<:Number} <: AbstractPSDModelOrthonormal{d, T}
+struct PSDModelPolynomial{d, T<:Number} <: PSDModelOrthonormal{d, T}
     B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     Φ::FMTensorPolynomial{d, T}
     function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
@@ -28,7 +28,6 @@ domain_interval(a::PSDModelPolynomial{d, T}, k::Int) where {d, T<:Number} = begi
     @assert 1 ≤ k ≤ d
     return domain_interval(a.Φ, k)
 end
-
 
 """
 Marginalize the model along a given dimension according to the measure to which
@@ -106,6 +105,7 @@ function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
     return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
 end
 
+marginalize(a::PSDModelPolynomial{d}) where {d} = marginalize(a, collect(1:d))
 marginalize(a::PSDModelPolynomial{<:Any, T}, dims::Vector{Int}) where {T<:Number} = marginalize(a, dims, x->1.0)
 function marginalize(a::PSDModelPolynomial{d, T}, dims::Vector{Int},
                     measure::Function) where {d, T<:Number}

@@ -1,10 +1,10 @@
 using Roots: find_zero
 
-struct PSDModelSampler{d, T<:Number} <: Sampler{T}
-    model::AbstractPSDModelOrthonormal{d, T} # model to sample from
-    margins::Vector{<:AbstractPSDModelOrthonormal{<:Any, T}} # start with x_{≤1}, then x_{≤2}, ...
+struct PSDModelSampler{d, T<:Number} <: Sampler{d, T}
+    model::PSDModelOrthonormal{d, T} # model to sample from
+    margins::Vector{<:PSDModelOrthonormal{<:Any, T}} # start with x_{≤1}, then x_{≤2}, ...
     integrals::Vector{TraceModel{T}} # integrals of marginals
-    function PSDModelSampler(model::AbstractPSDModelOrthonormal{d, T}) where {d, T<:Number}
+    function PSDModelSampler(model::PSDModelOrthonormal{d, T}) where {d, T<:Number}
         model = normalize(model) # create normalized copy
         margins = [marginalize(model, collect(k:d)) for k in 2:d]
         margins = [margins; model] # add the full model as last
@@ -13,7 +13,14 @@ struct PSDModelSampler{d, T<:Number} <: Sampler{T}
     end
 end
 
-Sampler(model::AbstractPSDModelOrthonormal) = PSDModelSampler(model)
+Sampler(model::PSDModelOrthonormal) = PSDModelSampler(model)
+
+function Distributions.pdf(
+        sar::PSDModelSampler{d, T}, 
+        x::PSDdata{T}
+    ) where {d, T<:Number}
+    return sar.model(x)
+end
 
 function pushforward_u(sampler::PSDModelSampler{d, T}, u::PSDdata{T}) where {d, T<:Number}
     x = zeros(T, d)
@@ -31,11 +38,6 @@ function pushforward_u(sampler::PSDModelSampler{d, T}, u::PSDdata{T}) where {d, 
     end
     return x
 end
-
-function sample(sampler::PSDModelSampler{d, T}) where {d, T<:Number}
-    return pushforward_u(sampler, rand(T, d))
-end
-
 
 # function sample_subdomain(sampler::PSDModelSampler{d, T},
 #                         marginal_points::PSDDataVector{T},
