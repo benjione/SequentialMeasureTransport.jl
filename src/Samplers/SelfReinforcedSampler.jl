@@ -12,6 +12,7 @@ struct SelfReinforcedSampler{d, T} <: Sampler{d, T}
     end
 end
 
+
 @inline function _domain_transform_constant(sar::SelfReinforcedSampler{d, T}) where {d, T<:Number}
     L_vec = domain_interval_right(sar.models[1]) - domain_interval_left(sar.models[1])
     V = prod(L_vec)
@@ -42,7 +43,7 @@ function Distributions.pdf(
         sar::SelfReinforcedSampler{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
-    pdf_func = pushforward_pdf_function(sar, x->1.0)
+    pdf_func = pushforward_pdf_function(sar)
     return pdf_func(x)
 end
 
@@ -59,13 +60,17 @@ function pullback_pdf_function(
                 c = _domain_transform_constant(sar)
                 u = _inverse_domain_transform(sar, x) # transform to reference domain
                 x = pushforward_u(sampler, u)
-                return (pdf_func(x) * (1/model(x)))
+                return (pdf_func(x) * (1/(model(x) * c)))
             end
         end
     end
     return pdf_func
 end
 
+pushforward_pdf_function(sar::SelfReinforcedSampler) = begin
+    c = _domain_transform_constant(sar)
+    return pushforward_pdf_function(sar, x->1/c)
+end
 function pushforward_pdf_function(
         sar::SelfReinforcedSampler{d, T},
         pdf_ref::Function
@@ -78,9 +83,10 @@ function pushforward_pdf_function(
         pdf_func = let model=model, sar=sar,
                     pdf_func=pdf_func, sampler=sampler
             x-> begin
+                c = _domain_transform_constant(sar)
                 u = pullback_x(sampler, x)
                 u = _domain_transform(sar, u) # transform to target domain
-                return (pdf_func(u) * model(x))                    
+                return (pdf_func(u) * model(x) * c)                    
             end
         end
     end
@@ -111,6 +117,16 @@ function add_layer!(
     Y = pdf_tar_pullbacked.(X)
 
     fit_method!(model, collect(X), Y)
+    normalize!(model)
+    push!(sar.models, model)
+    push!(sar.samplers, Sampler(model))
+    return nothing
+end
+
+function add_layer!(
+        sar::SelfReinforcedSampler{d, T},
+        model::PSDModelOrthonormal{d, T},
+    ) where {d, T<:Number}
     normalize!(model)
     push!(sar.models, model)
     push!(sar.samplers, Sampler(model))
