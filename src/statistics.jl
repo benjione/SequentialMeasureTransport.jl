@@ -5,6 +5,7 @@ using ..PSDModels: PSDDataVector
 using ..PSDModels: PSDModelOrthonormal
 using ..PSDModels: SelfReinforcedSampler
 using ..PSDModels: domain_interval_left, domain_interval_right
+using ..PSDModels: greedy_IRLS
 using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
@@ -40,6 +41,23 @@ function Chi2_fit!(model::PSDModel{T},
     reweight(z) = 1 / (abs(z) + ϵ)
  
     IRLS!(model, X, Y, reweight; kwargs...)
+end
+
+function greedy_Chi2_fit(model::PSDModel{T}, 
+    X::PSDDataVector{T},
+    Y::PSDDataVector{T};
+    ϵ=1e-5,
+    kwargs...) where {T<:Number}
+
+    # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
+    # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
+
+    # Reweighting of the IRLS algorithm
+    reweight(z) = 1 / (abs(z) + ϵ)
+
+    loss(Z) = (1/length(Z)) * sum((Z .- Y).^2 ./ (Y .+ ϵ))
+ 
+    return greedy_IRLS(model, X, Y, reweight, loss; kwargs...)
 end
 
 function conditional_expectation(model::PSDModelOrthonormal{d, T}, 

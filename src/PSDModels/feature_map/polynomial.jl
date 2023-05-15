@@ -23,10 +23,33 @@ end
 @inline _of_same_PSD(a::PSDModelPolynomial{<:Any, T}, B::AbstractMatrix{T}) where {T<:Number} =
                 PSDModelPolynomial(Hermitian(B), a.Φ)
 
+@inline _tensorizer(a::PSDModelPolynomial) = a.Φ.ten
+
 
 domain_interval(a::PSDModelPolynomial{d, T}, k::Int) where {d, T<:Number} = begin
     @assert 1 ≤ k ≤ d
     return domain_interval(a.Φ, k)
+end
+
+function create_proposal(
+        a::PSDModelPolynomial{d, T}, 
+        index::Vector{Int}
+    ) where {d, T<:Number}
+    create_proposal(a, index, ones(T, size(a.B,1)+1))
+end
+
+function create_proposal(
+        a::PSDModelPolynomial{d, T}, 
+        index::Vector{Int},
+        vec::Vector{T}
+    ) where {d, T<:Number}
+    B = ones(T, size(a.B,1)+1, size(a.B,2)+1)
+    B[1:end-1, 1:end-1] = a.B
+    B[end, :] = vec
+    B[:, end] = vec
+    b = PSDModelPolynomial(Hermitian(B), 
+        add_index(a.Φ, index))
+    return b
 end
 
 """

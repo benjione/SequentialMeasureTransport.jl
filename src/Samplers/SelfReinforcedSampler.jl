@@ -139,6 +139,8 @@ function SelfReinforcedSampler(
                 model::PSDModelOrthonormal{d, T},
                 amount_layers::Int,
                 approx_method::Symbol;
+                relaxation_method::Symbol=:algebraic,
+                N_sample=1000,
                 kwargs...) where {d, T<:Number}
     
     L = domain_interval_left(model)
@@ -152,27 +154,44 @@ function SelfReinforcedSampler(
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
 
-    ## algebraic relaxation
-    β = [2.0^(-i) for i in reverse(0:amount_layers-1)]
+    if relaxation_method == :algebraic
+        ## algebraic relaxation
+        β = [2.0^(-i) for i in reverse(0:amount_layers-1)]
 
-    # sample from model
-    X = rand(T, d, 1000) .* (R .- L) .+ L
-    # compute pdf
-    Y = pdf_tar.(eachcol(X)).^(β[1])
+        # sample from model
+        X = rand(T, d, N_sample) .* (R .- L) .+ L
+        # compute pdf
+        Y = pdf_tar.(eachcol(X)).^(β[1])
 
-    fit_method!(model, collect(eachcol(X)), Y)
+        fit_method!(model, collect(eachcol(X)), Y)
 
-    normalize!(model)
-    samplers = [Sampler(model)]
-    models = typeof(model)[model]
+        normalize!(model)
+        samplers = [Sampler(model)]
+        models = typeof(model)[model]
 
-    sar = SelfReinforcedSampler(models, samplers)
+        sar = SelfReinforcedSampler(models, samplers)
 
-    for i in 2:amount_layers
-        add_layer!(sar, x->pdf_tar(x)^β[i], approx_method; kwargs...)
+        for i in 2:amount_layers
+            add_layer!(sar, x->pdf_tar(x)^β[i], approx_method; kwargs...)
+        end
+        
+        return sar
+    elseif relaxation_method == :blurring
+        max_blur = 1.0
+        N_MC_blurring = 4
+        ## blurring parameters
+        σ = [[max_blur * (1/i) for i in reverse(0:amount_layers-2)]; [0]]
+        # sample from model
+        X = rand(T, d, N_sample, N_MC_blurring) .* (R .- L) .+ L
+        # compute pdf
+        for i=1:N_sample
+            Y[i] = mean(pdf_tar.(eachcol(X[:,i,:])))
+        end
+        
+        # TODO
+    else
+        throw(error("Relaxation method $(relaxation_method) not implemented!"))
     end
-    
-    return sar
 end
 
 function pushforward_u(

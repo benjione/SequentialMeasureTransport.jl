@@ -7,6 +7,10 @@ using Test
     include("utils_test.jl")
 end
 
+@testset "Tensorizers test" begin
+    include("Tensorizer_test.jl")
+end
+
 @testset "TensorPolynomial tests" begin
     include("TensorPolynomial_test.jl")
 end

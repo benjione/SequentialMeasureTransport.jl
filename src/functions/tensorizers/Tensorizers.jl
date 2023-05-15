@@ -17,3 +17,11 @@ end
 function highest_order(t::Tensorizer)
     @error "not implemented for this tensorizer"
 end
+
+function next_index_proposals(t::Tensorizer)
+    @error "not implemented for this tensorizer"
+end
+
+function add_index!(t::Tensorizer, index::Vector{Int})
+    @error "not implemented for this tensorizer"
+end

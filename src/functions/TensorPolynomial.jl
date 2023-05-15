@@ -30,6 +30,13 @@ FMTensorPolynomial{d}(space::TensorSpace, normal_factor::Vector{Vector{Float64}}
 @inline σ(p::FMTensorPolynomial, i) = σ(p.ten, i)
 @inline σ_inv(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S} = σ_inv(p.ten, i)
 
+function add_index(p::FMTensorPolynomial{d, T}, index::Vector{Int}) where {d, T}
+    ten = deepcopy(p.ten)
+    add_index!(ten, index)
+    normalization_factor = set_normalization_factors(p.space, highest_order(ten))
+    return FMTensorPolynomial{d, T}(p.space, normalization_factor, p.N+1, ten, highest_order(ten)-1)
+end
+
 function reduce_dim(p::FMTensorPolynomial{d, T}, dim::Int) where {d, T}
     ten_new = reduce_dim(p.ten, dim)
     if d-1 == 0

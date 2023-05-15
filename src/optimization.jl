@@ -31,6 +31,7 @@ function optimize_PSD_model(initial::AbstractMatrix,
                     optimizer=nothing,
                     vectorize_matrix::Bool=true,
                     normalization_constraint::Bool=false,
+                    fixed_variables=nothing,
                 )
     if convex
         return optimize_PSD_model_convex(initial, loss;
@@ -38,11 +39,16 @@ function optimize_PSD_model(initial::AbstractMatrix,
                 maxit=maxit,
                 optimizer=optimizer,
                 normalization_constraint=normalization_constraint,
+                fixed_variables=fixed_variables,
             )
     end
 
     if normalization_constraint
-        @error "Only implemented for the convex case."
+        throw(error("Only implemented for the convex case."))
+    end
+
+    if fixed_variables !== nothing
+        throw(error("Only implemented for the convex case."))
     end
     # set default parameters
     # TODO
@@ -92,6 +98,7 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
                     maxit::Int=5000,
                     normalization_constraint=false,
                     optimizer=nothing,
+                    fixed_variables=nothing,
                 )
     verbose_solver = trace ? true : false
 
@@ -107,6 +114,9 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
     N = size(initial, 1)
     B = con.Variable((N, N))
     B.value = initial
+    if fixed_variables !== nothing
+        con.fix!(B[fixed_variables...], initial[fixed_variables...])
+    end
     problem = con.minimize(loss(B), con.isposdef(B))
     if normalization_constraint
         # IMPORTANT: only valid for tensorized polynomial maps.
