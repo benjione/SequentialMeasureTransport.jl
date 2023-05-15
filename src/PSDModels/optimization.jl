@@ -107,16 +107,17 @@ function IRLS!(a::PSDModel{T},
                 Y::Vector{T},
                 reweight::Function;
                 max_IRLS_iter=10,
+                min_IRLS_iter=3,
                 stopping_criteria=1e-6,
                 kwargs...
             ) where {T<:Number}
     weights = ones(T, length(X))
     fit!(a, X, Y, weights; kwargs...)
     B = a.B
-    for _ in 1:max_IRLS_iter
+    for iter in 1:max_IRLS_iter
         weights = reweight.(a.(X, Ref(B)))
         fit!(a, X, Y, weights; kwargs...)
-        if norm(a.B - B) < stopping_criteria
+        if (iter > min_IRLS_iter) && norm(a.B - B) < stopping_criteria
             break
         end
         B = a.B

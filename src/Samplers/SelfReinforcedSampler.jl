@@ -116,6 +116,10 @@ function add_layer!(
     pdf_tar_pullbacked = pullback_pdf_function(sar, pdf_tar)
     Y = pdf_tar_pullbacked.(X)
 
+    if any(isnan, Y)
+        throw(error("NaN in target!"))
+    end
+
     fit_method!(model, collect(X), Y)
     normalize!(model)
     push!(sar.models, model)
@@ -141,6 +145,8 @@ function SelfReinforcedSampler(
                 approx_method::Symbol;
                 relaxation_method::Symbol=:algebraic,
                 N_sample=1000,
+                max_blur=1.0,
+                N_MC_blurring=20,
                 kwargs...) where {d, T<:Number}
     
     L = domain_interval_left(model)
@@ -154,44 +160,60 @@ function SelfReinforcedSampler(
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
 
-    if relaxation_method == :algebraic
-        ## algebraic relaxation
-        β = [2.0^(-i) for i in reverse(0:amount_layers-1)]
 
-        # sample from model
-        X = rand(T, d, N_sample) .* (R .- L) .+ L
-        # compute pdf
-        Y = pdf_tar.(eachcol(X)).^(β[1])
-
-        fit_method!(model, collect(eachcol(X)), Y)
-
-        normalize!(model)
-        samplers = [Sampler(model)]
-        models = typeof(model)[model]
-
-        sar = SelfReinforcedSampler(models, samplers)
-
-        for i in 2:amount_layers
-            add_layer!(sar, x->pdf_tar(x)^β[i], approx_method; kwargs...)
+    π_tar = if relaxation_method == :algebraic
+        (x,β) -> pdf_tar(x)^(β)
+    elseif relaxation_method == :blurring 
+        (x, σ_i) -> let pdf_tar=pdf_tar, N_MC_blurring=N_MC_blurring, d=d
+            begin
+                if σ_i == 0
+                    return pdf_tar(x)
+                else
+                    MC_samples = randn(T, d, N_MC_blurring) .* σ_i
+                    return (1/N_MC_blurring)*sum(
+                        [pdf_tar(x+MC_samples[:,k]) for k=1:N_MC_blurring]
+                    )
+                end
+            end
         end
-        
-        return sar
-    elseif relaxation_method == :blurring
-        max_blur = 1.0
-        N_MC_blurring = 4
-        ## blurring parameters
-        σ = [[max_blur * (1/i) for i in reverse(0:amount_layers-2)]; [0]]
-        # sample from model
-        X = rand(T, d, N_sample, N_MC_blurring) .* (R .- L) .+ L
-        # compute pdf
-        for i=1:N_sample
-            Y[i] = mean(pdf_tar.(eachcol(X[:,i,:])))
-        end
-        
-        # TODO
-    else
-        throw(error("Relaxation method $(relaxation_method) not implemented!"))
+    else 
+        throw(error("Not implemented"))
     end
+
+    ## algebraic relaxation
+    relax_param = if relaxation_method == :algebraic
+        [2.0^(-i) for i in reverse(0:amount_layers-1)]
+    elseif relaxation_method == :blurring
+        [[max_blur * (1/i^2) for i in 1:amount_layers-1]; [0]]
+    else
+        throw(error("Not implemented!"))
+    end
+
+    # sample from model
+    X = rand(T, d, N_sample) .* (R .- L) .+ L
+    # compute pdf
+    Y = π_tar.(eachcol(X), Ref(relax_param[1]))
+
+    if any(isnan, Y)
+        throw(error("NaN in target!"))
+    end
+
+    fit_method!(model, collect(eachcol(X)), Y)
+
+    normalize!(model)
+    samplers = [Sampler(model)]
+    models = typeof(model)[model]
+
+    sar = SelfReinforcedSampler(models, samplers)
+
+    for i in 2:amount_layers
+        layer_method = let relax_param = relax_param
+            x->π_tar(x, relax_param[i])
+        end
+        add_layer!(sar, layer_method, approx_method; kwargs...)
+    end
+    
+    return sar
 end
 
 function pushforward_u(

@@ -11,7 +11,17 @@ Distributions.pdf(sampler::Sampler, x::PSDdata) = @error "not implemented for th
 function sample(sampler::Sampler{d, T}) where {d, T<:Number}
     return pushforward_u(sampler, rand(T, d))
 end
-sample(sampler::Sampler{d, T}, amount::Int) where {d, T} = T[sample(sampler) for _=1:amount]
+function sample(sampler::Sampler{d, T}, amount::Int; threading=false) where {d, T}
+    if threading==false
+        return PSDdata{T}[sample(sampler) for _=1:amount]
+    else
+        res = Vector{PSDdata{T}}(undef, amount)
+        Threads.@threads for i=1:amount
+            res[i] = sample(sampler)
+        end
+        return res
+    end
+end
 
 include("PSDModelSampler.jl")
 include("SelfReinforcedSampler.jl")
