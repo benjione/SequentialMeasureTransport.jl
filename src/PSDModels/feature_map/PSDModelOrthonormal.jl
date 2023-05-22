@@ -1,9 +1,21 @@
-abstract type PSDModelOrthonormal{d, T} <: AbstractPSDModelFM{T} end
+abstract type PSDModelOrthonormal{d, T, S} <: AbstractPSDModelFM{T} end
 
 ## special feature map models:
 include("polynomial.jl")
 
 
+"""
+Φ(a::PSDModelFM, x::PSDdata{T}) where {T<:Number}
+
+Returns the feature map of the PSD model at x.
+"""
+@inline function Φ(a::PSDModelOrthonormal{<:Any, T, S}, x::PSDdata{T}) where {T<:Number, S<:OMF{T}}
+    return a.Φ(ξ(a.mapping, x)) * sqrt(1/x_deriv_prod(a.mapping, ξ(a.mapping, x)))
+end
+
+
+domain_interval_left(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}, k::Int) = -∞
+domain_interval_right(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}, k::Int) = +∞
 
 domain_interval_left(a::PSDModelOrthonormal, k::Int) = domain_interval(a, k)[1]
 domain_interval_right(a::PSDModelOrthonormal, k::Int) = domain_interval(a, k)[2]

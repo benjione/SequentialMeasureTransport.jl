@@ -5,23 +5,34 @@ implementation in order to provide orthonormal polynomials,
 optimal weighted sampling, closed form derivatives and integration, etc.
 For orthogonal polynomials, the package ApproxFun is used.
 """
-struct PSDModelPolynomial{d, T<:Number} <: PSDModelOrthonormal{d, T}
+struct PSDModelPolynomial{d, T<:Number, S<:Union{Nothing, OMF{T}}} <: PSDModelOrthonormal{d, T, S}
     B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
     Φ::FMTensorPolynomial{d, T}
+    mapping::S
     function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
                                     Φ::FMTensorPolynomial{d, T}
                     ) where {d, T<:Number}
-        new{d, T}(B, Φ)
+        
+        new{d, T, Nothing}(B, Φ, nothing)
     end
     function PSDModelPolynomial{T}(B::Hermitian{T, <:AbstractMatrix{T}},
                                     Φ::FMTensorPolynomial{d, T}
                         )where {d, T<:Number}
-        new{d, T}(B, Φ)
+        new{d, T, Nothing}(B, Φ, nothing)
+    end
+    function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
+                                    Φ::FMTensorPolynomial{d, T},
+                                    mapping::Union{Nothing, OMF{T}}
+                        ) where {d, T<:Number}
+        new{d, T, typeof(mapping)}(B, Φ, mapping)
     end
 end
 
 @inline _of_same_PSD(a::PSDModelPolynomial{<:Any, T}, B::AbstractMatrix{T}) where {T<:Number} =
-                PSDModelPolynomial(Hermitian(B), a.Φ)
+                PSDModelPolynomial(Hermitian(B), a.Φ, a.mapping)
+
+@inline _of_same_PSD(a::PSDModelPolynomial{<:Any, T}, B::AbstractMatrix{T}, Φ::FMTensorPolynomial{d, T}) where {d, T<:Number} =
+                PSDModelPolynomial(Hermitian(B), Φ, a.mapping)
 
 @inline _tensorizer(a::PSDModelPolynomial) = a.Φ.ten
 
@@ -47,8 +58,8 @@ function create_proposal(
     B[1:end-1, 1:end-1] = a.B
     B[end, :] = vec
     B[:, end] = vec
-    b = PSDModelPolynomial(Hermitian(B), 
-        add_index(a.Φ, index))
+    b = _of_same_PSD(a, Hermitian(B), 
+                add_index(a.Φ, index))
     return b
 end
 
@@ -80,7 +91,7 @@ function marginalize_orth_measure(a::PSDModelPolynomial{d, T}, dim::Int;
     end
 
     B = P * (M .* a.B) * P'
-    return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
+    return _of_same_PSD(a, Hermitian(Matrix(B)), new_Φ)
 end
 
 function marginalize_orth_measure(a::PSDModelPolynomial{d, T}, 
@@ -101,14 +112,20 @@ function marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int) where {T<:Number
     end
     return marginalize(a, dim, x->1.0)
 end
-function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
-                     measure::Function; domain=nothing) where {d, T<:Number}
+function marginalize(a::PSDModelPolynomial{d, T, S}, dim::Int,
+                     measure::Function; domain=nothing) where {d, T<:Number, S}
     @assert 1 ≤ dim ≤ d
 
-    M = if domain===nothing
-        calculate_M_quadrature(a.Φ, dim, measure)
+    mapped_measure = if S === Nothing
+        measure
     else
-        calculate_M_quadrature(a.Φ, dim, measure, domain)
+        measure ∘ (ξ -> x(a.mapping, ξ))
+    end
+
+    M = if domain===nothing
+        calculate_M_quadrature(a.Φ, dim, mapped_measure)
+    else
+        calculate_M_quadrature(a.Φ, dim, mapped_measure, domain)
     end
     if d-1 == 0  ## no dimension left
         return tr(M.*a.B)
@@ -125,7 +142,7 @@ function marginalize(a::PSDModelPolynomial{d, T}, dim::Int,
     end
 
     B = P * (M .* a.B) * P'
-    return PSDModelPolynomial(Hermitian(Matrix(B)), new_Φ)
+    return _of_same_PSD(a, Hermitian(Matrix(B)), new_Φ)
 end
 
 marginalize(a::PSDModelPolynomial{d}) where {d} = marginalize(a, collect(1:d))

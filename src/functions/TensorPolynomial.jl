@@ -127,7 +127,14 @@ function calculate_M_quadrature(p::FMTensorPolynomial{d, T},
     calculate_M_quadrature(p,dim,measure,domain_interval(p, dim))
 end
 
+"""
+Remark:
+This also works for Orthogonal Mapped functions, when the
+domain endpoints are thos of the non mapped functions and the measure is not
+dependent on x (Lebesgue measure).
 
+TODO: What is for non Lebesgue measure?
+"""
 function calculate_M_quadrature(p::FMTensorPolynomial{d, T}, 
                                 dim::Int, 
                                 measure::Function,

@@ -27,21 +27,30 @@ function PSDModel{T}(sp::Space, ten_size::Int; kwargs...) where {T<:Number}
 end
 PSDModel(sp::Space, tensorizer::Symbol, ten_size::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, ten_size; kwargs...)
 function PSDModel{T}(sp::Space, tensorizer::Symbol, ten_size::Int; 
-                     sparse=false, kwargs...) where {T<:Number}
+                     sparse=false, mapping=nothing, kwargs...) where {T<:Number}
     Φ, N = if tensorizer == :trivial
         trivial_TensorPolynomial(sp, ten_size), ten_size
     elseif tensorizer == :downward_closed
         poly = downwardClosed_Polynomial(sp, ten_size)
         poly, max_N(poly.ten)
     else
-        @error "Tensorizer not implemented"
+        throw(error("Tensorizer not implemented"))
     end
     B = if sparse
-        spdiagm(ones(Float64, N))
+        spdiagm(ones(T, N))
     else
-        diagm(ones(Float64, N))
+        diagm(ones(T, N))
     end
-    return PSDModelPolynomial{T}(Hermitian(B), Φ; 
+    map = if mapping === nothing
+        nothing
+    elseif mapping == :algebraicOMF
+            algebraicOMF{T}()
+    elseif mapping == :logarithmicOMF
+            logarithmicOMF{T}()
+    else
+        throw(error("Mapping not implemented"))
+    end
+    return PSDModelPolynomial(Hermitian(B), Φ, map; 
             _filter_kwargs(kwargs, _PSDModelFM_kwargs)...)
 end
 
