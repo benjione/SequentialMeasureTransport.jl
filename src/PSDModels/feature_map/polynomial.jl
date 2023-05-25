@@ -104,16 +104,16 @@ function marginalize_orth_measure(a::PSDModelPolynomial{d, T},
     return a
 end
 
-function marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int) where {T<:Number}
+function marginalize(a::PSDModelPolynomial{<:Any, T}, dim::Int; kwargs...) where {T<:Number}
     # if the space is Legendre, the orthonormal measure is Lebesgue.
     if typeof(a.Φ.space.spaces[dim]) isa Jacobi &&
             a.Φ.space.spaces[dim].a == a.Φ.space.spaces[dim].b == 0.0
         return marginalize_orth_measure(a, dim)
     end
-    return marginalize(a, dim, x->1.0)
+    return marginalize(a, dim, x->1.0; kwargs...)
 end
 function marginalize(a::PSDModelPolynomial{d, T, S}, dim::Int,
-                     measure::Function; domain=nothing) where {d, T<:Number, S}
+                     measure::Function; domain=nothing, kwargs...) where {d, T<:Number, S}
     @assert 1 ≤ dim ≤ d
 
     mapped_measure = if S === Nothing
@@ -123,9 +123,9 @@ function marginalize(a::PSDModelPolynomial{d, T, S}, dim::Int,
     end
 
     M = if domain===nothing
-        calculate_M_quadrature(a.Φ, dim, mapped_measure)
+        calculate_M_quadrature(a.Φ, dim, mapped_measure; kwargs...)
     else
-        calculate_M_quadrature(a.Φ, dim, mapped_measure, domain)
+        calculate_M_quadrature(a.Φ, dim, mapped_measure, domain; kwargs...)
     end
     if d-1 == 0  ## no dimension left
         return tr(M.*a.B)
@@ -145,14 +145,14 @@ function marginalize(a::PSDModelPolynomial{d, T, S}, dim::Int,
     return _of_same_PSD(a, Hermitian(Matrix(B)), new_Φ)
 end
 
-marginalize(a::PSDModelPolynomial{d}) where {d} = marginalize(a, collect(1:d))
-marginalize(a::PSDModelPolynomial{<:Any, T}, dims::Vector{Int}) where {T<:Number} = marginalize(a, dims, x->1.0)
+marginalize(a::PSDModelPolynomial{d}; kwargs...) where {d} = marginalize(a, collect(1:d); kwargs...)
+marginalize(a::PSDModelPolynomial{<:Any, T}, dims::Vector{Int}; kwargs...) where {T<:Number} = marginalize(a, dims, x->1.0; kwargs...)
 function marginalize(a::PSDModelPolynomial{d, T}, dims::Vector{Int},
-                    measure::Function) where {d, T<:Number}
+                    measure::Function; kwargs...) where {d, T<:Number}
     @assert 1 ≤ minimum(dims) ≤ maximum(dims) ≤ d
     dims = sort(dims)
     for dim in reverse(dims) ## reverse order to avoid changing the indices
-        a = marginalize(a, dim, measure)
+        a = marginalize(a, dim, measure; kwargs...)
     end
     return a
 end
@@ -163,25 +163,27 @@ end
 
 
 """
-    function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing)
+    function integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing)
 
 Integrate the model along a given dimension. The integration constant C gives
 the x value of where it should start. If C is not given, it is assumed to be
 the beginning of the interval.
 """
-function integral(a::PSDModelPolynomial{d, T}, dim::Int; C=nothing) where {d, T<:Number}
+function integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d, T<:Number, S}
     @assert 1 ≤ dim ≤ d
     if C === nothing
+        # use the left endpoint of the original domain,
+        # even if there is a mapping.
         C = leftendpoint(a.Φ.space.spaces[dim].domain)
     end
     M = SquaredPolynomialMatrix(a.Φ, Int[dim]; C=C)
-    return PolynomialTraceModel(a.B, M)
+    return PolynomialTraceModel(a.B, M, a.mapping)
 end
 
 import LinearAlgebra: normalize, normalize!
-normalize(a::PSDModelPolynomial{d, <:Number}, measure::Function) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d), measure)))
-normalize(a::PSDModelPolynomial{d, <:Number}) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d))))
+normalize(a::PSDModelPolynomial{d, <:Number}, measure::Function; kwargs...) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d), measure; kwargs...)))
+normalize(a::PSDModelPolynomial{d, <:Number}; kwargs...) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d); kwargs...)))
 normalize_orth_measure(a::PSDModelPolynomial{<:Any, <:Number}) = _of_same_PSD(a, a.B * (1/tr(a.B)))
 normalize_orth_measure!(a::PSDModelPolynomial{<:Any, T}) where {T<:Number} = a.B .= a.B * (1/tr(a.B))
-normalize!(a::PSDModelPolynomial{d, T}) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d)))
-normalize!(a::PSDModelPolynomial{d, T}, measure::Function) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d), measure))
+normalize!(a::PSDModelPolynomial{d, T}; kwargs...) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d); kwargs...))
+normalize!(a::PSDModelPolynomial{d, T}, measure::Function; kwargs...) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d), measure; kwargs...))

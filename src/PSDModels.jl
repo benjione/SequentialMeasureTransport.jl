@@ -52,4 +52,8 @@ include("Samplers/sampler.jl")
 include("statistics.jl")
 using .Statistics
 
+# for "using PSDModels.Plotting" for nice plots
+include("plotting/plotting.jl")
+using .Plotting
+
 end # module PositiveSemidefiniteModels

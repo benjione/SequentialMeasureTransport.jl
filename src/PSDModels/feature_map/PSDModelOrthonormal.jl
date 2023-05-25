@@ -28,3 +28,23 @@ _tensorizer(a::PSDModelOrthonormal) = throw(error("Not implemented!"))
 ## for greedy downward closed approximation
 next_index_proposals(a::PSDModelOrthonormal) = next_index_proposals(_tensorizer(a))
 create_proposal(a::PSDModelOrthonormal, index::Vector{Int}) = throw(error("Not implemented!"))
+
+
+## Interface between OMF and non OMF mapping
+function x(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}, ξ::PSDdata{T}) where {T<:Number}
+    return x(a.mapping, ξ)
+end
+function x(a::PSDModelOrthonormal{<:Any, <:Any, <:Nothing}, x::PSDdata{T}) where {T<:Number}
+    L = domain_interval_left(a)
+    R = domain_interval_right(a)
+    return 2.0 * (x .- L) ./ (R .- L) .- 1.0
+end
+
+function ξ(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}, x::PSDdata{T}) where {T<:Number}
+    return ξ(a.mapping, x)
+end
+function ξ(a::PSDModelOrthonormal{<:Any, <:Any, Nothing}, x::PSDdata{T}) where {T<:Number}
+    L = domain_interval_left(a)
+    R = domain_interval_right(a)
+    return ((x .+ 1.0) ./ 2.0) .* (R .- L) .+ L
+end

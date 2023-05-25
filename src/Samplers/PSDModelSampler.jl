@@ -1,15 +1,15 @@
 using Roots: find_zero
 
-struct PSDModelSampler{d, T<:Number} <: Sampler{d, T}
+struct PSDModelSampler{d, T<:Number, S} <: Sampler{d, T}
     model::PSDModelOrthonormal{d, T} # model to sample from
     margins::Vector{<:PSDModelOrthonormal{<:Any, T}} # start with x_{≤1}, then x_{≤2}, ...
     integrals::Vector{TraceModel{T}} # integrals of marginals
-    function PSDModelSampler(model::PSDModelOrthonormal{d, T}) where {d, T<:Number}
+    function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}) where {d, T<:Number, S}
         model = normalize(model) # create normalized copy
         margins = [marginalize(model, collect(k:d)) for k in 2:d]
         margins = [margins; model] # add the full model as last
         integrals = map((x,k)->integral(x, k), margins, 1:d)
-        new{d, T}(model, margins, integrals)
+        new{d, T, S}(model, margins, integrals)
     end
 end
 
@@ -22,7 +22,7 @@ function Distributions.pdf(
     return sar.model(x)
 end
 
-function pushforward_u(sampler::PSDModelSampler{d, T}, u::PSDdata{T}) where {d, T<:Number}
+function pushforward_u(sampler::PSDModelSampler{d, T, S}, u::PSDdata{T}) where {d, T<:Number, S}
     x = zeros(T, d)
     ## T^{-1}(x_1,...,x_k) functions, z=x_k
     f(k) = begin
@@ -32,9 +32,16 @@ function pushforward_u(sampler::PSDModelSampler{d, T}, u::PSDdata{T}) where {d, 
             z->(sampler.integrals[k]([x[1:k-1]; z])/sampler.margins[k-1](x[1:k-1])) - u[k]
         end
     end
-    for k=1:d
-        left, right = domain_interval(sampler.model, k)
-        x[k] = find_zero(f(k), (left, right))
+    if S<:OMF 
+        for k=1:d
+            # left, right = domain_interval(sampler.model, k)
+            x[k] = find_zero(f(k), 0.0)
+        end
+    else
+        for k=1:d
+            left, right = domain_interval(sampler.model, k)
+            x[k] = find_zero(f(k), (left, right))
+        end
     end
     return x
 end

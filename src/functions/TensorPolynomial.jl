@@ -122,15 +122,16 @@ using Gauss-Legendre quadrature.
 """
 function calculate_M_quadrature(p::FMTensorPolynomial{d, T}, 
     dim::Int, 
-    measure::Function
+    measure::Function;
+    kwargs...
 ) where {d, T<:Number}
-    calculate_M_quadrature(p,dim,measure,domain_interval(p, dim))
+    calculate_M_quadrature(p,dim,measure,domain_interval(p, dim); kwargs...)
 end
 
 """
 Remark:
 This also works for Orthogonal Mapped functions, when the
-domain endpoints are thos of the non mapped functions and the measure is not
+domain endpoints are those of the non mapped functions and the measure is not
 dependent on x (Lebesgue measure).
 
 TODO: What is for non Lebesgue measure?
@@ -138,10 +139,16 @@ TODO: What is for non Lebesgue measure?
 function calculate_M_quadrature(p::FMTensorPolynomial{d, T}, 
                                 dim::Int, 
                                 measure::Function,
-                                domain_endpoints::Tuple{<:Number, <:Number}
+                                domain_endpoints::Tuple{<:Number, <:Number};
+                                amount_quadrature_points=nothing
                         ) where {d, T<:Number}
     M = zeros(T, p.N, p.N)
-    x, w = gausslegendre(p.highest_order+1)
+    qaudr_order = if amount_quadrature_points === nothing
+        p.highest_order+2
+    else
+        amount_quadrature_points
+    end
+    x, w = gausslegendre(qaudr_order) # rule is exact for order 2n-1
     ## scale Gauss quadrature to domain
     l, r = domain_endpoints
     x .*= ((r - l)/2)
