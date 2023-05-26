@@ -1,87 +1,18 @@
 
 
-struct SelfReinforcedSampler{d, T, S} <: Sampler{d, T}
-    models::Vector{<:PSDModelOrthonormal{d, T, S}}
+struct SelfReinforcedSampler{d, T, R} <: Sampler{d, T, R}
+    models::Vector{<:PSDModelOrthonormal{d, T}}
     samplers::Vector{<:Sampler{d, T}}
-    mapping::S
+    R_map::R    # reference map from reference distribution to uniform
     function SelfReinforcedSampler(
-        models::Vector{<:PSDModelOrthonormal{d, T, S}},
-        samplers::Vector{<:Sampler{d, T}}
-    ) where {d, T<:Number, S}
-        @assert length(models) == length(samplers)
-        new{d, T, S}(models, samplers, models[1].mapping)
-    end
-    function SelfReinforcedSampler(
-        models::Vector{<:PSDModelOrthonormal{d, T, S}},
+        models::Vector{<:PSDModelOrthonormal{d, T}},
         samplers::Vector{<:Sampler{d, T}},
-        mapping::S
-    ) where {d, T<:Number, S}
+        R_map::R
+    ) where {d, T<:Number, R}
         @assert length(models) == length(samplers)
-        new{d, T, S}(models, samplers, mapping)
+        new{d, T, R}(models, samplers, R_map)
     end
 end
-
-
-@inline function _domain_transform_jacobian(sar::SelfReinforcedSampler{d, T}) where {d, T<:Number}
-    L_vec = domain_interval_right(sar.models[1]) - domain_interval_left(sar.models[1])
-    V = prod(L_vec)
-    return let V=V 
-        _->1.0/V 
-    end
-end
-@inline function _domain_transform_jacobian(sar::SelfReinforcedSampler{d, T, S}) where {d, T<:Number, S<:OMF}
-    return let mapping=sar.mapping
-        x->x_deriv_prod(mapping, 2*(x.-0.5)) * 2.0^(-d)
-    end
-end
-@inline function _inverse_domain_transform_jacobian(sar::SelfReinforcedSampler{d, T}) where {d, T<:Number}
-    L_vec = domain_interval_right(sar.models[1]) - domain_interval_left(sar.models[1])
-    V = prod(L_vec)
-    return let V=V 
-        _->V 
-    end
-end
-@inline function _inverse_domain_transform_jacobian(sar::SelfReinforcedSampler{d, T, S}) where {d, T<:Number, S<:OMF}
-    return let mapping=sar.mapping 
-        x->ξ_deriv_prod(mapping, x) * 2.0^d
-    end
-end
-
-# domain transform from reference to target domain
-function _domain_transform(
-        sar::SelfReinforcedSampler{d, T}, 
-        x::PSDdata{T}
-    ) where {d, T<:Number}
-    L = domain_interval_left(sar.models[1])
-    R = domain_interval_right(sar.models[1])
-    return x .* (R .- L) .+ L
-end
-# inverse domain transform from target to reference domain
-function _inverse_domain_transform(
-        sar::SelfReinforcedSampler{d, T}, 
-        x::PSDdata{T}
-    ) where {d, T<:Number}
-    L = domain_interval_left(sar.models[1])
-    R = domain_interval_right(sar.models[1])
-    return (x .- L) ./ (R .- L)
-end
-# domain transform from reference to target domain
-function _domain_transform(
-        sar::SelfReinforcedSampler{d, T, S}, 
-        ξ::PSDdata{T}
-    ) where {d, T<:Number, S<:OMF}
-    ξ = ξ * 2.0 .- 1.0
-    x(sar.mapping, ξ)
-end
-# inverse domain transform from target to reference domain
-function _inverse_domain_transform(
-        sar::SelfReinforcedSampler{d, T, S}, 
-        x::PSDdata{T}
-    ) where {d, T<:Number, S<:OMF}
-    ξ_res = ξ(sar.mapping, x) # [-1, 1]^d
-    return (ξ_res .+ 1.0) ./ 2.0 # [0, 1]^d
-end
-
 
 function Distributions.pdf(
         sar::SelfReinforcedSampler{d, T}, 
@@ -93,20 +24,26 @@ end
 
 function pullback_pdf_function(
         sar::SelfReinforcedSampler{d, T},
-        pdf_tar::Function;
+        pdf_tar::Function; # defined on [a, b]^d
         layers=nothing
     ) where {d, T<:Number}
     pdf_func = let pdf_tar=pdf_tar
-        x->pdf_tar(x)
+        x->pdf_tar(x) # defined on [a, b]^d
     end
     _layers = layers === nothing ? (1:length(sar.models)) : layers
     for (model, sampler) in zip(sar.models[_layers], sar.samplers[_layers])
-        pdf_func = let model = model, sar=sar, pdf_func=pdf_func, sampler=sampler
-            x-> begin
-                J = _inverse_domain_transform_jacobian(sar)
-                u = _inverse_domain_transform(sar, x) # transform to reference domain
-                x = pushforward_u(sampler, u)
-                return (pdf_func(x) * (1/(model(x))))
+        # apply map T_i
+        pdf_func = let model = model, sar=sar, 
+                        pdf_func=pdf_func, sampler=sampler
+            u-> begin
+                x = pushforward(sampler, u) # [0,1]->[a, b]
+                return pdf_func(x) * (1/(model(x)))
+            end
+        end
+        # apply map R (domain transformation)
+        pdf_func = let sar=sar, pdf_func=pdf_func
+            x->begin
+                pdf_func(_ref_pushforward(sar, x)) * _ref_Jacobian(sar, x)
             end
         end
     end
@@ -114,29 +51,32 @@ function pullback_pdf_function(
 end
 
 pushforward_pdf_function(sar::SelfReinforcedSampler; layers=nothing) = begin
-    return pushforward_pdf_function(sar, x->1.0; layers=layers)
+    return pushforward_pdf_function(sar, x->reference_pdf(sar, x); layers=layers)
 end
 function pushforward_pdf_function(
         sar::SelfReinforcedSampler{d, T},
         pdf_ref::Function;
         layers=nothing
     ) where {d, T<:Number}
-    pdf_func = let pdf_ref=pdf_ref, sar=sar
-        J = _inverse_domain_transform_jacobian(sar)
+    pdf_func = let pdf_ref=pdf_ref
         x->begin
-            u = _inverse_domain_transform(sar, x)
-            pdf_ref(u) * J(x)
+            pdf_ref(x)
         end
     end
     # from last to first
     _layers = layers === nothing ? (1:length(sar.models)) : layers
     for (model, sampler) in zip(reverse(sar.models[_layers]), reverse(sar.samplers[_layers]))
+        # apply map R (domain transformation)
+        pdf_func = let sar=sar, pdf_func=pdf_func
+            u->begin
+                pdf_func(_ref_pullback(sar, u)) * _ref_inv_Jacobian(sar, u)
+            end
+        end
+        # apply map T_i
         pdf_func = let model=model, sar=sar,
                     pdf_func=pdf_func, sampler=sampler
             x-> begin
-                u = pullback_x(sampler, x) # [a, b]^d -> [0, 1]^d
-                J = _domain_transform_jacobian(sar)
-                return (pdf_func(_domain_transform(sar, u)) * model(x) * J(u))                    
+                pdf_func(pullback(sampler, x)) * model(x)
             end
         end
     end
@@ -153,6 +93,7 @@ function add_layer!(
         pdf_tar::Function,
         model::PSDModelOrthonormal{d, T},
         approx_method::Symbol;
+        N_sample=1000,
         kwargs...
     ) where {d, T<:Number}
     
@@ -162,7 +103,7 @@ function add_layer!(
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
     
-    X = _domain_transform.(Ref(sar), eachcol(rand(T, d, 1000)))
+    X = x.(Ref(model), eachcol((rand(T, d, N_sample).-0.5) * 2))
     pdf_tar_pullbacked = pullback_pdf_function(sar, pdf_tar)
     Y = pdf_tar_pullbacked.(X)
 
@@ -190,14 +131,14 @@ end
 
 function SelfReinforcedSampler(
                 pdf_tar::Function,
-                model::PSDModelOrthonormal{d, T},
+                model::PSDModelOrthonormal{d, T, S},
                 amount_layers::Int,
                 approx_method::Symbol;
                 relaxation_method::Symbol=:algebraic,
                 N_sample=1000,
                 max_blur=1.0,
                 N_MC_blurring=20,
-                kwargs...) where {d, T<:Number}
+                kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
@@ -253,38 +194,41 @@ function SelfReinforcedSampler(
     samplers = [Sampler(model)]
     models = typeof(model)[model]
 
-    sar = SelfReinforcedSampler(models, samplers)
+    sar = if S<:OMF
+        SelfReinforcedSampler(models, samplers, GaussianReference{d, T}())
+    else 
+        SelfReinforcedSampler(models, samplers, ScalingReference(model))
+    end
 
     for i in 2:amount_layers
         layer_method = let relax_param = relax_param
             x->π_tar(x, relax_param[i])
         end
-        add_layer!(sar, layer_method, approx_method; kwargs...)
+        add_layer!(sar, layer_method, approx_method; 
+                N_sample=N_sample, kwargs...)
     end
     
     return sar
 end
 
-function pushforward_u(
+function pushforward(
         sra::SelfReinforcedSampler{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}
-    x = similar(u)
     for sampler in sra.samplers
-        x = pushforward_u(sampler, u) 
-        u = _inverse_domain_transform(sra, x)
+        u = _ref_pushforward(sampler, u)
+        u = pushforward(sampler, u)
     end
-    return x
+    return u
 end
 
-function pullback_x(
+function pullback(
         sra::SelfReinforcedSampler{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
-    u = similar(x)
     for sampler in sra.samplers
-        u = pullback_x(sampler, x)
-        x = _domain_transform(sra, u)
+        x = pullback(sampler, x)
+        x = _ref_pullback(sampler, x)
     end
-    return u
+    return x
 end

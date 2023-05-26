@@ -1,15 +1,16 @@
 using Roots: find_zero
 
-struct PSDModelSampler{d, T<:Number, S} <: Sampler{d, T}
-    model::PSDModelOrthonormal{d, T} # model to sample from
-    margins::Vector{<:PSDModelOrthonormal{<:Any, T}} # start with x_{≤1}, then x_{≤2}, ...
-    integrals::Vector{TraceModel{T}} # integrals of marginals
+struct PSDModelSampler{d, T<:Number, S, R} <: Sampler{d, T, R}
+    model::PSDModelOrthonormal{d, T, S} # model to sample from
+    margins::Vector{<:PSDModelOrthonormal{<:Any, T, S}} # start with x_{≤1}, then x_{≤2}, ...
+    integrals::Vector{<:OrthonormalTraceModel{T, S}} # integrals of marginals
+    R_map::R    # reference map from reference distribution to uniform
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}) where {d, T<:Number, S}
         model = normalize(model) # create normalized copy
         margins = [marginalize(model, collect(k:d)) for k in 2:d]
         margins = [margins; model] # add the full model as last
         integrals = map((x,k)->integral(x, k), margins, 1:d)
-        new{d, T, S}(model, margins, integrals)
+        new{d, T, S, Nothing}(model, margins, integrals, nothing)
     end
 end
 
@@ -22,7 +23,7 @@ function Distributions.pdf(
     return sar.model(x)
 end
 
-function pushforward_u(sampler::PSDModelSampler{d, T, S}, u::PSDdata{T}) where {d, T<:Number, S}
+function pushforward(sampler::PSDModelSampler{d, T, S}, u::PSDdata{T}) where {d, T<:Number, S}
     x = zeros(T, d)
     ## T^{-1}(x_1,...,x_k) functions, z=x_k
     f(k) = begin
@@ -71,7 +72,7 @@ end
 #     end
 # end
 
-function pullback_x(sampler::PSDModelSampler{d, T}, 
+function pullback(sampler::PSDModelSampler{d, T}, 
                         x::PSDdata{T}) where {d, T<:Number}
     f(k) = begin
         if k==1
