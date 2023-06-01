@@ -14,6 +14,9 @@ function plot_sampler2D(sar::SelfReinforcedSampler,
             target_list::Vector{Function};
             domain=nothing,
             N_plot=100,
+            single_plot=true,
+            titles=true,
+            savefig_path=nothing,
             kwargs...
         )
     @assert length(sar.models) == length(target_list)
@@ -22,30 +25,54 @@ function plot_sampler2D(sar::SelfReinforcedSampler,
     plt_list_forward = []
     for (i, model) in enumerate(sar.models)
         pdf_func = PSDModels.pushforward_pdf_function(sar;layers=collect(1:i))
-        push!(plt_list_forward, contour(domx, domx, (x,y)->pdf_func([x,y]), 
-                title="\$ \\left( T_{\\leq $i} \\right)_{\\#} \\rho_{ref} \$"; kwargs...)
-        )
+        plt = contour(domx, domx, (x,y)->pdf_func([x,y]); kwargs...)
+        if titles
+            title!(plt, "\$ \\left( T_{\\leq $i} \\right)_{\\#} \\rho_{ref} \$")
+        end
+        push!(plt_list_forward, plt)
     end
     plt_list_pullback = []
     for (i, tar) in enumerate(target_list)
         pullback_func = PSDModels.pullback_pdf_function(sar, tar;layers=collect(1:i-1))
         if i==1
-            push!(plt_list_pullback, contour(domx, domx, (x,y)->pullback_func([x,y]), 
-                    title="Target"; kwargs...))
+            plt = contour(domx, domx, (x,y)->pullback_func([x,y]); kwargs...)
+            if titles
+                title!(plt, "\$ \\pi_1 \$")
+            end
+            push!(plt_list_pullback, plt)
         else
-            push!(plt_list_pullback, contour(domx, domx, (x,y)->pullback_func([x,y]), 
-                    title="\$T_{ \\leq $(i-1) }^\\# \\pi_{$i } \$";  kwargs...))
+            plt = contour(domx, domx, (x,y)->pullback_func([x,y]);  kwargs...)
+            if titles
+                title!(plt, "\$T_{ \\leq $(i-1) }^\\# \\pi_{$i } \$")
+            end
+            push!(plt_list_pullback, plt)
         end
     end
-    plt_pulledback_reference = []
-    for (i, tar) in enumerate(target_list)
-        pullback_func = PSDModels.pullback_pdf_function(sar, tar;layers=collect(1:i))
-        push!(plt_pulledback_reference, contour(domx, domx, (x,y)->pullback_func([x,y]), 
-                title="pulled back targets $i"; kwargs...)
-        )
+    # plt_pulledback_reference = []
+    # for (i, tar) in enumerate(target_list)
+    #     pullback_func = PSDModels.pullback_pdf_function(sar, tar;layers=collect(1:i))
+    #     push!(plt_pulledback_reference, contour(domx, domx, (x,y)->pullback_func([x,y]), 
+    #             title="\$T_{ \\leq $(i) }^\\# \\pi_{$i } "; kwargs...)
+    #     )
+    # end
+    if single_plot
+        plt = plot(plt_list_forward..., plt_list_pullback..., 
+                    layout=(2, length(sar.models)))
+        if savefig_path !== nothing
+            savefig(plt, savefig_path*"sampler_overview.pdf")
+        end
+        return plt
+    else
+        if savefig_path !== nothing
+            for (i, plt) in enumerate(plt_list_forward)
+                savefig(plt, savefig_path*"sampler_forward_$i.pdf")
+            end
+            for (i, plt) in enumerate(plt_list_pullback)
+                savefig(plt, savefig_path*"sampler_pullback_targets_$i.pdf")
+            end
+        end
+        return plt_list_forward, plt_list_pullback
     end
-    return plot(plt_list_forward..., plt_list_pullback..., 
-                plt_pulledback_reference..., layout=(3, length(sar.models)))
 end
 
 

@@ -137,7 +137,9 @@ function SelfReinforcedSampler(
                 relaxation_method::Symbol=:algebraic,
                 N_sample=1000,
                 max_blur=1.0,
+                algebraic_base=2.0,
                 N_MC_blurring=20,
+                reference_map=nothing,
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
@@ -170,7 +172,8 @@ function SelfReinforcedSampler(
 
     ## algebraic relaxation
     relax_param = if relaxation_method == :algebraic
-        [2.0^(-i) for i in reverse(0:amount_layers-1)]
+        @assert algebraic_base > 1.0
+        [algebraic_base^(-i) for i in reverse(0:amount_layers-1)]
     elseif relaxation_method == :blurring
         [[max_blur * (1/i^2) for i in 1:amount_layers-1]; [0]]
     elseif relaxation_method == :none
@@ -194,7 +197,9 @@ function SelfReinforcedSampler(
     samplers = [Sampler(model)]
     models = typeof(model)[model]
 
-    sar = if S<:OMF
+    sar = if reference_map !== nothing
+        SelfReinforcedSampler(models, samplers, reference_map)
+    elseif S<:OMF
         SelfReinforcedSampler(models, samplers, GaussianReference{d, T}())
     else 
         SelfReinforcedSampler(models, samplers, ScalingReference(model))
