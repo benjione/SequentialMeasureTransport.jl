@@ -50,6 +50,40 @@ function pullback_pdf_function(
     return pdf_func
 end
 
+function _pullback_jacobian_function(
+        sra::SelfReinforcedSampler{d, T};
+        layers=nothing
+    ) where {d, T<:Number}
+    jacob_func = identity
+    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    for j=_layers
+        jacob_func = let jacob_func=jacob_func, sra=sra, j=j
+            x->begin
+                x_for = _ref_pushforward(sra, x)    
+                x_for2 = pushforward(sra.samplers[j], x_for)
+                return jacob_func(x_for2) * _ref_Jacobian(sra, x) * (1/(sra.models[j](x_for2)))
+            end
+        end
+    end
+    return jacob_func
+end
+
+function _broadcasted_pullback_pdf_function(
+        sar::SelfReinforcedSampler{d, T},
+        broad_pdf_tar::Function; # defined on [a, b]^d
+        layers=nothing
+    ) where {d, T<:Number}
+    pdf_func = let broad_pdf_tar=broad_pdf_tar, jac_func=_pullback_jacobian_function(sar; layers)
+        X->begin
+            X_forwarded = pushforward.(Ref(sar), X)
+            X_Jac = jac_func.(X)
+
+            return broad_pdf_tar(X_forwarded) .* X_Jac
+        end
+    end
+    return pdf_func
+end
+
 pushforward_pdf_function(sar::SelfReinforcedSampler; layers=nothing) = begin
     return pushforward_pdf_function(sar, x->reference_pdf(sar, x); layers=layers)
 end
@@ -94,6 +128,7 @@ function add_layer!(
         model::PSDModelOrthonormal{d, T},
         approx_method::Symbol;
         N_sample=1000,
+        broadcasted_tar_pdf=false,
         kwargs...
     ) where {d, T<:Number}
     
@@ -104,8 +139,16 @@ function add_layer!(
     end
     
     X = x.(Ref(model), eachcol((rand(T, d, N_sample).-0.5) * 2))
-    pdf_tar_pullbacked = pullback_pdf_function(sar, pdf_tar)
-    Y = pdf_tar_pullbacked.(X)
+    pdf_tar_pullbacked = if broadcasted_tar_pdf
+        _broadcasted_pullback_pdf_function(sar, pdf_tar)        
+    else 
+        pullback_pdf_function(sar, pdf_tar)
+    end
+    Y = if broadcasted_tar_pdf
+        pdf_tar_pullbacked(X)
+    else
+        pdf_tar_pullbacked.(X)
+    end
 
     if any(isnan, Y)
         throw(error("NaN in target!"))
@@ -140,6 +183,7 @@ function SelfReinforcedSampler(
                 algebraic_base=2.0,
                 N_MC_blurring=20,
                 reference_map=nothing,
+                broadcasted_tar_pdf=false,
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
@@ -150,22 +194,44 @@ function SelfReinforcedSampler(
 
 
     π_tar = if relaxation_method == :algebraic
-        (x,β) -> pdf_tar(x)^(β)
-    elseif relaxation_method == :blurring 
-        (x, σ_i) -> let pdf_tar=pdf_tar, N_MC_blurring=N_MC_blurring, d=d
-            begin
-                if σ_i == 0
-                    return pdf_tar(x)
-                else
-                    MC_samples = randn(T, d, N_MC_blurring) .* σ_i
-                    return (1/N_MC_blurring)*sum(
-                        [pdf_tar(x+MC_samples[:,k]) for k=1:N_MC_blurring]
-                    )
+        if broadcasted_tar_pdf
+            (X, β) -> pdf_tar(X).^β
+        else
+            (x,β) -> pdf_tar(x)^(β)
+        end
+    elseif relaxation_method == :blurring
+        if broadcasted_tar_pdf
+            (X, σ_i) -> let pdf_tar=pdf_tar, N_MC_blurring=N_MC_blurring, d=d
+                begin
+                    if σ_i == 0
+                        return pdf_tar(X)
+                    else
+                        Res = zeros(T, length(X))
+                        for i=1:N_MC_blurring
+                            add_rand(x) = x .+ randn(T, d) .* σ_i
+                            X_blurred = add_rand.(X)
+                            Res .+= pdf_tar(X_blurred)
+                        end
+                        return (1/N_MC_blurring)*Res
+                    end
+                end
+            end
+        else
+            (x, σ_i) -> let pdf_tar=pdf_tar, N_MC_blurring=N_MC_blurring, d=d
+                begin
+                    if σ_i == 0
+                        return pdf_tar(x)
+                    else
+                        MC_samples = randn(T, d, N_MC_blurring) .* σ_i
+                        return (1/N_MC_blurring)*sum(
+                            [pdf_tar(x+MC_samples[:,k]) for k=1:N_MC_blurring]
+                        )
+                    end
                 end
             end
         end
     elseif relaxation_method == :none
-        (x,β) -> pdf_tar(x)
+        (x,_) -> pdf_tar(x)
     else 
         throw(error("Not implemented"))
     end
@@ -182,10 +248,15 @@ function SelfReinforcedSampler(
         throw(error("Not implemented!"))
     end
 
-    # sample from model
+    # sample from model, push from [-1, 1] to [a, b]
+    # TODO: update to use reference map
     X = x.(Ref(model), eachcol((rand(T, d, N_sample).-0.5) * 2))
     # compute pdf
-    Y = π_tar.(X, Ref(relax_param[1]))
+    Y = if broadcasted_tar_pdf
+       π_tar(X, relax_param[1]) 
+    else
+        π_tar.(X, Ref(relax_param[1]))
+    end
 
     if any(isnan, Y)
         throw(error("NaN in target!"))
@@ -210,7 +281,9 @@ function SelfReinforcedSampler(
             x->π_tar(x, relax_param[i])
         end
         add_layer!(sar, layer_method, approx_method; 
-                N_sample=N_sample, kwargs...)
+                N_sample=N_sample, 
+                broadcasted_tar_pdf=broadcasted_tar_pdf, 
+                kwargs...)
     end
     
     return sar
@@ -218,22 +291,26 @@ end
 
 function pushforward(
         sra::SelfReinforcedSampler{d, T}, 
-        u::PSDdata{T}
+        u::PSDdata{T};
+        layers=nothing
     ) where {d, T<:Number}
-    for sampler in sra.samplers
-        u = _ref_pushforward(sampler, u)
-        u = pushforward(sampler, u)
+    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    for j=reverse(_layers) # reverse order
+        u = _ref_pushforward(sra, u)
+        u = pushforward(sra.samplers[j], u)
     end
     return u
 end
 
 function pullback(
         sra::SelfReinforcedSampler{d, T}, 
-        x::PSDdata{T}
+        x::PSDdata{T};
+        layers=nothing
     ) where {d, T<:Number}
-    for sampler in sra.samplers
-        x = pullback(sampler, x)
-        x = _ref_pullback(sampler, x)
+    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    for j=_layers
+        x = pullback(sra.samplers[j], x)
+        x = _ref_pullback(sra, x)
     end
     return x
 end

@@ -75,5 +75,49 @@ function plot_sampler2D(sar::SelfReinforcedSampler,
     end
 end
 
+function plot_distances(sar::SelfReinforcedSampler,
+            target_distribution::Function,
+            L_domain, R_domain;
+            N_samples=150,
+            savefig_path=nothing,
+            kwargs...
+        )
+    ranges = [range(l, r, length=N_samples) 
+                    for (l,r) in zip(L_domain, R_domain)]
+    iter = Iterators.product(ranges...)
+    KL_div(a,b) = (1/length(a)) * sum(a .* log.(a ./ b))
+    chi2_distance(a,b) = (1/length(a)) * sum((a .- b).^2 ./ b)
+    hell_distance(a,b) = (1/length(a)) * sum((a.^0.5 .- b.^0.5).^2)
+    
+    tuple_to_vec(func) = x->func([x...])
+    tar_vec = iter |> collect |> x->tuple_to_vec(target_distribution).(x)
+
+    KL_list = []
+    chi2_list = []
+    hell_list = []
+    for (i, model) in enumerate(sar.models)
+        pdf_func = PSDModels.pushforward_pdf_function(sar;layers=collect(1:i))
+        pdf_vec = iter |> collect |> x->tuple_to_vec(pdf_func).(x)
+
+        KL = KL_div(tar_vec, pdf_vec)
+        chi2 = chi2_distance(tar_vec, pdf_vec)
+        hell = hell_distance(tar_vec, pdf_vec)
+
+        push!(KL_list, KL)
+        push!(chi2_list, chi2)
+        push!(hell_list, hell)
+    end
+    N = length(sar.models)
+    plt = plot(1:N, KL_list, label="KL"; kwargs...)
+    plot!(plt, 1:N, chi2_list, label="\$ \\chi^2 \$"; kwargs...)
+    plot!(plt, 1:N, hell_list, label="Hellinger"; kwargs...)
+    xlabel!(plt, "Layers")
+    ylabel!(plt, "Distance")
+
+    if savefig_path !== nothing
+        savefig(plt, savefig_path*"sampler_distances.pdf")
+    end
+    return plt
+end
 
 end

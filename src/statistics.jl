@@ -32,15 +32,33 @@ function Chi2_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::PSDDataVector{T};
     ϵ=1e-5,
+    IRLS=true,
     kwargs...) where {T<:Number}
 
-    # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
-    # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
+    if IRLS
+        # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
+        # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
 
-    # Reweighting of the IRLS algorithm
-    reweight(z) = 1 / (abs(z) + ϵ)
- 
-    IRLS!(model, X, Y, reweight; kwargs...)
+        # Reweighting of the IRLS algorithm
+        reweight(z) = 1 / (abs(z) + ϵ)
+    
+        IRLS!(model, X, Y, reweight; kwargs...)
+
+    else
+        loss(Z) = (1/length(Z)) * sum(Z .+ Y.^2 ./ (Z .+ ϵ))
+        minimize!(model, loss, X; kwargs...)
+    end
+end
+
+function Hellinger_fit!(model::PSDModel{T}, 
+    X::PSDDataVector{T},
+    Y::PSDDataVector{T};
+    kwargs...) where {T<:Number}
+
+    loss_Hellinger(Z) = (1/length(Z)) * sum((sqrt.(Z) .- sqrt.(Y)).^2)
+    minimize!(model, loss_Hellinger, X; 
+            normalization_constraint=false,
+            kwargs...)
 end
 
 function greedy_Chi2_fit(model::PSDModel{T}, 

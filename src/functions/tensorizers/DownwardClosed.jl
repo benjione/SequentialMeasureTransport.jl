@@ -10,6 +10,11 @@ struct DownwardClosedTensorizer{d} <: Tensorizer{d}
     M_inner::Vector{Vector{Int}} # inner Margin of downward_closed set
 end
 
+function DownwardClosedTensorizer(index_list::Vector{Vector{Int}})
+    M_inner = filter(x->check_in_inner_margin(x, index_list), index_list)
+    return DownwardClosedTensorizer(index_list, M_inner)
+end
+
 function DownwardClosedTensorizer(d::Int, max_order::Int)
     index_list = Vector{Int}[];
     for i=0:max_order
@@ -20,12 +25,6 @@ function DownwardClosedTensorizer(d::Int, max_order::Int)
     return DownwardClosedTensorizer{d}(index_list, inner_margin)
 end
 
-# function DownwardClosedTensorizer(max_element_list::Vector{Int})
-#     d = length(max_element_list)
-#     ten = DownwardClosedTensorizer(d, max(max_element_list...))
-#     new_index_list = filter(x -> all(i->i<0, x.-max_element_list), ten.index_list)
-#     return DownwardClosedTensorizer{d}(new_index_list, max_element_list)
-# end
 
 @inline _valid_index(index::Vector{Int}) = all(i->i>0, index)
 
