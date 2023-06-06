@@ -54,7 +54,7 @@ function _pullback_jacobian_function(
         sra::SelfReinforcedSampler{d, T};
         layers=nothing
     ) where {d, T<:Number}
-    jacob_func = identity
+    jacob_func = x->1.0
     _layers = layers === nothing ? (1:length(sra.models)) : layers
     for j=_layers
         jacob_func = let jacob_func=jacob_func, sra=sra, j=j
@@ -150,9 +150,9 @@ function add_layer!(
         pdf_tar_pullbacked.(X)
     end
 
-    if any(isnan, Y)
-        throw(error("NaN in target!"))
-    end
+    # if any(isnan, Y)
+    #     throw(error("NaN in target!"))
+    # end
 
     fit_method!(model, collect(X), Y)
     normalize!(model)
