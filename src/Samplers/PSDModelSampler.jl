@@ -41,6 +41,7 @@ function pushforward(sampler::PSDModelSampler{d, T, S}, u::PSDdata{T}) where {d,
     else
         for k=1:d
             left, right = domain_interval(sampler.model, k)
+            # @show k,left, right
             x[k] = find_zero(f(k), (left, right))
         end
     end

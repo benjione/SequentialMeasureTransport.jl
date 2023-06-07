@@ -13,12 +13,12 @@ include("gaussian.jl")
 
 ### Interface for ReferenceMaps
 
-function sample_reference(map::ReferenceMap{d, T}) where {d, T<:Number}
-    pushforward(map, rand(T, d))
+function sample_reference(Rmap::ReferenceMap{d, T}) where {d, T<:Number}
+    pullback(Rmap, rand(T, d))
 end
 
-function sample_reference(map::ReferenceMap{d, T}, n::Int) where {d, T<:Number}
-    map(z->pushforward(map, z), rand(T, d, n))
+function sample_reference(Rmap::ReferenceMap{d, T}, n::Int) where {d, T<:Number}
+    map(z->pullback(Rmap, z), eachcol(rand(T, d, n)))
 end
 
 """

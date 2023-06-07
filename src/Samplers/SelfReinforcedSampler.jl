@@ -43,7 +43,7 @@ function pullback_pdf_function(
         # apply map R (domain transformation)
         pdf_func = let sar=sar, pdf_func=pdf_func
             x->begin
-                pdf_func(_ref_pushforward(sar, x)) * _ref_Jacobian(sar, x)
+                pdf_func(_ref_pushforward(sar, x)) * _ref_Jacobian(sar, x) # [a, b]^d -> [0, 1]^d
             end
         end
     end
@@ -138,7 +138,7 @@ function add_layer!(
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
     
-    X = x.(Ref(model), eachcol((rand(T, d, N_sample).-0.5) * 2))
+    X = sample_reference(sar, N_sample)
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sar, pdf_tar)        
     else 
@@ -150,9 +150,9 @@ function add_layer!(
         pdf_tar_pullbacked.(X)
     end
 
-    # if any(isnan, Y)
-    #     throw(error("NaN in target!"))
-    # end
+    if any(isnan, Y)
+        throw(error("NaN in target!"))
+    end
 
     fit_method!(model, collect(X), Y)
     normalize!(model)
@@ -190,6 +190,14 @@ function SelfReinforcedSampler(
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
     else
         throw(error("Approx mehtod $(approx_method) not implemented!"))
+    end
+
+    reference_map = if reference_map !== nothing
+        reference_map
+    elseif S<:OMF
+        GaussianReference{d, T}()
+    else 
+        ScalingReference(model)
     end
 
 
@@ -248,9 +256,8 @@ function SelfReinforcedSampler(
         throw(error("Not implemented!"))
     end
 
-    # sample from model, push from [-1, 1] to [a, b]
-    # TODO: update to use reference map
-    X = x.(Ref(model), eachcol((rand(T, d, N_sample).-0.5) * 2))
+    # sample from reference map
+    X = sample_reference(reference_map, N_sample)
     # compute pdf
     Y = if broadcasted_tar_pdf
        π_tar(X, relax_param[1]) 
@@ -264,29 +271,27 @@ function SelfReinforcedSampler(
 
     fit_method!(model, X, Y)
 
+    if any(isnan, model.B)
+        throw(error("NaN in model! Model did not converge!"))
+    end
+
     normalize!(model)
     samplers = [Sampler(model)]
     models = typeof(model)[model]
 
-    sar = if reference_map !== nothing
-        SelfReinforcedSampler(models, samplers, reference_map)
-    elseif S<:OMF
-        SelfReinforcedSampler(models, samplers, GaussianReference{d, T}())
-    else 
-        SelfReinforcedSampler(models, samplers, ScalingReference(model))
-    end
+    sra = SelfReinforcedSampler(models, samplers, reference_map)
 
     for i in 2:amount_layers
         layer_method = let relax_param = relax_param
             x->π_tar(x, relax_param[i])
         end
-        add_layer!(sar, layer_method, approx_method; 
+        add_layer!(sra, layer_method, approx_method; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf, 
                 kwargs...)
     end
     
-    return sar
+    return sra
 end
 
 function pushforward(
