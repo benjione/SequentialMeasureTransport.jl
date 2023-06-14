@@ -1,6 +1,6 @@
 using PSDModels
 using LinearAlgebra
-using DomainSets
+using ApproxFun
 using Test
 
 @testset "internal utility test" begin

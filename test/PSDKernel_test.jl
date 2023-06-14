@@ -1,4 +1,4 @@
-using KernelFunctions
+using KernelFunctions: MaternKernel
 
 @testset "Model creation/evaluation" begin
     @testset "simple" begin

@@ -1,5 +1,3 @@
-using ApproxFun
-
 @testset "Marginalization" begin
     @testset "orthogonal 2D" begin
         model = PSDModel(Legendre()^2, :trivial, 4)
