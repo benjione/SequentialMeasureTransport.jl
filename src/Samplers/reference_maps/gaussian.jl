@@ -15,11 +15,11 @@ end
 
 
 function sample_reference(map::GaussianReference{d, T}) where {d, T<:Number}
-    randn(T, d)
+    randn(T, d) * map.σ
 end
 
 function sample_reference(map::GaussianReference{d, T}, n::Int) where {d, T<:Number}
-    eachcol(randn(T, d, n))
+    eachcol(randn(T, d, n) * map.σ)
 end
 
 function pushforward(
