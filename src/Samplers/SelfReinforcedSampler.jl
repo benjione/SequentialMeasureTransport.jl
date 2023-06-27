@@ -205,7 +205,7 @@ function add_layer!(
     X = if subsequent_reference
         eachcol(rand(T, d, N_sample))
     else
-        sample_reference(reference_map, N_sample)
+        sample_reference(sra, N_sample)
     end
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sra, pdf_tar)        
@@ -438,7 +438,7 @@ function pushforward(
         u = _ref_pushforward(sra, u)
     end
     for j=reverse(_layers) # reverse order
-        if not sra.subseqeunt_reference
+        if sra.subseqeunt_reference == false
             u = _ref_pushforward(sra, u)
         end
         u = pushforward(sra.samplers[j], u)
@@ -460,7 +460,7 @@ function pullback(
     end
     for j=_layers
         x = pullback(sra.samplers[j], x)
-        if not sra.subseqeunt_reference
+        if sra.subseqeunt_reference == false
             x = _ref_pullback(sra, x)
         end
     end
