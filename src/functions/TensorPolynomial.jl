@@ -3,7 +3,7 @@ A feature map of tensorization of polynimials, where ``\\sigma``
 is the function that maps a multiindex to a coefficient index
 in the tensorization.
 """
-struct FMTensorPolynomial{d, T, S<:Tensorizer} <: Function
+struct FMTensorPolynomial{d, T, S<:Tensorizer} <: TensorFunction{d, T, S}
     space::TensorSpace
     normal_factor::Vector{Vector{T}} # Normalization factor for polynomials
     N::Int                  # order of feature map

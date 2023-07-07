@@ -7,15 +7,13 @@ struct SelfReinforcedSampler{d, T, R} <: Sampler{d, T, R}
     models::Vector{<:PSDModelOrthonormal{d, T}}
     samplers::Vector{<:Sampler{d, T}}
     R_map::R    # reference map from reference distribution to uniform
-    subseqeunt_reference::Bool # if true, Q' = (R ∘ Q ∘ R⁻¹), else Q' = (Q ∘ R⁻¹)
     function SelfReinforcedSampler(
         models::Vector{<:PSDModelOrthonormal{d, T}},
         samplers::Vector{<:Sampler{d, T}},
-        R_map::R,
-        subseqeunt_reference::Bool
-    ) where {d, T<:Number, R}
+        R_map::R
+    ) where {d, T<:Number, R<:ReferenceMap}
         @assert length(models) == length(samplers)
-        new{d, T, R}(models, samplers, R_map, subseqeunt_reference)
+        new{d, T, R}(models, samplers, R_map)
     end
 end
 
@@ -36,12 +34,10 @@ function pullback_pdf_function(
         x->pdf_tar(x) # defined on [a, b]^d
     end
     _layers = layers === nothing ? (1:length(sra.models)) : layers
-    if sra.subseqeunt_reference
-        # apply map R (domain transformation)
-        pdf_func = let sra=sra, pdf_func=pdf_func
-            u->begin
-                pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
-            end
+    # apply map R (domain transformation)
+    pdf_func = let sra=sra, pdf_func=pdf_func
+        u->begin
+            pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
         end
     end
     for (model, sampler) in zip(sra.models[_layers], sra.samplers[_layers])
@@ -53,21 +49,11 @@ function pullback_pdf_function(
                 return pdf_func(x) * (1/(model(x)))
             end
         end
-        if sra.subseqeunt_reference == false
-            # apply map R (domain transformation)
-            pdf_func = let sra=sra, pdf_func=pdf_func
-                x->begin
-                    pdf_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x) # [a, b]^d -> [0, 1]^d
-                end
-            end
-        end
     end
-    if sra.subseqeunt_reference
-        # apply map R (domain transformation)
-        pdf_func = let sra=sra, pdf_func=pdf_func
-            x->begin
-                pdf_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x) # [a, b]^d -> [0, 1]^d
-            end
+    # apply map R (domain transformation)
+    pdf_func = let sra=sra, pdf_func=pdf_func
+        x->begin
+            pdf_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x) # [a, b]^d -> [0, 1]^d
         end
     end
     return pdf_func
@@ -79,36 +65,22 @@ function _pullback_jacobian_function(
     ) where {d, T<:Number}
     jacob_func = x->1.0
     _layers = layers === nothing ? (1:length(sra.models)) : layers
-    if sra.subseqeunt_reference
-        jacob_func = let jacob_func=jacob_func, sra=sra
-            x->begin
-                return jacob_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x)
-            end
+    jacob_func = let jacob_func=jacob_func, sra=sra
+        x->begin
+            return jacob_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x)
         end
     end
     for j=_layers
-        if sra.subseqeunt_reference == false
-            jacob_func = let jacob_func=jacob_func, sra=sra, j=j
-                x->begin
-                    x_for = _ref_pushforward(sra, x)
-                    x_for2 = pushforward(sra.samplers[j], x_for)
-                    return jacob_func(x_for2) * _ref_Jacobian(sra, x) * (1/(sra.models[j](x_for2)))
-                end
-            end
-        else
-            jacob_func = let jacob_func=jacob_func, sra=sra, j=j
-                x->begin  
-                    x_for2 = pushforward(sra.samplers[j], x)
-                    return jacob_func(x_for2) * (1/(sra.models[j](x_for2)))
-                end
+        jacob_func = let jacob_func=jacob_func, sra=sra, j=j
+            x->begin  
+                x_for2 = pushforward(sra.samplers[j], x)
+                return jacob_func(x_for2) * (1/(sra.models[j](x_for2)))
             end
         end
     end
-    if sra.subseqeunt_reference
-        jacob_func = let jacob_func=jacob_func, sra=sra
-            x->begin
-                return jacob_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x)
-            end
+    jacob_func = let jacob_func=jacob_func, sra=sra
+        x->begin
+            return jacob_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x)
         end
     end
     return jacob_func
@@ -145,22 +117,12 @@ function pushforward_pdf_function(
     end
     # from last to first
     _layers = layers === nothing ? (1:length(sra.models)) : layers
-    if sra.subseqeunt_reference
-        pdf_func = let sra=sra, pdf_func=pdf_func
-            u->begin
-                pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
-            end
+    pdf_func = let sra=sra, pdf_func=pdf_func
+        u->begin
+            pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
         end
     end
     for (model, sampler) in zip(reverse(sra.models[_layers]), reverse(sra.samplers[_layers]))
-        # apply map R (domain transformation)
-        if sra.subseqeunt_reference == false
-            pdf_func = let sra=sra, pdf_func=pdf_func
-                u->begin
-                    pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
-                end
-            end
-        end
         # apply map T_i
         pdf_func = let model=model, sra=sra,
                     pdf_func=pdf_func, sampler=sampler
@@ -169,11 +131,9 @@ function pushforward_pdf_function(
             end
         end
     end
-    if sra.subseqeunt_reference
-        pdf_func = let sra=sra, pdf_func=pdf_func
-            x->begin
-                pdf_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x) # [a, b]^d -> [0, 1]^d
-            end
+    pdf_func = let sra=sra, pdf_func=pdf_func
+        x->begin
+            pdf_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x) # [a, b]^d -> [0, 1]^d
         end
     end
     return pdf_func
@@ -191,32 +151,23 @@ function add_layer!(
         fit_method!::Function;
         N_sample=1000,
         broadcasted_tar_pdf=false,
-        subsequent_reference=false,
         kwargs...
     ) where {d, T<:Number}
     # sample from reference map
-    X = if subsequent_reference
-        eachcol(rand(T, d, N_sample))
-    else
-        sample_reference(sra, N_sample)
-    end
+    X = eachcol(rand(T, d, N_sample))
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sra, pdf_tar)        
     else 
         pullback_pdf_function(sra, pdf_tar)
     end
-    pdf_tar_pullbacked_sample = if subsequent_reference
-        if broadcasted_tar_pdf
-            let π_tar=pdf_tar_pullbacked, sra=sra
-                (x) -> π_tar(_ref_pullback.(Ref(sra), x)) .* _ref_inv_Jacobian.(Ref(sra), x)
-            end
-        else
-            let π_tar=pdf_tar_pullbacked, sra=sra
-                (x) -> π_tar(_ref_pullback(sra, x)) * _ref_inv_Jacobian(sra, x)
-            end
+    pdf_tar_pullbacked_sample = if broadcasted_tar_pdf
+        let π_tar=pdf_tar_pullbacked, sra=sra
+            (x) -> π_tar(_ref_pullback.(Ref(sra), x)) .* _ref_inv_Jacobian.(Ref(sra), x)
         end
     else
-        pdf_tar_pullbacked
+        let π_tar=pdf_tar_pullbacked, sra=sra
+            (x) -> π_tar(_ref_pullback(sra, x)) * _ref_inv_Jacobian(sra, x)
+        end
     end
     Y = if broadcasted_tar_pdf
         pdf_tar_pullbacked_sample(X)
@@ -250,7 +201,8 @@ function SelfReinforcedSampler(
                 pdf_tar::Function,
                 model::PSDModelOrthonormal{d, T, S},
                 amount_layers::Int,
-                approx_method::Symbol;
+                approx_method::Symbol,
+                reference_map::ReferenceMap{d, T};
                 ### for bridging densities
                 relaxation_method::Symbol=:algebraic,
                 N_sample=1000,
@@ -259,16 +211,14 @@ function SelfReinforcedSampler(
                 N_relaxation=20, # number of MC for blurring
                 langevin_time_grad=1.0,
                 langevin_max_time=0.2,
-                ### for reference map
-                reference_map=nothing,
-                subsequent_reference=false,
                 ### others
                 broadcasted_tar_pdf=false,
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
         if relaxation_method == :algebraic
-            throw(error("Chi2 method does not support algebraic relaxation, use Chi2U instead!"))
+            throw(error("Chi2 method does not support algebraic relaxation since the distribution "*
+                         "has to be normalized, use Chi2U instead!"))
         end
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
     elseif approx_method == :Chi2U
@@ -277,22 +227,13 @@ function SelfReinforcedSampler(
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
 
-    @assert typeof(subsequent_reference) <: Bool
-    if subsequent_reference
-        L = domain_interval_left(model)
-        R = domain_interval_right(model)
-        @assert all(L .== 0.0)
-        @assert all(R .== 1.0)
+    L = domain_interval_left(model)
+    R = domain_interval_right(model)
+    @assert all(L .== 0.0)
+    @assert all(R .== 1.0)
+    if S<:OMF
+        throw(error("Do not use OMF models for self reinforced sampler, use a Gaussian reference map instead!"))
     end
-
-    reference_map = if reference_map !== nothing
-        reference_map
-    elseif S<:OMF
-        GaussianReference{d, T}()
-    else 
-        ScalingReference(model)
-    end
-
 
     ## Create bridging densities according to method
     π_tar = if relaxation_method == :algebraic
@@ -355,18 +296,14 @@ function SelfReinforcedSampler(
         throw(error("Not implemented"))
     end
 
-    π_tar_samp = if subsequent_reference
-        if broadcasted_tar_pdf
-            let π_tar=π_tar, reference_map=reference_map
-                (x, p) -> π_tar(pullback.(Ref(reference_map), x), p) .* inverse_Jacobian.(Ref(reference_map), x)
-            end
-        else
-            let π_tar=π_tar, reference_map=reference_map
-                (x, p) -> π_tar(pullback(reference_map, x), p) * inverse_Jacobian(reference_map, x)
-            end
+    π_tar_samp = if broadcasted_tar_pdf
+        let π_tar=π_tar, reference_map=reference_map
+            (x, p) -> π_tar(pullback.(Ref(reference_map), x), p) .* inverse_Jacobian.(Ref(reference_map), x)
         end
     else
-        π_tar
+        let π_tar=π_tar, reference_map=reference_map
+            (x, p) -> π_tar(pullback(reference_map, x), p) * inverse_Jacobian(reference_map, x)
+        end
     end
 
     ## algebraic relaxation
@@ -384,11 +321,7 @@ function SelfReinforcedSampler(
     end
 
     # sample from reference map
-    X = if subsequent_reference
-        eachcol(rand(T, d, N_sample))
-    else
-        sample_reference(reference_map, N_sample)
-    end
+    X = eachcol(rand(T, d, N_sample))
     # compute pdf
     Y = if broadcasted_tar_pdf
         π_tar_samp(X, relax_param[1]) 
@@ -410,7 +343,7 @@ function SelfReinforcedSampler(
     samplers = [Sampler(model)]
     models = typeof(model)[model]
 
-    sra = SelfReinforcedSampler(models, samplers, reference_map, subsequent_reference)
+    sra = SelfReinforcedSampler(models, samplers, reference_map)
 
     for i in 2:amount_layers
         layer_method = let relax_param = relax_param
@@ -419,7 +352,6 @@ function SelfReinforcedSampler(
         add_layer!(sra, layer_method, fit_method!; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf,
-                subsequent_reference=subsequent_reference,
                 kwargs...)
     end
     
@@ -432,18 +364,11 @@ function pushforward(
         layers=nothing
     ) where {d, T<:Number}
     _layers = layers === nothing ? (1:length(sra.models)) : layers
-    if sra.subseqeunt_reference
-        u = _ref_pushforward(sra, u)
-    end
+    u = _ref_pushforward(sra, u)
     for j=reverse(_layers) # reverse order
-        if sra.subseqeunt_reference == false
-            u = _ref_pushforward(sra, u)
-        end
         u = pushforward(sra.samplers[j], u)
     end
-    if sra.subseqeunt_reference
-        u = _ref_pullback(sra, u)
-    end
+    u = _ref_pullback(sra, u)
     return u
 end
 
@@ -453,17 +378,10 @@ function pullback(
         layers=nothing
     ) where {d, T<:Number}
     _layers = layers === nothing ? (1:length(sra.models)) : layers
-    if sra.subseqeunt_reference
-        x = _ref_pushforward(sra, x)
-    end
+    x = _ref_pushforward(sra, x)
     for j=_layers
         x = pullback(sra.samplers[j], x)
-        if sra.subseqeunt_reference == false
-            x = _ref_pullback(sra, x)
-        end
     end
-    if sra.subseqeunt_reference
-        x = _ref_pullback(sra, x)
-    end
+    x = _ref_pullback(sra, x)
     return x
 end

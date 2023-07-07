@@ -1,8 +1,8 @@
 
-# for tensorization
-include("tensorizers/Tensorizers.jl")
+# Tensorized functions
+include("TensorFunction.jl")
 
-include("TensorPolynomial.jl")
+# extra special functions needed
 include("squared_polynomial.jl")
 
 # for mapping functions

@@ -19,11 +19,12 @@ end
 @testset "Reference map and reference sampling" begin
     @testset "Scaling Reference" begin
         f(x) = sum(x.^2)
-        model = PSDModel(Legendre(-5.0..(-3.0)) ⊗ Legendre(3.0..10.0), :downward_closed, 1)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
         sra = SelfReinforcedSampler(
             f,
             model,
-            1, :Chi2U;
+            1, :Chi2U,
+            PSDModels.ScalingReference{2}([-5.0, 3.0], [-3.0, 10.0]);
             N_sample=500,
         )
         x = PSDModels.sample_reference(sra)
@@ -42,12 +43,13 @@ end
 
     @testset "Gaussian Reference" begin
         f(x) = exp(-sum(x.^2))
-        model = PSDModel(Legendre()^2, 
-                        :downward_closed, 1; mapping=:algebraicOMF)
+        model = PSDModel(Legendre(0.0..1.0)^2, 
+                        :downward_closed, 1)
         sra = SelfReinforcedSampler(
             f,
             model,
-            1, :Chi2U;
+            1, :Chi2U,
+            PSDModels.GaussianReference{2, Float64}(1.0);
             N_sample=500,
         )
 
@@ -63,11 +65,12 @@ end
 @testset "self SelfReinforcedSampler" begin
     @testset "simple" begin
         f(x) = sum(x.^2 + x.^4)
-        model = PSDModel(Legendre(-1.0..1.0)^2, :downward_closed, 1)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U;
+            2, :Chi2U,
+            PSDModels.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
         )
         for _=1:10
@@ -78,27 +81,27 @@ end
 
     @testset "OMF" begin
         f(x) = exp(-0.1*sum(x.^2))
-        model = PSDModel(Legendre()^2, 
-                    :downward_closed, 3, mapping=:algebraicOMF,
-                    λ_1=0.0, λ_2=0.0)
+        model = PSDModel(Legendre(0.0..1.0)^2, 
+                    :downward_closed, 3)
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U;
+            2, :Chi2U,
+            PSDModels.GaussianReference{2, Float64}(2.0);
             relaxation_method=:algebraic,
-            N_sample=1000,
-            reference_map=PSDModels.GaussianReference{2, Float64}(2.0),
+            N_sample=1000
         )
         x = PSDModels.sample(sra)
     end
 
     @testset "broadcasted target" begin
         f(X) = map(x->exp(-sum(x.^2)), X)
-        model = PSDModel(Legendre()^2, :downward_closed, 3)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 3)
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U;
+            2, :Chi2U,
+            PSDModels.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
@@ -111,12 +114,12 @@ end
 
     @testset "broadcasted target OMF" begin
         f(X) = map(x->exp(-sum(x.^2)), X)
-        model = PSDModel(Legendre()^2, :downward_closed, 2,
-                    mapping=:algebraicOMF)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 2)
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U;
+            2, :Chi2U,
+            PSDModels.GaussianReference{2, Float64}(2.0);
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
@@ -126,12 +129,13 @@ end
 
     @testset "Sampling irregular domain" begin
         f(x) = sin(sum(x))
-        model = PSDModel(Legendre(-1.0..0.0) ⊗ Legendre(1.0..2.0), 
+        model = PSDModel(Legendre(0.0..1.0)^2, 
                     :downward_closed, 3)
         sra = SelfReinforcedSampler(
             f,
             model,
-            1, :Chi2U;
+            1, :Chi2U,
+            PSDModels.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
             relaxation_method=:algebraic,
             N_sample=1000,
             trace=false,
@@ -142,11 +146,12 @@ end
 
     @testset "broadcasted irregular domain" begin
         f(X) = map(x->sin(sum(x)), X)
-        model = PSDModel(Legendre(-1.0..0.0) ⊗ Legendre(1.0..2.0), :downward_closed, 2)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 2)
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U;
+            2, :Chi2U,
+            PSDModels.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
