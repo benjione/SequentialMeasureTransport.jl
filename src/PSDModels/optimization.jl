@@ -31,6 +31,7 @@ Minimizes ``B^* = \\argmin_B L(a_B(x_1), a_B(x_2), ...) + λ_1 tr(B) `` and retu
 function minimize!(a::PSDModel{T}, 
                    L::Function, 
                    X::PSDDataVector{T};
+                   L_includes_normalization=false,
                    λ_1=0.0,
                    λ_2=1e-8,
                    trace=false,
@@ -40,7 +41,7 @@ function minimize!(a::PSDModel{T},
                    kwargs...
             ) where {T<:Number}
 
-    if normalization_constraint && !(a isa PSDModelPolynomial)
+    if (normalization_constraint || L_includes_normalization) && !(a isa PSDModelPolynomial)
         @error "Normalization constraint only implemented for tensorized polynomial model!"
         return nothing
     end
@@ -57,24 +58,36 @@ function minimize!(a::PSDModel{T},
             return a(X[i], A)
         end
     end
-    loss =
-        if λ_1 == 0.0 && λ_2 == 0.0
+
+    loss = let L=L, X=X
+        if L_includes_normalization
             (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)])
-            end
-        elseif λ_1 == 0.0
-            (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)]) + λ_2 * opnorm(A, 2)^2
-            end
-        elseif λ_2 == 0.0
-            (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A)
+                return L([f_B(i, A) for i in 1:length(X)], tr(A))
             end
         else
             (A) -> begin
-                return L([f_B(i, A) for i in 1:length(X)]) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
+                return L([f_B(i, A) for i in 1:length(X)])
             end
         end
+    end
+    
+    loss = let loss=loss
+        if λ_1 == 0.0 && λ_2 == 0.0
+            (A) -> loss(A)
+        elseif λ_1 == 0.0
+            (A) -> begin
+                return loss(A) + λ_2 * opnorm(A, 2)^2
+            end
+        elseif λ_2 == 0.0
+            (A) -> begin
+                return loss(A) + λ_1 * nuclearnorm(A)
+            end
+        else
+            (A) -> begin
+                return loss(A) + λ_1 * nuclearnorm(A) + λ_2 * opnorm(A, 2)^2
+            end
+        end
+    end
 
     solution = optimize_PSD_model(a.B, loss;
                                 trace=trace,

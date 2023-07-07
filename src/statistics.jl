@@ -10,7 +10,7 @@ using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
 
-export ML_fit!, Chi2_fit!
+export ML_fit!, Chi2_fit!, Chi2U_fit!
 
 """
     ML_fit!(model, samples; kwargs...)
@@ -42,11 +42,40 @@ function Chi2_fit!(model::PSDModel{T},
         # Reweighting of the IRLS algorithm
         reweight(z) = 1 / (abs(z) + ϵ)
     
-        IRLS!(model, X, Y, reweight; kwargs...)
+        IRLS!(model, X, Y, reweight; normalization_constraint=true, kwargs...)
 
     else
         loss(Z) = (1/length(Z)) * sum(Z .+ Y.^2 ./ (Z .+ ϵ))
-        minimize!(model, loss, X; kwargs...)
+        minimize!(model, loss, X; normalization_constraint=true, kwargs...)
+    end
+end
+
+"""
+    Chi2U_fit!(model, samples; kwargs...)
+
+fit of unnormalized distribution. The loss function is defined by
+Z_y/Z_f^2 * ∫ (f(x) - y(x))^2/y(x) dx
+"""
+function Chi2U_fit!(model::PSDModel{T}, 
+    X::PSDDataVector{T},
+    Y::PSDDataVector{T};
+    ϵ=1e-5,
+    IRLS=false,
+    kwargs...) where {T<:Number}
+
+    if IRLS
+        throw(error("IRLS not implemented for unnormalized Chi2 fit"))
+        # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
+        # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
+
+        # Reweighting of the IRLS algorithm
+        reweight(z) = 1 / (abs(z) + ϵ)
+    
+        IRLS!(model, X, Y, reweight; kwargs...)
+
+    else
+        loss(Z, I_Z) = I_Z^2 - 2.0 * I_Z + (1/length(Z)) * sum(Y.^2 ./ (Z .+ ϵ))
+        minimize!(model, loss, X; L_includes_normalization=true, kwargs...)
     end
 end
 

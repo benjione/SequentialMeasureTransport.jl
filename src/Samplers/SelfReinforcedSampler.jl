@@ -181,26 +181,19 @@ end
 
 add_layer!(sra::SelfReinforcedSampler,
         pdf_tar::Function,
-        approx_method::Symbol;
+        fit_method!::Function;
         kwargs...
-    ) = add_layer!(sra, pdf_tar, deepcopy(sra.models[1]), approx_method; kwargs...)
+    ) = add_layer!(sra, pdf_tar, deepcopy(sra.models[1]), fit_method!; kwargs...)
 function add_layer!(
         sra::SelfReinforcedSampler{d, T},
         pdf_tar::Function,
         model::PSDModelOrthonormal{d, T},
-        approx_method::Symbol;
+        fit_method!::Function;
         N_sample=1000,
         broadcasted_tar_pdf=false,
         subsequent_reference=false,
         kwargs...
     ) where {d, T<:Number}
-    
-    fit_method! = if approx_method == :Chi2
-        (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
-    else
-        throw(error("Approx mehtod $(approx_method) not implemented!"))
-    end
-    
     # sample from reference map
     X = if subsequent_reference
         eachcol(rand(T, d, N_sample))
@@ -274,7 +267,12 @@ function SelfReinforcedSampler(
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
+        if relaxation_method == :algebraic
+            throw(error("Chi2 method does not support algebraic relaxation, use Chi2U instead!"))
+        end
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
+    elseif approx_method == :Chi2U
+        (m,x,y) -> Chi2U_fit!(m, x, y; kwargs...)
     else
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
@@ -418,7 +416,7 @@ function SelfReinforcedSampler(
         layer_method = let relax_param = relax_param
             x->π_tar(x, relax_param[i])
         end
-        add_layer!(sra, layer_method, approx_method; 
+        add_layer!(sra, layer_method, fit_method!; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf,
                 subsequent_reference=subsequent_reference,

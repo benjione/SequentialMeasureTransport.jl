@@ -23,7 +23,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            1, :Chi2;
+            1, :Chi2U;
             N_sample=500,
         )
         x = PSDModels.sample_reference(sra)
@@ -47,7 +47,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            1, :Chi2;
+            1, :Chi2U;
             N_sample=500,
         )
 
@@ -67,7 +67,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2;
+            2, :Chi2U;
             N_sample=500,
         )
         for _=1:10
@@ -84,7 +84,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2;
+            2, :Chi2U;
             relaxation_method=:algebraic,
             N_sample=1000,
             reference_map=PSDModels.GaussianReference{2, Float64}(2.0),
@@ -98,7 +98,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2;
+            2, :Chi2U;
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
@@ -116,7 +116,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2;
+            2, :Chi2U;
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
@@ -131,7 +131,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            1, :Chi2;
+            1, :Chi2U;
             relaxation_method=:algebraic,
             N_sample=1000,
             trace=false,
@@ -146,7 +146,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2;
+            2, :Chi2U;
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
