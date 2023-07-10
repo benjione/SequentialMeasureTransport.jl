@@ -1,4 +1,3 @@
-
 """
 Linear Scaling independently in all directions.
 """
@@ -25,7 +24,7 @@ end
 
 ## Interface implementation
 
-function pushforward(
+function PSDModels.pushforward(
         m::ScalingReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -33,7 +32,7 @@ function pushforward(
 end
 
 
-function pullback(
+function PSDModels.pullback(
         m::ScalingReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

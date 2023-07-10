@@ -1,14 +1,22 @@
+abstract type Mapping{d, T} end
+
+### methods interface for Mapping
+pushforward(sampler::Mapping, u::PSDdata) = @error "not implemented for this type of Sampler"
+pullback(sampler::Mapping, x::PSDdata) = @error "not implemented for this type of Sampler"
 
 # include reference maps
 include("reference_maps/reference_maps.jl")
+using .ReferenceMaps
 
-abstract type Sampler{d, T, R} end
+"""
+A Sampler is a mapping from a reference distribution to a target distribution,
+while a mapping does not have any definition of a reference or target by itself.
+"""
+abstract type Sampler{d, T, R} <: Mapping{d, T} end
 
-### methods implemented by concrete implmenetations:
 Sampler(model::PSDModel) = @error "not implemented for this type of PSDModel"
-pushforward(sampler::Sampler, u::PSDdata) = @error "not implemented for this type of Sampler"
-pullback(sampler::Sampler, x::PSDdata) = @error "not implemented for this type of Sampler"
 Distributions.pdf(sampler::Sampler, x::PSDdata) = @error "not implemented for this type of Sampler"
+
 
 ## methods not necessarily implemented by concrete implementations:
 function sample(sampler::Sampler{d, T}) where {d, T<:Number}
@@ -32,9 +40,9 @@ end
 @inline _ref_Jacobian(sampler::Sampler{<:Any, T}, x::PSDdata{T}) where {T} = Jacobian(sampler.R_map, x)
 @inline _ref_inv_Jacobian(sampler::Sampler{<:Any, T}, u::PSDdata{T}) where {T} = inverse_Jacobian(sampler.R_map, u)
 
-@inline sample_reference(sampler::Sampler{d, T, R}) where {d, T, R<:ReferenceMap} = sample_reference(sampler.R_map)
+@inline sample_reference(sampler::Sampler{d, T, R}) where {d, T, R<:ReferenceMap} = ReferenceMaps.sample_reference(sampler.R_map)
 @inline sample_reference(_::Sampler{d, T, Nothing}) where {d, T} = rand(T, d)
-@inline sample_reference(sampler::Sampler{d, T, R}, n::Int) where {d, T, R<:ReferenceMap} = sample_reference(sampler.R_map, n)
+@inline sample_reference(sampler::Sampler{d, T, R}, n::Int) where {d, T, R<:ReferenceMap} = ReferenceMaps.sample_reference(sampler.R_map, n)
 @inline sample_reference(_::Sampler{d, T, Nothing}, n::Int) where {d, T} = rand(T, d, n)
 
 @inline reference_pdf(sampler::Sampler{d, T, R}, x) where {d, T, R<:ReferenceMap} = _ref_Jacobian(sampler, x)

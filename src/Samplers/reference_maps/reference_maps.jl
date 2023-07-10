@@ -1,12 +1,23 @@
+module ReferenceMaps
 
+import ..PSDModels
+using ..PSDModels: PSDModelOrthonormal, domain_interval_left, domain_interval_right,
+                   PSDdata, Mapping, pullback, pushforward
+
+using SpecialFunctions: erf, erfcinv
+using Distributions
 
 # Maps to transform from U([0,1])^d to a domain of choice
 # defined by R_# ρ = u where ρ is the reference distribution.
-abstract type ReferenceMap{d, T} end
+abstract type ReferenceMap{d, T} <: Mapping{d, T} end
 
 include("scaling.jl")
 include("gaussian.jl")
+include("algebraic.jl")
 
+export ReferenceMap
+export ScalingReference, GaussianReference, AlgebraicReference
+export pullback, pushforward, Jacobian, inverse_Jacobian
 
 ## Convenient Constructors
 # IdentityReference(d, T) = ScalingReference{d}(zeros(T, d), ones(T, d))
@@ -26,7 +37,7 @@ end
 
 Pushes forward a vector of a reference distribution to the uniform distribution.
 """
-function pushforward(
+function PSDModels.pushforward(
         mapping::ReferenceMap{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -38,7 +49,7 @@ end
 
 Pulls back a vector of the uniform distribution to the reference distribution.
 """
-function pullback(
+function PSDModels.pullback(
         mapping::ReferenceMap{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}
@@ -68,3 +79,5 @@ function inverse_Jacobian(
     ) where {d, T<:Number}
     throw(error("Not implemented"))
 end
+
+end # module ReferenceMaps

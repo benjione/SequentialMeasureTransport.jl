@@ -22,7 +22,7 @@ function sample_reference(map::GaussianReference{d, T}, n::Int) where {d, T<:Num
     eachcol(randn(T, d, n) * map.σ)
 end
 
-function pushforward(
+function PSDModels.pushforward(
         m::GaussianReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -30,7 +30,7 @@ function pushforward(
 end
 
 
-function pullback(
+function PSDModels.pullback(
         m::GaussianReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

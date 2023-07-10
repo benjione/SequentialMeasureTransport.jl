@@ -120,4 +120,22 @@ function plot_distances(sar::SelfReinforcedSampler,
     return plt
 end
 
+function plot_sampling_distribution2D(sar::SelfReinforcedSampler{d, T};
+                                amount_samples=100,
+                                give_sampling_vector=false) where {d, T<:Number}
+    sample_list = Matrix{Vector{T}}(undef, length(sar.samplers), amount_samples)
+    for i=1:length(sar.samplers)
+        sample_list[i,:] = PSDModels.pushforward.(Ref(sar), PSDModels.sample_reference(sar, amount_samples); layers=collect(1:(i-1)))
+    end
+    plt_list = []
+    for i=1:length(sar.samplers)
+        plt = scatter([x[1] for x in sample_list[i,:]], [x[2] for x in sample_list[i,:]], label="Layer $i")
+        push!(plt_list, plt)
+    end
+    if give_sampling_vector
+        return plt_list, sample_list
+    end
+    return plt_list
+end
+
 end
