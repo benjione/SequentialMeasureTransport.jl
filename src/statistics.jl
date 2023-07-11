@@ -33,7 +33,13 @@ function Chi2_fit!(model::PSDModel{T},
     Y::PSDDataVector{T};
     ϵ=1e-5,
     IRLS=true,
+    chi2_unnormalized=false,
     kwargs...) where {T<:Number}
+
+    if chi2_unnormalized
+        @info "Option chi2_unnormalized is deprecated and might lead to wrong results."*
+              "Use Chi2U_fit! instead."
+    end
 
     if IRLS
         # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
@@ -42,11 +48,19 @@ function Chi2_fit!(model::PSDModel{T},
         # Reweighting of the IRLS algorithm
         reweight(z) = 1 / (abs(z) + ϵ)
     
-        IRLS!(model, X, Y, reweight; normalization_constraint=true, kwargs...)
+        if chi2_unnormalized
+            IRLS!(model, X, Y, reweight; normalization_constraint=false, kwargs...)
+        else
+            IRLS!(model, X, Y, reweight; normalization_constraint=true, kwargs...)
+        end
 
     else
         loss(Z) = (1/length(Z)) * sum(Z .+ Y.^2 ./ (Z .+ ϵ))
-        minimize!(model, loss, X; normalization_constraint=true, kwargs...)
+        if chi2_unnormalized
+            minimize!(model, loss, X; normalization_constraint=false, kwargs...)
+        else
+            minimize!(model, loss, X; normalization_constraint=true, kwargs...)
+        end
     end
 end
 

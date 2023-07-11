@@ -217,8 +217,8 @@ function SelfReinforcedSampler(
 
     fit_method! = if approx_method == :Chi2
         if relaxation_method == :algebraic
-            throw(error("Chi2 method does not support algebraic relaxation since the distribution "*
-                         "has to be normalized, use Chi2U instead!"))
+            @warn "Chi2 method does not support algebraic relaxation since the distribution "*
+                         "has to be normalized, use Chi2U instead!"
         end
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
     elseif approx_method == :Chi2U
