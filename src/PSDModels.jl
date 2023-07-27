@@ -7,6 +7,7 @@ using FastGaussQuadrature: gausslegendre
 using ApproxFun
 using Combinatorics: multiexponents
 import ForwardDiff as FD
+import StatsBase
 
 ## overwrite functions in this module for compatibility
 import Base

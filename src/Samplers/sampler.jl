@@ -1,12 +1,16 @@
 abstract type Mapping{d, T} end
 
 ### methods interface for Mapping
-pushforward(sampler::Mapping, u::PSDdata) = @error "not implemented for this type of Sampler"
-pullback(sampler::Mapping, x::PSDdata) = @error "not implemented for this type of Sampler"
+pushforward(sampler::Mapping, u::PSDdata) = throw(NotImplementedError())
+pullback(sampler::Mapping, x::PSDdata) = throw(NotImplementedError())
 
 # include reference maps
 include("reference_maps/reference_maps.jl")
 using .ReferenceMaps
+
+# include bridging densities
+include("bridging/bridging_densities.jl")
+using .BridgingDensities
 
 """
 A Sampler is a mapping from a reference distribution to a target distribution,
@@ -50,4 +54,5 @@ end
 
 
 include("PSDModelSampler.jl")
+include("SubsetSampler.jl")
 include("SelfReinforcedSampler.jl")

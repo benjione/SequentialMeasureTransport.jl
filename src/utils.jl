@@ -25,6 +25,15 @@ end
 @inline low_vec_to_Symmetric(vec::AbstractVector, vm::AbstractMatrix) = @view vec[vm]
 
 
+## threaded map
+function map_threaded(f, A::AbstractArray{T}) where {T}
+    res = Array{T}(undef, size(A))
+    Threads.@threads for i=1:length(A)
+        res[i] = f(A[i])
+    end
+    return res
+end
+
 ## slicing
 slice_matrix(A::Array{T}) where {T<:Number} = ndims(A)>1 ? Vector{T}[c for c in eachcol(A)] : A
 unslice_matrix(A::Vector{Vector{T}}) where {T<:Number} = reduce(hcat, A)

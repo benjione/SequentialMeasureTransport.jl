@@ -4,16 +4,13 @@ A collection of self reinforced samplers, so that
 maps of the type TODO
 """
 struct SelfReinforcedSampler{d, T, R} <: Sampler{d, T, R}
-    models::Vector{<:PSDModelOrthonormal{d, T}}
     samplers::Vector{<:Sampler{d, T}}
     R_map::R    # reference map from reference distribution to uniform
     function SelfReinforcedSampler(
-        models::Vector{<:PSDModelOrthonormal{d, T}},
         samplers::Vector{<:Sampler{d, T}},
         R_map::R
     ) where {d, T<:Number, R<:ReferenceMap}
-        @assert length(models) == length(samplers)
-        new{d, T, R}(models, samplers, R_map)
+        new{d, T, R}(samplers, R_map)
     end
 end
 
@@ -33,20 +30,19 @@ function pullback_pdf_function(
     pdf_func = let pdf_tar=pdf_tar
         x->pdf_tar(x) # defined on [a, b]^d
     end
-    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
     # apply map R (domain transformation)
     pdf_func = let sra=sra, pdf_func=pdf_func
         u->begin
             pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
         end
     end
-    for (model, sampler) in zip(sra.models[_layers], sra.samplers[_layers])
+    for sampler in sra.samplers[_layers]
         # apply map T_i
-        pdf_func = let model = model, sra=sra, 
-                        pdf_func=pdf_func, sampler=sampler
+        pdf_func = let sra=sra, pdf_func=pdf_func, sampler=sampler
             u-> begin
                 x = pushforward(sampler, u) # [0,1]->[a, b]
-                return pdf_func(x) * (1/(model(x)))
+                return pdf_func(x) * (1/(Distributions.pdf(sampler, x)))
             end
         end
     end
@@ -64,7 +60,7 @@ function _pullback_jacobian_function(
         layers=nothing
     ) where {d, T<:Number}
     jacob_func = x->1.0
-    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
     jacob_func = let jacob_func=jacob_func, sra=sra
         x->begin
             return jacob_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x)
@@ -74,7 +70,7 @@ function _pullback_jacobian_function(
         jacob_func = let jacob_func=jacob_func, sra=sra, j=j
             x->begin  
                 x_for2 = pushforward(sra.samplers[j], x)
-                return jacob_func(x_for2) * (1/(sra.models[j](x_for2)))
+                return jacob_func(x_for2) * (1/(Distributions.pdf(sra.samplers[j], x_for2)))
             end
         end
     end
@@ -116,18 +112,17 @@ function pushforward_pdf_function(
         end
     end
     # from last to first
-    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
     pdf_func = let sra=sra, pdf_func=pdf_func
         u->begin
             pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
         end
     end
-    for (model, sampler) in zip(reverse(sra.models[_layers]), reverse(sra.samplers[_layers]))
+    for sampler in reverse(sra.samplers[_layers])
         # apply map T_i
-        pdf_func = let model=model, sra=sra,
-                    pdf_func=pdf_func, sampler=sampler
+        pdf_func = let sra=sra, pdf_func=pdf_func, sampler=sampler
             x-> begin
-                pdf_func(pullback(sampler, x)) * model(x)
+                pdf_func(pullback(sampler, x)) * Distributions.pdf(sampler, x)
             end
         end
     end
@@ -139,11 +134,6 @@ function pushforward_pdf_function(
     return pdf_func
 end
 
-add_layer!(sra::SelfReinforcedSampler,
-        pdf_tar::Function,
-        fit_method!::Function;
-        kwargs...
-    ) = add_layer!(sra, pdf_tar, deepcopy(sra.models[1]), fit_method!; kwargs...)
 function add_layer!(
         sra::SelfReinforcedSampler{d, T},
         pdf_tar::Function,
@@ -181,18 +171,15 @@ function add_layer!(
 
     fit_method!(model, collect(X), Y)
     normalize!(model)
-    push!(sra.models, model)
     push!(sra.samplers, Sampler(model))
     return nothing
 end
 
 function add_layer!(
         sra::SelfReinforcedSampler{d, T},
-        model::PSDModelOrthonormal{d, T},
+        sampler::Sampler{d, T},
     ) where {d, T<:Number}
-    normalize!(model)
-    push!(sra.models, model)
-    push!(sra.samplers, Sampler(model))
+    push!(sra.samplers, sampler)
     return nothing
 end
 
@@ -213,6 +200,7 @@ function SelfReinforcedSampler(
                 langevin_max_time=0.2,
                 ### others
                 broadcasted_tar_pdf=false,
+                threading=true,
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
@@ -223,6 +211,10 @@ function SelfReinforcedSampler(
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
     elseif approx_method == :Chi2U
         (m,x,y) -> Chi2U_fit!(m, x, y; kwargs...)
+    elseif approx_method == :Hellinger
+        (m,x,y) -> Hellinger_fit!(m, x, y; kwargs...)
+    elseif approx_method == :TV
+        (m,x,y) -> TV_fit!(m, x, y; kwargs...)
     else
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
@@ -341,15 +333,14 @@ function SelfReinforcedSampler(
 
     normalize!(model)
     samplers = [Sampler(model)]
-    models = typeof(model)[model]
 
-    sra = SelfReinforcedSampler(models, samplers, reference_map)
+    sra = SelfReinforcedSampler(samplers, reference_map)
 
     for i in 2:amount_layers
         layer_method = let relax_param = relax_param
             x->π_tar(x, relax_param[i])
         end
-        add_layer!(sra, layer_method, fit_method!; 
+        add_layer!(sra, layer_method, deepcopy(model), fit_method!; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf,
                 kwargs...)
@@ -358,12 +349,94 @@ function SelfReinforcedSampler(
     return sra
 end
 
+
+function SelfReinforced_ML_estimation(
+        X::PSDDataVector{T},
+        model::PSDModelOrthonormal{d2, T, S},
+        bridge::BridgingDensity{d2, T},
+        reference_map::ReferenceMap{dr, T};
+        subsample_data=false,
+        subsample_size=2000,
+        subspace_reference_map=nothing,
+        threading=true,
+        kwargs...
+) where {dr, d2, T<:Number, S}
+    d = length(X[1]) # data dimension
+    @assert d2 ≤ d
+    @assert dr == d
+
+    if d2 < d
+        @assert subspace_reference_map !== nothing
+        @assert typeof(subspace_reference_map) <: ReferenceMap{d2, T}
+    end
+
+    L = domain_interval_left(model)
+    R = domain_interval_right(model)
+    @assert all(L .== 0.0)
+    @assert all(R .== 1.0)
+    if S<:OMF
+        throw(error("Do not use OMF models for self reinforced sampler, use a Gaussian reference map instead!"))
+    end
+
+    sra = SelfReinforcedSampler(Sampler{d, T}[], 
+                                reference_map)
+
+    for t in bridge.t_vec
+        @assert t ≥ 0.0
+        model_ML = deepcopy(model)
+    
+        X_iter = if subsample_data
+            StatsBase.sample(X, subsample_size, replace=false)
+        else
+            X
+        end
+
+        ## Create bridging densities according to method
+        X_evolved = evolve_samples(bridge, X_iter, t)
+
+        ## pullback and mapping to reference space
+        X_evolved_pb = if length(sra.samplers)>0
+            if threading
+                map_threaded(x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
+            else
+                map(x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
+            end
+        else
+            if threading
+                map_threaded(x->_ref_pushforward(sra, x), X_evolved)
+            else
+                map(x->_ref_pushforward(sra, x), X_evolved)
+            end
+        end
+
+        ## filter to the right dimensions
+        if d2 < d
+            B, P, P_tilde = RandomSubsetProjection(T, d, d2) # select subset randomly
+            X_filter = [project_to_subset(P_tilde, 
+                            reference_map, 
+                            subspace_reference_map, 
+                            x) for x in X_evolved_pb]
+            ML_fit!(model_ML, X_filter; kwargs...)
+            layer = SubsetSampler{d}(Sampler(model_ML), B, 
+                                P, P_tilde, 
+                                reference_map, subspace_reference_map)
+        else
+            ML_fit!(model_ML, X_evolved_pb; kwargs...)
+            layer = Sampler(model_ML)
+        end
+
+        add_layer!(sra, layer)
+    end
+
+    return sra
+end
+
 function pushforward(
         sra::SelfReinforcedSampler{d, T}, 
         u::PSDdata{T};
         layers=nothing
     ) where {d, T<:Number}
-    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
     u = _ref_pushforward(sra, u)
     for j=reverse(_layers) # reverse order
         u = pushforward(sra.samplers[j], u)
@@ -377,7 +450,7 @@ function pullback(
         x::PSDdata{T};
         layers=nothing
     ) where {d, T<:Number}
-    _layers = layers === nothing ? (1:length(sra.models)) : layers
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
     x = _ref_pushforward(sra, x)
     for j=_layers
         x = pullback(sra.samplers[j], x)

@@ -5,7 +5,7 @@ using ApproxFun
     for d=2:10
         @testset "$(d) dimension" begin
             f(x) = sum(x.^2)
-            model = PSDModel(Legendre(-1..1)^d, :downward_closed, 1)
+            model = PSDModel(Legendre(-1.0..1.0)^d, :downward_closed, 1)
             X = [rand(d) * 2 .- 1 for _=1:500]
             Y = f.(X)
             fit!(model, X, Y, trace=false)

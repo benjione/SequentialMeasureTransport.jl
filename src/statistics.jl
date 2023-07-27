@@ -10,7 +10,7 @@ using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
 
-export ML_fit!, Chi2_fit!, Chi2U_fit!
+export ML_fit!, Chi2_fit!, Chi2U_fit!, TV_fit!
 
 """
     ML_fit!(model, samples; kwargs...)
@@ -46,7 +46,7 @@ function Chi2_fit!(model::PSDModel{T},
         # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
 
         # Reweighting of the IRLS algorithm
-        reweight(z) = 1 / (abs(z) + ϵ)
+        reweight(Z) = 1 ./ (abs.(Z) .+ ϵ)
     
         if chi2_unnormalized
             IRLS!(model, X, Y, reweight; normalization_constraint=false, kwargs...)
@@ -74,18 +74,17 @@ function Chi2U_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::PSDDataVector{T};
     ϵ=1e-5,
-    IRLS=false,
+    IRLS=true,
     kwargs...) where {T<:Number}
 
     if IRLS
-        throw(error("IRLS not implemented for unnormalized Chi2 fit"))
-        # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
+        # Chi2 defined by Z_y / Z_f^2 ∫ (f(x) - y(x))^2/y(x) dx
         # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
 
         # Reweighting of the IRLS algorithm
-        reweight(z) = 1 / (abs(z) + ϵ)
+        reweight(Z, B) = tr(B) ./ (abs.(Z) .+ ϵ)
     
-        IRLS!(model, X, Y, reweight; kwargs...)
+        IRLS!(model, X, Y, reweight; reweight_include_B=true, kwargs...)
 
     else
         loss(Z, I_Z) = I_Z^2 - 2.0 * I_Z + (1/length(Z)) * sum(Y.^2 ./ (Z .+ ϵ))
@@ -104,22 +103,43 @@ function Hellinger_fit!(model::PSDModel{T},
             kwargs...)
 end
 
-function greedy_Chi2_fit(model::PSDModel{T}, 
+function TV_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::PSDDataVector{T};
-    ϵ=1e-5,
     kwargs...) where {T<:Number}
+    
+    reweight(Z) = 1 ./ (abs.(Z .- Y) .+ ϵ)
 
-    # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
-    # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
-
-    # Reweighting of the IRLS algorithm
-    reweight(z) = 1 / (abs(z) + ϵ)
-
-    loss(Z) = (1/length(Z)) * sum((Z .- Y).^2 ./ (Y .+ ϵ))
- 
-    return greedy_IRLS(model, X, Y, reweight, loss; kwargs...)
+    IRLS!(model, X, Y, reweight; normalization_constraint=true, kwargs...)
 end
+
+function KL_fit!(model::PSDModel{T},
+    X::PSDDataVector{T},
+    Y::PSDDataVector{T};
+    kwargs...) where {T<:Number}
+    
+    loss(Z) = (1/length(Z)) * sum((-log.(Z) .- one(T)) .* Y)
+    minimize!(model, loss, X; 
+            normalization_constraint=false,
+            kwargs...)
+end
+
+# function greedy_Chi2_fit(model::PSDModel{T}, 
+#     X::PSDDataVector{T},
+#     Y::PSDDataVector{T};
+#     ϵ=1e-5,
+#     kwargs...) where {T<:Number}
+
+#     # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
+#     # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
+
+#     # Reweighting of the IRLS algorithm
+#     reweight(Z) = 1 ./ (abs.(Z) .+ ϵ)
+
+#     loss(Z) = (1/length(Z)) * sum((Z .- Y).^2 ./ (Y .+ ϵ))
+ 
+#     return greedy_IRLS(model, X, Y, reweight, loss; kwargs...)
+# end
 
 function conditional_expectation(model::PSDModelOrthonormal{d, T}, 
     dim::Int) where {d, T<:Number}

@@ -29,9 +29,9 @@ PSDModel(sp::Space, tensorizer::Symbol, ten_size::Int; kwargs...) = PSDModel{Flo
 function PSDModel{T}(sp::Space, tensorizer::Symbol, ten_size::Int; 
                      sparse=false, mapping=nothing, kwargs...) where {T<:Number}
     Φ, N = if tensorizer == :trivial
-        trivial_TensorPolynomial(sp, ten_size), ten_size
+        trivial_TensorPolynomial(T, sp, ten_size), ten_size
     elseif tensorizer == :downward_closed
-        poly = downwardClosed_Polynomial(sp, ten_size)
+        poly = downwardClosed_Polynomial(T, sp, ten_size)
         poly, max_N(poly.ten)
     else
         throw(error("Tensorizer not implemented"))

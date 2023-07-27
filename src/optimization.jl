@@ -20,7 +20,7 @@ optimize_PSD_model(initial::AbstractMatrix,
 Minimizes loss with the constraint of PSD and chooses the right
 solver depending on the model.
 """
-function optimize_PSD_model(initial::AbstractMatrix, 
+function optimize_PSD_model(initial::AbstractMatrix{T}, 
                     loss::Function;
                     convex::Bool = true,
                     trace::Bool=false,
@@ -32,7 +32,7 @@ function optimize_PSD_model(initial::AbstractMatrix,
                     vectorize_matrix::Bool=true,
                     normalization_constraint::Bool=false,
                     fixed_variables=nothing,
-                )
+                ) where {T<:Number}
     if convex
         return optimize_PSD_model_convex(initial, loss;
                 trace=trace,
@@ -92,14 +92,14 @@ end
 # nuclearnorm(A::AbstractMatrix) = sum(svdvals(A))
 nuclearnorm(A::con.AbstractExpr) = con.nuclearnorm(A)
 
-function optimize_PSD_model_convex(initial::AbstractMatrix, 
+function optimize_PSD_model_convex(initial::AbstractMatrix{T}, 
                     loss::Function;
                     trace::Bool=false,
                     maxit::Int=5000,
                     normalization_constraint=false,
                     optimizer=nothing,
                     fixed_variables=nothing,
-                )
+                ) where {T<:Number}
     verbose_solver = trace ? true : false
 
     if optimizer === nothing
@@ -128,10 +128,10 @@ function optimize_PSD_model_convex(initial::AbstractMatrix,
         optimizer;
         silent_solver = !verbose_solver
     )
-    return Hermitian(con.evaluate(B))
+    return Hermitian(T.(con.evaluate(B)))
 end
 
-function iteratively_optimize_convex(initial::AbstractMatrix, 
+function iteratively_optimize_convex(initial::AbstractMatrix{T}, 
                     loss::Function,
                     convergence::Function;
                     trace::Bool=false,
@@ -139,7 +139,7 @@ function iteratively_optimize_convex(initial::AbstractMatrix,
                     convergence_tol::Real=1e-6,
                     normalization_constraint=false,
                     optimizer=nothing,
-                )
+                ) where {T<:Number}
     verbose_solver = trace ? true : false
 
     if optimizer === nothing
@@ -183,5 +183,5 @@ function iteratively_optimize_convex(initial::AbstractMatrix,
         )
         k = k + 1
     end
-    return Hermitian(con.evaluate(B))
+    return Hermitian(T.(con.evaluate(B)))
 end

@@ -15,8 +15,8 @@ struct SquaredPolynomialMatrix{d, T, S}
             for j=i:Φ.highest_order+1
                 for k_index=1:length(int_dim)
                     k = int_dim[k_index]
-                    f1 = Fun(Φ.space.spaces[k], [zeros(T, i-1);Φ.normal_factor[k][i]])
-                    f2 = Fun(Φ.space.spaces[k], [zeros(T, j-1);Φ.normal_factor[k][j]])
+                    f1 = Fun(Φ.space.spaces[k], T[zeros(T, i-1);Φ.normal_factor[k][i]])
+                    f2 = Fun(Φ.space.spaces[k], T[zeros(T, j-1);Φ.normal_factor[k][j]])
                     res = Integral() * (f1 * f2)
                     res = res - res(C)  ## let integral start from 0
                     int_Fun[k_index][i, j] = res
@@ -31,15 +31,15 @@ end
 function (a::SquaredPolynomialMatrix{<:Any, T})(x::PSDdata{T}) where {T<:Number}
     vec = _eval(a.Φ, x, a.int_dim)::Vector{T}
     M = (vec * vec')::Matrix{T}
-    eval_Fun = Symmetric{T, Matrix{T}}[]
+    eval_Fun = Vector{Symmetric{T, Matrix{T}}}(undef, length(a.int_dim))
     for k_index=1:length(a.int_dim)
         k = a.int_dim[k_index]
         tmp_mat = zeros(T, size(a.int_Fun[k_index]))
         for i=1:size(a.int_Fun[k_index], 1), j=i:size(a.int_Fun[k_index], 2)
             tmp_mat[i, j] = a.int_Fun[k_index][i, j](x[k])
         end
-        sym_mat = Symmetric(tmp_mat)
-        push!(eval_Fun, sym_mat)
+        # no need to save as symmetric, since read in this order as well.
+        eval_Fun[k_index] = Symmetric(tmp_mat)
     end
     # eval_Fun = map((M, xk)->map(f->f(xk), M), a.int_Fun, x[a.int_dim])
 
@@ -57,3 +57,4 @@ function (a::SquaredPolynomialMatrix{<:Any, T})(x::PSDdata{T}) where {T<:Number}
     end
     return Symmetric(M)
 end
+
