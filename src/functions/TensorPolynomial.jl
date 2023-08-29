@@ -24,8 +24,8 @@ domain_interval(p::FMTensorPolynomial, dim::Int) = begin
     rightendpoint(p.space.spaces[dim].domain))
 end
 
-@inline σ(p::FMTensorPolynomial, i) = σ(p.ten, i)
-@inline σ_inv(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S} = σ_inv(p.ten, i)
+@inline σ(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S<:Tensorizer} = σ(p.ten, i)
+@inline σ_inv(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S<:Tensorizer} = σ_inv(p.ten, i)
 
 function add_index(p::FMTensorPolynomial{d, T}, index::Vector{Int}) where {d, T}
     ten = deepcopy(p.ten)

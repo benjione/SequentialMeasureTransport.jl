@@ -1,15 +1,16 @@
 
 
-struct SquaredPolynomialMatrix{d, T, S}
+struct SquaredPolynomialMatrix{d, T, S, FunType}
     Φ::FMTensorPolynomial{d, T, S}
     int_dim::Vector{Int}                    # dimension which are integrated over
-    int_Fun::Vector{<:AbstractMatrix{Fun}}    # integral of Φ[i] * Φ[j] over dimension int_dim
+    int_Fun::Vector{FunType}    # integral of Φ[i] * Φ[j] over dimension int_dim
     function SquaredPolynomialMatrix(Φ::FMTensorPolynomial{d, T, S}, int_dim::Vector{Int}; C=nothing) where {d, T, S}
         if C === nothing
             C = leftendpoint(Φ.space.spaces[int_dim].domain)
         end
         
-        int_Fun = [Matrix{Fun}(undef, Φ.highest_order+1, Φ.highest_order+1) for _=1:length(int_dim)]
+        M_type = typeof(Fun(Φ.space.spaces[int_dim[1]], rand(2)))
+        int_Fun = Matrix{M_type}[Matrix{M_type}(undef, Φ.highest_order+1, Φ.highest_order+1) for _=1:length(int_dim)]
         
         for i=1:Φ.highest_order+1
             for j=i:Φ.highest_order+1
@@ -24,11 +25,11 @@ struct SquaredPolynomialMatrix{d, T, S}
                 end
             end
         end
-        return new{d, T, S}(Φ, int_dim, int_Fun)
+        return new{d, T, S, typeof(int_Fun[1])}(Φ, int_dim, int_Fun)
     end
 end
 
-function (a::SquaredPolynomialMatrix{<:Any, T})(x::PSDdata{T}) where {T<:Number}
+function (a::SquaredPolynomialMatrix{d, T, S, FunType})(x::PSDdata{T}) where {d, T<:Number, S, FunType}
     vec = _eval(a.Φ, x, a.int_dim)::Vector{T}
     M = (vec * vec')::Matrix{T}
     eval_Fun = Vector{Symmetric{T, Matrix{T}}}(undef, length(a.int_dim))
@@ -43,10 +44,12 @@ function (a::SquaredPolynomialMatrix{<:Any, T})(x::PSDdata{T}) where {T<:Number}
     end
     # eval_Fun = map((M, xk)->map(f->f(xk), M), a.int_Fun, x[a.int_dim])
 
+    ind_j_list = Vector{Int}[σ_inv(a.Φ, j) for j=1:size(M, 2)]
     for i::Int = 1:size(M, 1)
         ind_i = σ_inv(a.Φ, i)
         for j::Int = i::Int:size(M, 2)
-            ind_j = σ_inv(a.Φ, j)
+            # ind_j = σ_inv(a.Φ, j)
+            ind_j = ind_j_list[j]
             @inbounds for k_index=1:length(a.int_dim)
                 k = a.int_dim[k_index]
                 i1 = ind_i[k]::Int
