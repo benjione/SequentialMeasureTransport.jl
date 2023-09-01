@@ -30,7 +30,7 @@ end
 ### Functions common to all Tensorizers
 
 @inline σ(t::TrivialTensorizer, i) = t.order[i...]
-@inline σ_inv(t::TrivialTensorizer, i::Int) = t.CI[i]
+@inline σ_inv(t::TrivialTensorizer, i::Int) = Tuple(t.CI[i])
 @inline max_N(t::TrivialTensorizer) = prod(size(t.order))
 
 function reduce_dim(t::TrivialTensorizer{d}, dim::Int) where {d}

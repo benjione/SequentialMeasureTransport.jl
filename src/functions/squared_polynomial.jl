@@ -44,7 +44,7 @@ function (a::SquaredPolynomialMatrix{d, T, S, FunType})(x::PSDdata{T}) where {d,
     end
     # eval_Fun = map((M, xk)->map(f->f(xk), M), a.int_Fun, x[a.int_dim])
 
-    ind_j_list = Vector{Int}[σ_inv(a.Φ, j) for j=1:size(M, 2)]
+    ind_j_list = NTuple{d, Int}[σ_inv(a.Φ, j) for j=1:size(M, 2)]
     for i::Int = 1:size(M, 1)
         ind_i = σ_inv(a.Φ, i)
         for j::Int = i::Int:size(M, 2)
