@@ -1,11 +1,16 @@
 
 """
-A collection of self reinforced samplers, so that
-maps of the type TODO
+Approximations T_1, T_2, ..., T_n of the target distribution π
+so that
+    T_1 ∘ T_2 ∘ ... ∘ T_n ∘ ρ = π
+where ρ is the reference distribution.
+All samplers are defined on the unit cube [0, 1]^d, so that
+T_1 = R ∘ T_1' ∘ R^{-1} and
+    T_1 ∘ T_2 ∘ ... ∘ T_n ∘ ρ = R ∘ T_1' ∘ ... ∘ T_n' ∘ R^{-1} ∘ ρ = π
 """
 struct SelfReinforcedSampler{d, T, R} <: Sampler{d, T, R}
-    samplers::Vector{<:Sampler{d, T}}
-    R_map::R    # reference map from reference distribution to uniform
+    samplers::Vector{<:Sampler{d, T}}   # defined on [0, 1]^d
+    R_map::R    # reference map from reference distribution to uniform on [0, 1]^d
     function SelfReinforcedSampler(
         samplers::Vector{<:Sampler{d, T}},
         R_map::R
@@ -358,6 +363,7 @@ function SelfReinforced_ML_estimation(
         subsample_data=false,
         subsample_size=2000,
         subspace_reference_map=nothing,
+        to_subspace_reference_map=nothing,
         threading=true,
         kwargs...
 ) where {dr, d2, T<:Number, S}
@@ -368,6 +374,9 @@ function SelfReinforced_ML_estimation(
     if d2 < d
         @assert subspace_reference_map !== nothing
         @assert typeof(subspace_reference_map) <: ReferenceMap{d2, T}
+        if to_subspace_reference_map === nothing
+            to_subspace_reference_map = reference_map
+        end
     end
 
     L = domain_interval_left(model)
@@ -413,13 +422,14 @@ function SelfReinforced_ML_estimation(
         if d2 < d
             B, P, P_tilde = RandomSubsetProjection(T, d, d2) # select subset randomly
             X_filter = [project_to_subset(P_tilde, 
-                            reference_map, 
-                            subspace_reference_map, 
+                            to_subspace_reference_map, 
+                            subspace_reference_map,
                             x) for x in X_evolved_pb]
             ML_fit!(model_ML, X_filter; kwargs...)
             layer = SubsetSampler{d}(Sampler(model_ML), B, 
                                 P, P_tilde, 
-                                reference_map, subspace_reference_map)
+                                to_subspace_reference_map, 
+                                subspace_reference_map)
         else
             ML_fit!(model_ML, X_evolved_pb; kwargs...)
             layer = Sampler(model_ML)
