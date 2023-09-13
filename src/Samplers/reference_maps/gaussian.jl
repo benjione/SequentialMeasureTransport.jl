@@ -13,6 +13,9 @@ struct GaussianReference{d, T} <: ReferenceMap{d, T}
     end
 end
 
+function Distributions.pdf(Rmap::GaussianReference{d, T}, x::PSDdata{T}) where {d, T<:Number}
+    mapreduce(xi->Distributions.pdf(Distributions.Normal(0, Rmap.σ), xi), *, x)
+end
 
 function sample_reference(map::GaussianReference{d, T}) where {d, T<:Number}
     randn(T, d) * map.σ

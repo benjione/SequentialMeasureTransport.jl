@@ -76,6 +76,7 @@ function PSDModel_from_polynomial(p::Fun)
     return PSDModel{Float64}(p.sp, p.ten_size, sparse=true)
 end
 
+(a::PSDModel{T})(x::T) where {T<:Number} = a(T[x])
 function (a::PSDModel{T})(x::PSDdata{T}) where {T<:Number}
     v = Φ(a, x)
     return dot(v, a.B, v)::T
@@ -91,21 +92,26 @@ function (a::PSDModel{T})(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Number}
     v = Φ(a, x)
     return dot(v, B, v)::T
 end
+# define this for Zygote, ForwardDiff, etc.
+function (a::PSDModel{T})(x::PSDdata{T}, B::AbstractMatrix) where {T<:Number}
+    v = Φ(a, x)
+    return dot(v, B, v)
+end
 
 function set_coefficients!(a::PSDModel{T}, B::Hermitian{T}) where {T<:Number}
     a.B .= B
 end
 
-function gradient(a::PSDModel{T}, x::T) where {T<:Number}
+function gradient(a::PSDModel{T}, x::PSDdata{T}) where {T<:Number}
     # ∇v = FD.derivative((y)->a.k.(Ref(y), a.X), x)
     # v = a.k.(Ref(x), a.X)
     # return 2 * ∇v' * a.B * v
     
     # ForwardDiff faster than manual implementation
-    return FD.derivative(a, x)
+    return FD.gradient(a, x)
 end
 
-function parameter_gradient(a::PSDModel{T}, x::T) where {T<:Number}
+function parameter_gradient(a::PSDModel{T}, x::PSDdata{T}) where {T<:Number}
     v = Φ(a, x)
     # ∇B = FD.derivative((B)->v' * B * v, a.B)
 
@@ -140,7 +146,7 @@ function integrate(a::PSDModel{T}, p::Function, χ::Domain;
     x .+= ((r + l)/2)
 
 
-    @inline Quad_point(w, x) = p(x) * w * (Φ(a,x) * Φ(a,x)')
+    @inline Quad_point(w, x) = p(x) * w * (Φ(a,T[x]) * Φ(a,T[x])')
     M_p = ((r - l)/2) * mapreduce(i->Quad_point(w[i], x[i]), .+, 1:length(x))
 
     # tr(A * W_P) = tr(V B V^T * V^-T W_P V^-1) = tr(V B M_p V^-1)

@@ -30,7 +30,7 @@ function pushforward(sampler::PSDModelSampler{d, T, S}, u::PSDdata{T}) where {d,
     ## T^{-1}(x_1,...,x_k) functions, z=x_k
     f(k) = begin
         if k==1
-            z->sampler.integrals[k](z) - u[sampler.variable_ordering[k]]
+            z->sampler.integrals[k](T[z]) - u[sampler.variable_ordering[k]]
         else
             z->(sampler.integrals[k]([x[1:k-1]; z])/sampler.margins[k-1](x[1:k-1])) - u[sampler.variable_ordering[k]]
         end
@@ -53,7 +53,7 @@ function pullback(sampler::PSDModelSampler{d, T},
                         x::PSDdata{T}) where {d, T<:Number}
     f(k) = begin
         if k==1
-            z->sampler.integrals[k](z)
+            z->sampler.integrals[k](T[z])
         else
             z->(sampler.integrals[k]([x[1:k-1]; z])/sampler.margins[k-1](x[1:k-1]))
         end

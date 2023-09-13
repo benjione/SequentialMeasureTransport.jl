@@ -3,8 +3,9 @@ using ApproxFun
 @testset "Model fit" begin
     @testset "custom feature map" begin
 
-        Φ(x) = Float64[1, sin(x), cos(x)]
+        Φ(x) = Float64[1, sin(x[1]), cos(x[1])]
         X = Float64[1, 2, 3]
+        X = [[x] for x in X]
         Y = Float64[1, 1, 1]
         model = PSDModel(Φ, 3)
         fit!(model, X, Y, trace=false)
@@ -15,8 +16,9 @@ using ApproxFun
 
     @testset "custom Chebyshev feature map" begin
         f_list = [Fun(Chebyshev(0..3), Float64[zeros(d); 1.0]) for d=0:10]
-        Φ(x) = map(f-> f(x), f_list)
+        Φ(x) = map(f-> f(x[1]), f_list)
         X = Float64[1, 2, 3]
+        X = [[x] for x in X]
         Y = Float64[1, 1, 1]
         model = PSDModel(Φ, length(f_list))
         fit!(model, X, Y, trace=false)
@@ -31,8 +33,9 @@ end
 @testset "arithmetic" begin
     @testset "scalar multiplication" begin
 
-        Φ(x) = Float64[1, sin(x), cos(x)]
+        Φ(x) = Float64[1, sin(x[1]), cos(x[1])]
         X = Float64[1, 2, 3]
+        X = [[x] for x in X]
         Y = Float64[1, 1, 1]
         model = PSDModel(Φ, 3)
         fit!(model, X, Y, trace=false)

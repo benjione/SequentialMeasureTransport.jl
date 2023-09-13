@@ -45,11 +45,12 @@ end
 
 @testset "Integration" begin
     @testset "1D custom C" begin
-        f(x) = x^2
-        f_int(x) = 1/3 * x^3
+        f(x) = x[1]^2
+        f_int(x) = 1/3 * x[1]^3
         model = PSDModel(Legendre(), :trivial, 5)
         
         X = collect(range(-1, 1, length=100))
+        X = [[x] for x in X]
         Y = f.(X)
         fit!(model, X, Y, maxit=1000, λ_1=1e-5, λ_2=0.0)
 
@@ -58,11 +59,12 @@ end
     end
 
     @testset "1D default C" begin
-        f(x) = x^2
-        f_int(x) = 1/3 * x^3 + 1/3
+        f(x) = x[1]^2
+        f_int(x) = 1/3 * x[1]^3 + 1/3
         model = PSDModel(Legendre(), :trivial, 5)
         
         X = collect(range(-1, 1, length=100))
+        X = [[x] for x in X]
         Y = f.(X)
         fit!(model, X, Y, maxit=1000, λ_1=1e-5, λ_2=0.0)
 
@@ -113,8 +115,9 @@ end
 
 @testset "Density estimation" begin
     @testset "1D" begin
-        pdf(x) = exp(-x^2/2)/sqrt(2*pi)
-        X = randn(500)
+        pdf(x) = exp(-x[1]^2/2)/sqrt(2*pi)
+        X = randn(1000)
+        X = [[x] for x in X]
         model = PSDModel(Legendre(-15..15), :trivial, 30)
         loss(Z) = -1/length(Z) * sum(log.(Z))
         minimize!(model, loss, X, maxit=3000, normalization_constraint=true)
@@ -123,8 +126,9 @@ end
     end
 
     @testset "1D downward_closed" begin
-        pdf(x) = exp(-x^2/2)/sqrt(2*pi)
-        X = randn(500)
+        pdf(x) = exp(-x[1]^2/2)/sqrt(2*pi)
+        X = randn(1000)
+        X = [[x] for x in X]
         model = PSDModel(Legendre(-15..15), :downward_closed, 30)
         loss(Z) = -1/length(Z) * sum(log.(Z))
         minimize!(model, loss, X, maxit=3000, normalization_constraint=true)

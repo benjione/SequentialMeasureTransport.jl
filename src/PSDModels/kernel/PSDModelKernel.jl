@@ -16,7 +16,7 @@ struct PSDModelKernel{T<:Number} <: PSDModel{T}
         X = if use_view
             @view X[1:end] # protect from appending
         else
-            copy(X)       # protect from further changes
+            deepcopy(X)       # protect from further changes
         end
         new{T}(B, k, X)
     end
@@ -38,6 +38,7 @@ function PSDModel_gradient_descent(
         X::PSDDataVector{T},
         Y::Vector{T},
         k::Kernel;
+        optimization_method = :SDP,
         λ_1=1e-8,
         trace=false,
         B0=nothing,
@@ -58,14 +59,15 @@ function PSDModel_gradient_descent(
     else
         B0
     end
-    solution = optimize_PSD_model(A0, f_A;
-                convex=true,
+    prob = create_SoS_opt_problem(optimization_method, 
+                A0, f_A;
                 trace=trace,
                 _filter_kwargs(kwargs, 
                         _optimize_PSD_kwargs,
                         (:convex, :trace)
                 )...
             )
+    solution = optimize(prob)
     return PSDModelKernel(solution, k, X; 
                   _filter_kwargs(kwargs, _PSDModelKernel_kwargs)...)
 end
@@ -102,8 +104,8 @@ function PSDModel_direct(
     A = Hermitian(spdiagm(Y))
     B = Hermitian((V_inv' * A * V_inv))
 
-    # project B onto the PSD cone, just in case
-    B, _ = prox(IndPSD(), B)
+    # # project B onto the PSD cone, just in case
+    # B, _ = prox(IndPSD(), B)
 
     return PSDModelKernel(B, k, X; 
                     _filter_kwargs(kwargs, _PSDModelKernel_kwargs)...)
@@ -120,7 +122,7 @@ add_support(a::PSDModel{T}, X::PSDdata{T}) where {T<:Number}
 Returns a PSD model with added support points, where the model still gives
 the same results as before (extension of the matrix initialized with zeros).
 """
-function add_support(a::PSDModelKernel{T}, X::PSDdata{T}) where {T<:Number}
+function add_support(a::PSDModelKernel{T}, X::PSDDataVector{T}) where {T<:Number}
     new_S = vcat(a.X, X)
     B = Hermitian(vcat(
                     hcat(a.B, zeros(Float64, length(X), length(X))), 

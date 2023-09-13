@@ -79,7 +79,7 @@ end
         end 
     end
 
-    @testset "OMF" begin
+    @testset "indefinite domain" begin
         f(x) = exp(-0.1*sum(x.^2))
         model = PSDModel(Legendre(0.0..1.0)^2, 
                     :downward_closed, 3)
@@ -112,7 +112,7 @@ end
         end 
     end
 
-    @testset "broadcasted target OMF" begin
+    @testset "broadcasted target indefinite domain" begin
         f(X) = map(x->exp(-sum(x.^2)), X)
         model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 2)
         sra = SelfReinforcedSampler(
@@ -159,3 +159,9 @@ end
         x = PSDModels.sample(sra)
     end
 end
+
+# @testset "SubsetSampler" begin
+#     @testset "simple training from samples"
+
+#     end
+# end

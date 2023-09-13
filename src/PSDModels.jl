@@ -15,7 +15,7 @@ import Distributions
 import Random
 
 include("utils.jl")
-include("optimization.jl")
+include("optimization/optimization.jl")
 
 export PSDModel
 ## export optimization
@@ -36,8 +36,8 @@ export SelfReinforcedSampler
 export sample
 
 # for working with 1D and nD data
-const PSDdata{T} = Union{T, <:AbstractVector{T}} where {T<:Number}
-const PSDDataVector{T} = Union{<:AbstractVector{T}, <:AbstractVector{<:AbstractVector{T}}} where {T<:Number}
+const PSDdata{T} = AbstractVector{T} where {T<:Number}
+const PSDDataVector{T} = AbstractVector{<:AbstractVector{T}} where {T<:Number}
 
 abstract type PSDModel{T} end
 abstract type TraceModel{T} end

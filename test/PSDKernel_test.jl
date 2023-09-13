@@ -3,6 +3,7 @@ using KernelFunctions: MaternKernel
 @testset "Model creation/evaluation" begin
     @testset "simple" begin
         X = Float64[1, 2, 3]
+        X = [[x] for x in X]
         Y = Float64[1, 1, 1]
         k = MaternKernel()
         model = PSDModel(X, Y, k)
@@ -33,12 +34,13 @@ using KernelFunctions: MaternKernel
 
     @testset "changing X" begin
         X = Float64[1, 2, 3]
+        X = [[x] for x in X]
         Y = Float64[1, 1, 1]
 
         k = MaternKernel()
         model = PSDModel(X, Y, k)
 
-        X[1] = 10
+        X[1][1] = 10.0
 
         @test model(1.0) ≈ 1
         @test model(2.0) ≈ 1
@@ -64,6 +66,7 @@ end
 @testset "arithmetic" begin 
     @testset "scalar multiplication" begin
         X = Float64[1, 2, 3]
+        X = [[x] for x in X]
         Y = Float64[1, 1, 1]
         k = MaternKernel()
         model = PSDModel(X, Y, k)
@@ -86,6 +89,7 @@ end
         N = 25
         X = collect(range(-1, 1, length=N))
         Y = f.(X)
+        X = [[x] for x in X]
 
         k = MaternKernel(ν=1.0)
         model = PSDModel(X, Y, k; solver=:direct)
@@ -100,6 +104,7 @@ end
         N = 30
         X = collect(range(-1, 1, length=N))
         Y = f.(X)
+        X = [[x] for x in X]
 
         k = MaternKernel(ν=1.0)
         model = PSDModel(X, Y, k, 
@@ -114,6 +119,7 @@ end
         N = 30
         X = collect(range(-1, 1, length=N))
         Y = f.(X)
+        X = [[x] for x in X]
 
         k = MaternKernel(ν=1.0)
         model = PSDModel(k, X)
@@ -132,26 +138,28 @@ end
     N = 30
     X = collect(range(-1, 1, length=N))
     Y = f.(X)
+    X = [[x] for x in X]
 
     k = MaternKernel(ν=1.0)
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
     for x in rand(100).- 0.5
-        @test isapprox(gradient(model, x), ∇f(x), atol=3e-1, rtol=2e-1)
+        @test isapprox(gradient(model, [x])[1], ∇f(x), atol=3e-1, rtol=2e-1)
     end
 end
 
 @testset "integrate" begin
     f(x) = 2*(x-0.5)^2 * (x+0.5)^2
-    f_int(x) = 0.125*x + 0.4*x^5 - (1/3)*x^3
+    f_int(x) = 0.125*x[1] + 0.4*x[1]^5 - (1/3)*x[1]^3
     N = 30
     X = collect(range(-1, 1, length=N))
     Y = f.(X)
+    X = [[x] for x in X]
 
     k = MaternKernel(ν=1.0)
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
-    @inline interval(x) = 0..x
+    @inline interval(x) = 0..x[1]
     int_vec = PSDModels.integrate.(Ref(model), interval.(X))
     @test norm(int_vec - f_int.(X)) < 1e-1
 end
@@ -180,11 +188,13 @@ end
 
 @testset "add support" begin
     X = Float64[1, 2, 3]
+    X = [[x] for x in X]
     Y = Float64[1, 1, 1]
     k = MaternKernel()
     model = PSDModel(X, Y, k)
 
     X2 = Float64[4, 5, 6]
+    X2 = [[x] for x in X2]
     model2 = PSDModels.add_support(model, X2)
 
     for i in rand(20) * 4

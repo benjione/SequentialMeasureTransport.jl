@@ -32,12 +32,9 @@ function pullback_pdf_function(
         pdf_tar::Function; # defined on [a, b]^d
         layers=nothing
     ) where {d, T<:Number}
-    pdf_func = let pdf_tar=pdf_tar
-        x->pdf_tar(x) # defined on [a, b]^d
-    end
     _layers = layers === nothing ? (1:length(sra.samplers)) : layers
     # apply map R (domain transformation)
-    pdf_func = let sra=sra, pdf_func=pdf_func
+    pdf_func = let sra=sra, pdf_func=pdf_tar
         u->begin
             pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
         end
@@ -111,14 +108,9 @@ function pushforward_pdf_function(
         pdf_ref::Function;
         layers=nothing
     ) where {d, T<:Number}
-    pdf_func = let pdf_ref=pdf_ref
-        x->begin
-            pdf_ref(x)
-        end
-    end
     # from last to first
     _layers = layers === nothing ? (1:length(sra.samplers)) : layers
-    pdf_func = let sra=sra, pdf_func=pdf_func
+    pdf_func = let sra=sra, pdf_func=pdf_ref
         u->begin
             pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
         end
@@ -188,31 +180,60 @@ function add_layer!(
     return nothing
 end
 
-
 function SelfReinforcedSampler(
-                pdf_tar::Function,
+            pdf_tar::Function,
+            model::PSDModelOrthonormal{d, T, S},
+            amount_layers::Int,
+            approx_method::Symbol,
+            reference_map::ReferenceMap{d, T};
+            relaxation_method=:algebraic,
+            ### for bridging densities
+            N_sample=1000,
+            max_blur=1.0,
+            algebraic_base=2.0,
+            N_relaxation=20, # number of MC for blurring
+            langevin_time_grad=1.0,
+            langevin_max_time=0.2,
+            kwargs...) where {d, T<:Number, S}
+    relax_param = if relaxation_method == :algebraic
+        @assert algebraic_base > 1.0
+        [algebraic_base^(-i) for i in reverse(0:amount_layers-1)]
+    elseif relaxation_method == :blurring
+        [[max_blur * (1/i^2) for i in 1:amount_layers-1]; [0.0]]
+    elseif relaxation_method == :langevin_diffusion
+        [[langevin_max_time^(langevin_time_grad*(i-1)+1) for i in 1:amount_layers-1]; [0.0]]
+    elseif relaxation_method == :none
+        [1.0 for i in 1:amount_layers]
+    else
+        throw(error("Not implemented!"))
+    end
+
+    bridging_π = if relaxation_method == :algebraic
+        AlgebraicBridgingDensity{d}(pdf_tar, relax_param)
+    elseif relaxation_method == :blurring
+        throw(error("Not implemented!"))
+    else
+        throw(error("Not implemented!"))
+    end
+    return SelfReinforcedSampler(bridging_π, model, amount_layers, approx_method, reference_map; 
+            N_sample=N_sample, 
+            kwargs...)
+end
+function SelfReinforcedSampler(
+                bridging_π::BridgingDensity{d, T},
                 model::PSDModelOrthonormal{d, T, S},
                 amount_layers::Int,
                 approx_method::Symbol,
                 reference_map::ReferenceMap{d, T};
                 ### for bridging densities
-                relaxation_method::Symbol=:algebraic,
                 N_sample=1000,
-                max_blur=1.0,
-                algebraic_base=2.0,
-                N_relaxation=20, # number of MC for blurring
-                langevin_time_grad=1.0,
-                langevin_max_time=0.2,
                 ### others
                 broadcasted_tar_pdf=false,
                 threading=true,
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
-        if relaxation_method == :algebraic
-            @warn "Chi2 method does not support algebraic relaxation since the distribution "*
-                         "has to be normalized, use Chi2U instead!"
-        end
+        @info "Chi2 will be soon deprecated!"
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
     elseif approx_method == :Chi2U
         (m,x,y) -> Chi2U_fit!(m, x, y; kwargs...)
@@ -232,98 +253,23 @@ function SelfReinforcedSampler(
         throw(error("Do not use OMF models for self reinforced sampler, use a Gaussian reference map instead!"))
     end
 
-    ## Create bridging densities according to method
-    π_tar = if relaxation_method == :algebraic
-        if broadcasted_tar_pdf
-            (X, β) -> pdf_tar(X).^β
-        else
-            (x,β) -> pdf_tar(x)^(β)
-        end
-    elseif relaxation_method == :blurring
-        if broadcasted_tar_pdf
-            (X, σ_i) -> let pdf_tar=pdf_tar, N_MC_blurring=N_relaxation, d=d
-                begin
-                    if σ_i == 0
-                        return pdf_tar(X)
-                    else
-                        Res = zeros(T, length(X))
-                        for i=1:N_MC_blurring
-                            add_rand(x) = x .+ randn(T, d) .* σ_i
-                            X_blurred = add_rand.(X)
-                            Res .+= pdf_tar(X_blurred)
-                        end
-                        return (1/N_MC_blurring)*Res
-                    end
-                end
-            end
-        else
-            (x, σ_i) -> let pdf_tar=pdf_tar, N_MC_blurring=N_relaxation, d=d
-                begin
-                    if σ_i == 0
-                        return pdf_tar(x)
-                    else
-                        MC_samples = randn(T, d, N_MC_blurring) .* σ_i
-                        return (1/N_MC_blurring)*sum(
-                            [pdf_tar(x+MC_samples[:,k]) for k=1:N_MC_blurring]
-                        )
-                    end
-                end
-            end
-        end
-    elseif relaxation_method == :langevin_diffusion
-        if broadcasted_tar_pdf
-            throw(error("Langevin diffusion with broadcasting not implemented"))
-        else
-            (x, t) -> let pdf_tar=pdf_tar, N_relaxation=N_relaxation, d=d
-                begin
-                    if t == 0
-                        return pdf_tar(x)
-                    else
-                        X_rand = x .+ randn(T, d, N_relaxation) * (1 - exp(-2*t))^0.5
-                        return (1/N_relaxation) * 1.0/(2 * π * (1 - exp(-2.0*t)))^(length(x)/2) * exp(t) * sum(
-                            [pdf_tar(exp(t)*X_rand[:, k]) for k=1:N_relaxation]
-                        )
-                    end
-                end
-            end
-        end
-    elseif relaxation_method == :none
-        (x,_) -> pdf_tar(x)
-    else 
-        throw(error("Not implemented"))
-    end
-
     π_tar_samp = if broadcasted_tar_pdf
-        let π_tar=π_tar, reference_map=reference_map
-            (x, p) -> π_tar(pullback.(Ref(reference_map), x), p) .* inverse_Jacobian.(Ref(reference_map), x)
+        let π_tar=bridging_π, reference_map=reference_map
+            (x, k) -> π_tar(pullback.(Ref(reference_map), x), k) .* inverse_Jacobian.(Ref(reference_map), x)
         end
     else
-        let π_tar=π_tar, reference_map=reference_map
-            (x, p) -> π_tar(pullback(reference_map, x), p) * inverse_Jacobian(reference_map, x)
+        let π_tar=bridging_π, reference_map=reference_map
+            (x, k) -> π_tar(pullback(reference_map, x), k) * inverse_Jacobian(reference_map, x)
         end
-    end
-
-    ## algebraic relaxation
-    relax_param = if relaxation_method == :algebraic
-        @assert algebraic_base > 1.0
-        [algebraic_base^(-i) for i in reverse(0:amount_layers-1)]
-    elseif relaxation_method == :blurring
-        [[max_blur * (1/i^2) for i in 1:amount_layers-1]; [0.0]]
-    elseif relaxation_method == :langevin_diffusion
-        [[langevin_max_time^(langevin_time_grad*(i-1)+1) for i in 1:amount_layers-1]; [0.0]]
-    elseif relaxation_method == :none
-        [1.0 for i in 1:amount_layers]
-    else
-        throw(error("Not implemented!"))
     end
 
     # sample from reference map
     X = eachcol(rand(T, d, N_sample))
     # compute pdf
     Y = if broadcasted_tar_pdf
-        π_tar_samp(X, relax_param[1]) 
+        π_tar_samp(X, 1)
     else
-        π_tar_samp.(X, Ref(relax_param[1]))
+        π_tar_samp.(X, Ref(1))
     end
 
     if any(isnan, Y)
@@ -342,8 +288,8 @@ function SelfReinforcedSampler(
     sra = SelfReinforcedSampler(samplers, reference_map)
 
     for i in 2:amount_layers
-        layer_method = let relax_param = relax_param
-            x->π_tar(x, relax_param[i])
+        layer_method = let i=i, bridging_π=bridging_π
+            x->bridging_π(x, i)
         end
         add_layer!(sra, layer_method, deepcopy(model), fit_method!; 
                 N_sample=N_sample, 

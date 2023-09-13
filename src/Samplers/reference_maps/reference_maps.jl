@@ -23,6 +23,7 @@ export pullback, pushforward, Jacobian, inverse_Jacobian
 # IdentityReference(d, T) = ScalingReference{d}(zeros(T, d), ones(T, d))
 
 ### Interface for ReferenceMaps
+Distributions.pdf(Rmap::ReferenceMap{d, T}, x::PSDdata{T}) where {d, T<:Number} = error("Not implemented")
 
 function sample_reference(Rmap::ReferenceMap{d, T}) where {d, T<:Number}
     pullback(Rmap, rand(T, d))

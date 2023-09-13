@@ -18,7 +18,7 @@ export ML_fit!, Chi2_fit!, Chi2U_fit!, TV_fit!
 Maximum likelihood fit of a PSD model to the samples.
 """
 function ML_fit!(model::PSDModel{T}, 
-    samples::PSDDataVector{T};
+    samples::AbstractVector{T};
     kwargs...) where {T<:Number}
 
     loss_KL(Z) = -(1/length(Z)) * sum(log.(Z))
@@ -30,7 +30,7 @@ end
 
 function Chi2_fit!(model::PSDModel{T}, 
     X::PSDDataVector{T},
-    Y::PSDDataVector{T};
+    Y::AbstractVector{T};
     ϵ=1e-5,
     IRLS=true,
     chi2_unnormalized=false,
@@ -72,7 +72,7 @@ Z_y/Z_f^2 * ∫ (f(x) - y(x))^2/y(x) dx
 """
 function Chi2U_fit!(model::PSDModel{T}, 
     X::PSDDataVector{T},
-    Y::PSDDataVector{T};
+    Y::AbstractVector{T};
     ϵ=1e-5,
     IRLS=true,
     kwargs...) where {T<:Number}
@@ -94,7 +94,7 @@ end
 
 function Hellinger_fit!(model::PSDModel{T}, 
     X::PSDDataVector{T},
-    Y::PSDDataVector{T};
+    Y::AbstractVector{T};
     kwargs...) where {T<:Number}
 
     loss_Hellinger(Z) = (1/length(Z)) * sum((sqrt.(Z) .- sqrt.(Y)).^2)
@@ -105,7 +105,7 @@ end
 
 function TV_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
-    Y::PSDDataVector{T};
+    Y::AbstractVector{T};
     kwargs...) where {T<:Number}
     
     reweight(Z) = 1 ./ (abs.(Z .- Y) .+ ϵ)
@@ -115,7 +115,7 @@ end
 
 function KL_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
-    Y::PSDDataVector{T};
+    Y::AbstractVector{T};
     kwargs...) where {T<:Number}
     
     loss(Z) = (1/length(Z)) * sum((-log.(Z) .- one(T)) .* Y)
