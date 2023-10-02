@@ -27,50 +27,17 @@ function ML_fit!(model::PSDModel{T},
             kwargs...)
 end
 
-
-function Chi2_fit!(model::PSDModel{T}, 
-    X::PSDDataVector{T},
-    Y::AbstractVector{T};
-    ϵ=1e-5,
-    IRLS=true,
-    chi2_unnormalized=false,
-    kwargs...) where {T<:Number}
-
-    if chi2_unnormalized
-        @info "Option chi2_unnormalized is deprecated and might lead to wrong results."*
-              "Use Chi2U_fit! instead."
-    end
-
-    if IRLS
-        # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
-        # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
-
-        # Reweighting of the IRLS algorithm
-        reweight(Z) = 1 ./ (abs.(Z) .+ ϵ)
-    
-        if chi2_unnormalized
-            IRLS!(model, X, Y, reweight; normalization_constraint=false, kwargs...)
-        else
-            IRLS!(model, X, Y, reweight; normalization_constraint=true, kwargs...)
-        end
-
-    else
-        loss(Z) = (1/length(Z)) * sum(Z .+ Y.^2 ./ (Z .+ ϵ))
-        if chi2_unnormalized
-            minimize!(model, loss, X; normalization_constraint=false, kwargs...)
-        else
-            minimize!(model, loss, X; normalization_constraint=true, kwargs...)
-        end
-    end
-end
-
+# no differentiation between chi2 and chi2U anymore.
+@inline Chi2U_fit!(model::PSDModel{T}, 
+    X::PSDDataVector{T},Y::AbstractVector{T};
+    kwargs...) where {T<:Number} = Chi2_fit!(model, X, Y; kwargs...)
 """
-    Chi2U_fit!(model, samples; kwargs...)
+    Chi2_fit!(model, samples; kwargs...)
 
 fit of unnormalized distribution. The loss function is defined by
 Z_y/Z_f^2 * ∫ (f(x) - y(x))^2/y(x) dx
 """
-function Chi2U_fit!(model::PSDModel{T}, 
+function Chi2_fit!(model::PSDModel{T}, 
     X::PSDDataVector{T},
     Y::AbstractVector{T};
     ϵ=1e-5,
@@ -113,6 +80,10 @@ function TV_fit!(model::PSDModel{T},
     IRLS!(model, X, Y, reweight; normalization_constraint=true, kwargs...)
 end
 
+
+"""
+KL-divergence extended to positive measures, defined by the alpha-divergence.
+"""
 function KL_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::AbstractVector{T};
@@ -123,23 +94,6 @@ function KL_fit!(model::PSDModel{T},
             normalization_constraint=false,
             kwargs...)
 end
-
-# function greedy_Chi2_fit(model::PSDModel{T}, 
-#     X::PSDDataVector{T},
-#     Y::PSDDataVector{T};
-#     ϵ=1e-5,
-#     kwargs...) where {T<:Number}
-
-#     # Chi2 defined by ∫ (f(x) - y(x))^2/y(x) dx
-#     # => IRLS with weights 1/(y(x) + ϵ), ϵ for numerical reasons
-
-#     # Reweighting of the IRLS algorithm
-#     reweight(Z) = 1 ./ (abs.(Z) .+ ϵ)
-
-#     loss(Z) = (1/length(Z)) * sum((Z .- Y).^2 ./ (Y .+ ϵ))
- 
-#     return greedy_IRLS(model, X, Y, reweight, loss; kwargs...)
-# end
 
 function conditional_expectation(model::PSDModelOrthonormal{d, T}, 
     dim::Int) where {d, T<:Number}

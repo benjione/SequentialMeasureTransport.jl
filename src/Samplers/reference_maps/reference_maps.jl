@@ -19,9 +19,6 @@ export ReferenceMap
 export ScalingReference, GaussianReference, AlgebraicReference
 export pullback, pushforward, Jacobian, inverse_Jacobian
 
-## Convenient Constructors
-# IdentityReference(d, T) = ScalingReference{d}(zeros(T, d), ones(T, d))
-
 ### Interface for ReferenceMaps
 Distributions.pdf(Rmap::ReferenceMap{d, T}, x::PSDdata{T}) where {d, T<:Number} = error("Not implemented")
 

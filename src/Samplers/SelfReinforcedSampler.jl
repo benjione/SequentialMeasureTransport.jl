@@ -241,6 +241,8 @@ function SelfReinforcedSampler(
         (m,x,y) -> Hellinger_fit!(m, x, y; kwargs...)
     elseif approx_method == :TV
         (m,x,y) -> TV_fit!(m, x, y; kwargs...)
+    elseif approx_method == :KL
+        (m,x,y) -> KL_fit!(m, x, y; kwargs...)
     else
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
