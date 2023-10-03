@@ -160,6 +160,72 @@ end
     end
 end
 
+@testset "SelfReinforcedSampler different fit methods" begin
+    @testset "Chi2" begin
+        f(x) = sum(x.^2 + x.^4)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
+        sra = SelfReinforcedSampler(
+            f,
+            model,
+            2, :Chi2,
+            PSDModels.ScalingReference{2}(-ones(2), ones(2));
+            N_sample=500,
+        )
+        for _=1:10
+            x = PSDModels.sample(sra)
+            @test all([-1≤xi≤1 for xi in x])
+        end 
+    end
+
+    @testset "KL" begin
+        f(x) = sum(x.^2 + x.^4)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
+        sra = SelfReinforcedSampler(
+            f,
+            model,
+            2, :KL,
+            PSDModels.ScalingReference{2}(-ones(2), ones(2));
+            N_sample=500,
+        )
+        for _=1:10
+            x = PSDModels.sample(sra)
+            @test all([-1≤xi≤1 for xi in x])
+        end 
+    end
+
+    @testset "Hellinger" begin
+        f(x) = sum(x.^2 + x.^4)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
+        sra = SelfReinforcedSampler(
+            f,
+            model,
+            2, :Hellinger,
+            PSDModels.ScalingReference{2}(-ones(2), ones(2));
+            N_sample=500,
+        )
+        for _=1:10
+            x = PSDModels.sample(sra)
+            @test all([-1≤xi≤1 for xi in x])
+        end 
+    end
+
+    @testset "TV" begin
+        f(x) = sum(x.^2 + x.^4)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
+        sra = SelfReinforcedSampler(
+            f,
+            model,
+            2, :TV,
+            PSDModels.ScalingReference{2}(-ones(2), ones(2));
+            N_sample=500,
+        )
+        for _=1:10
+            x = PSDModels.sample(sra)
+            @test all([-1≤xi≤1 for xi in x])
+        end 
+    end
+end
+
 # @testset "SubsetSampler" begin
 #     @testset "simple training from samples"
 

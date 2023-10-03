@@ -10,7 +10,7 @@ using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
 
-export ML_fit!, Chi2_fit!, Chi2U_fit!, TV_fit!, KL_fit!
+export ML_fit!, Chi2_fit!, Chi2U_fit!, TV_fit!, KL_fit!, Hellinger_fit!
 
 """
     ML_fit!(model, samples; kwargs...)
@@ -64,13 +64,14 @@ function Hellinger_fit!(model::PSDModel{T},
     Y::AbstractVector{T};
     kwargs...) where {T<:Number}
 
-    loss_Hellinger(Z) = (1/length(Z)) * sum((sqrt.(Z) .- sqrt.(Y)).^2)
+    loss_Hellinger(Z) = (1/length(Z)) * 0.5 * sum(Z.+Y.-2.0*sqrt.(Z.*Y))
     minimize!(model, loss_Hellinger, X; kwargs...)
 end
 
 function TV_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::AbstractVector{T};
+    ϵ=1e-5,
     kwargs...) where {T<:Number}
     
     reweight(Z) = 1 ./ (abs.(Z .- Y) .+ ϵ)
@@ -85,7 +86,7 @@ KL-divergence extended to positive measures, defined by the alpha-divergence.
 function KL_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::AbstractVector{T};
-    normalization_constraint=normalization_constraint,
+    normalization_constraint=false,
     kwargs...) where {T<:Number}
     
     loss(Z) = (1/length(Z)) * sum((-log.(Z) .- one(T)) .* Y)
