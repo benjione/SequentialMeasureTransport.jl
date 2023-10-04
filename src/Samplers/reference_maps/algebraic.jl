@@ -13,7 +13,7 @@ function PSDModels.pushforward(
         m::AlgebraicReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return ((x./sqrt(1 .+ x.^2)).+1.0)/2.0
+    return ((x./sqrt.(1 .+ x.^2)).+1.0)/2.0
 end
 
 

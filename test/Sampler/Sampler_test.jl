@@ -59,6 +59,26 @@ end
         @test length(X[1]) == 2
         @test abs.((1/N) * sum(X)) ≤ [0.5, 0.5] # Check that the mean is close to zero  
     end
+
+    @testset "Algebraic Reference" begin
+        f(x) = exp(-sum(x.^2))
+        model = PSDModel(Legendre(0.0..1.0)^2, 
+                        :downward_closed, 3)
+        sra = SelfReinforcedSampler(
+            f,
+            model,
+            1, :Chi2U,
+            PSDModels.AlgebraicReference{2, Float64}();
+            N_sample=1000,
+            maxit=6000,trace=true
+        )
+
+        N = 1000
+        X = PSDModels.sample_reference(sra, N)
+        @test length(X) == N
+        @test length(X[1]) == 2
+        @test abs.(sum(X))/N ≤ [0.5, 0.5] # Check that the mean is close to zero  
+    end
 end
 
 

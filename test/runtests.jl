@@ -28,5 +28,5 @@ end
 end
 
 @testset "Sampler test" begin
-    include("Sampler_test.jl")
+    include("Sampler/Sampler_test.jl")
 end
