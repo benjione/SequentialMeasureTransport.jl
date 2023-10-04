@@ -20,7 +20,11 @@ export ScalingReference, GaussianReference, AlgebraicReference
 export pullback, pushforward, Jacobian, inverse_Jacobian
 
 ### Interface for ReferenceMaps
-Distributions.pdf(Rmap::ReferenceMap{d, T}, x::PSDdata{T}) where {d, T<:Number} = error("Not implemented")
+@inline function Distributions.pdf(Rmap::ReferenceMap{d, T}, 
+                        x::PSDdata{T}
+                    ) where {d, T<:Number}
+    Jacobian(Rmap, x)
+end
 
 function sample_reference(Rmap::ReferenceMap{d, T}) where {d, T<:Number}
     pullback(Rmap, rand(T, d))
