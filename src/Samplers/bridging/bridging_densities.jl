@@ -21,10 +21,12 @@ function (bridge::BridgingDensity{d, T})(x::PSDdata{T}, k::Int) where {d, T<:Num
     evaluate_bridge(bridge, x, k)
 end
 
-# for broadcasting
-evaluate_bridge(bridge::BridgingDensity{d, T}, 
+# for broadcasting, overwrite for more efficient implementation
+function evaluate_bridge(bridge::BridgingDensity{d, T}, 
                 X::PSDDataVector{T}, 
-                k::Int) where {d, T<:Number} = error("not implemented")
+                k::Int) where {d, T<:Number}
+    return map(x->evaluate_bridge(bridge, x, k), X) # trivial broadcasting
+end
 function (bridge::BridgingDensity{d, T})(X::PSDDataVector{T}, k::Int) where {d, T<:Number}
     evaluate_bridge(bridge, X, k)
 end

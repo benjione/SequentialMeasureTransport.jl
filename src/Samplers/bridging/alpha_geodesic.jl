@@ -1,7 +1,6 @@
 
 
-struct AlphaGeodesicBridgingDensity{d, T} <: BridgingDensity{d, T}
-    α::T
+struct AlphaGeodesicBridgingDensity{α, d, T} <: BridgingDensity{d, T}
     start_measure::Function
     end_measure::Function
     t_list::Vector{T}
@@ -15,20 +14,22 @@ struct AlphaGeodesicBridgingDensity{d, T} <: BridgingDensity{d, T}
         if dual # use dual geodesic
             α = 1 - α
         end
-        new{d, T}(α, start_measure, end_measure, t_list, broadcasting)
+        new{α, d, T}(start_measure, end_measure, t_list, broadcasting)
     end
 end
 
-function evaluate_bridge(bridge::AlphaGeodesicBridgingDensity{d, T}, 
+function evaluate_bridge(bridge::AlphaGeodesicBridgingDensity{α, d, T}, 
                         x::PSDdata{T}, 
-                        k::Int) where {d, T<:Number}
+                        k::Int) where {α, d, T<:Number}
     return evaluate_bridge(bridge, x, bridge.t_list[k])
 end
 
-function evaluate_bridge(bridge::AlphaGeodesicBridgingDensity{d, T}, 
+function evaluate_bridge(bridge::AlphaGeodesicBridgingDensity{α, d, T}, 
                         x::PSDdata{T}, 
-                        t::T) where {d, T<:Number}
-    α = bridge.α
+                        t::T) where {α, d, T<:Number}
+    if α == 1
+        return bridge.start_measure(x)^(1 - t) * bridge.end_measure(x)^t
+    end
     return  (
                 (1 - t) * bridge.start_measure(x)^(1 - α) + 
                 t * bridge.end_measure(x)^(1 - α)
