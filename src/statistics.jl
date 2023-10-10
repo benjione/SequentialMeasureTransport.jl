@@ -18,7 +18,7 @@ export ML_fit!, Chi2_fit!, Chi2U_fit!, TV_fit!, KL_fit!, Hellinger_fit!
 Maximum likelihood fit of a PSD model to the samples.
 """
 function ML_fit!(model::PSDModel{T}, 
-    samples::AbstractVector{T};
+    samples::PSDDataVector{T};
     kwargs...) where {T<:Number}
 
     loss_KL(Z) = -(1/length(Z)) * sum(log.(Z))
