@@ -36,6 +36,12 @@ end
 
 @inline _tensorizer(a::PSDModelPolynomial) = a.Φ.ten
 
+## Pretty printing
+function Base.show(io::IO, a::PSDModelPolynomial{d, T, S}) where {d, T, S}
+    println(io, "PSDModelPolynomial{d=$d, T=$T, S=$S}")
+    println(io, "   matrix size: ", size(a.B))
+    println(io, "   Φ: ", a.Φ)
+end
 
 domain_interval(a::PSDModelPolynomial{d, T}, k::Int) where {d, T<:Number} = begin
     @assert 1 ≤ k ≤ d

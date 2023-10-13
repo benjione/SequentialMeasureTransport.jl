@@ -19,6 +19,21 @@ struct SelfReinforcedSampler{d, T, R} <: Sampler{d, T, R}
     end
 end
 
+## Pretty printing
+function Base.show(io::IO, sra::SelfReinforcedSampler{d, T}) where {d, T<:Number}
+    println(io, "SelfReinforcedSampler{d=$d, T=$T}")
+    println(io, "  samplers:")
+    for (i, sampler) in enumerate(sra.samplers)
+        if i>3
+            println(io, "...")
+            break
+        end
+        println(io, "    $i: $sampler")
+    end
+    println(io, "  reference map: $(sra.R_map)")
+end
+
+## Overwrite pdf function from Distributions
 function Distributions.pdf(
         sar::SelfReinforcedSampler{d, T}, 
         x::PSDdata{T}

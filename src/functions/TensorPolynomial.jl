@@ -27,6 +27,14 @@ end
 @inline σ(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S<:Tensorizer} = σ(p.ten, i)
 @inline σ_inv(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S<:Tensorizer} = σ_inv(p.ten, i)
 
+## Pretty printing
+Base.show(io::IO, p::FMTensorPolynomial{d, T, S, tsp}) where {d, T, S<:Tensorizer, tsp<:TensorSpace} = begin
+    println(io, "FMTensorPolynomial{d=$d, T=$T, ...}")
+    println(io, "   space: ", p.space)
+    println(io, "   highest order: ", p.highest_order)
+    println(io, "   N: ", p.N)
+end
+
 function add_index(p::FMTensorPolynomial{d, T}, index::Vector{Int}) where {d, T}
     ten = deepcopy(p.ten)
     add_index!(ten, index)
