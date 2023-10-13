@@ -18,6 +18,13 @@ end
 
 Sampler(model::PSDModelOrthonormal{d}) where {d} = PSDModelSampler(model, collect(1:d))
 
+## Pretty printing
+function Base.show(io::IO, sampler::PSDModelSampler{d, T, S, R}) where {d, T, S, R}
+    println(io, "PSDModelSampler{d=$d, T=$T, S=$S, R=$R}")
+    println(io, "   model: ", sampler.model)
+    println(io, "   order of variables: ", sampler.variable_ordering)
+end
+
 function Distributions.pdf(
         sar::PSDModelSampler{d, T},
         x::PSDdata{T}

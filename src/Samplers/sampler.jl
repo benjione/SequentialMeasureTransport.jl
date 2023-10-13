@@ -19,6 +19,9 @@ while a mapping does not have any definition of a reference or target by itself.
 abstract type Sampler{d, T, R} <: Mapping{d, T} end
 
 Sampler(model::PSDModel) = @error "not implemented for this type of PSDModel"
+function Base.show(io::IO, sampler::Sampler{d, T, R}) where {d, T, R}
+    println(io, "Sampler{d=$d, T=$T, R=$R}")
+end
 Distributions.pdf(sampler::Sampler, x::PSDdata) = @error "not implemented for this type of Sampler"
 
 

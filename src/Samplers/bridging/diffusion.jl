@@ -9,8 +9,29 @@ struct DiffusionBrigdingDensity{d, T} <: BridgingDensity{d, T}
                         σ::T) where {d, T<:Number}
         new{d, T}(target_density, t_vec, σ)
     end
+    function DiffusionBrigdingDensity{d}(target_density::Function, 
+                        N::Int) where {d, T<:Number}
+        t_vec = choosing_timesteps(0.5, d, N)
+        new{d, T}(target_density, t_vec, 1.0)
+    end
 end
 
+function choosing_timesteps(β::T, d, N::Int) where { T<:Number}
+    @assert β > 1.0
+    ## by Proposition 6
+    next_t(t_previous) = begin
+        return -0.5 * log(1.0 -
+                (1/β^(2/d)) * (1.0 - exp(-2.0 * t_previous)))
+    end
+    next_t() = return -0.5 * log(1.0 - (1/β^(2/d)))
+    t_vec = Vector{T}(undef, N)
+    t_vec[1] = next_t()
+    for i=2:(N-1)
+        t_vec[i] = next_t(t_vec[i-1])
+    end
+    t_vec[end] = 0.0
+    return t_vec
+end
 
 function evolve_samples(bridge::DiffusionBrigdingDensity{<:Any, T},
                         X::PSDDataVector{T}, 
