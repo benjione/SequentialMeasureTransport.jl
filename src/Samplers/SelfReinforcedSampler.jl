@@ -242,6 +242,7 @@ function SelfReinforcedSampler(
                 reference_map::ReferenceMap{d, T};
                 ### for bridging densities
                 N_sample=1000,
+                custom_fit=nothing, # Function with arguments (model, X, Y) modifying model, can be created using minimize!
                 ### others
                 broadcasted_tar_pdf=false,
                 threading=true,
@@ -258,6 +259,10 @@ function SelfReinforcedSampler(
         (m,x,y) -> TV_fit!(m, x, y; kwargs...)
     elseif approx_method == :KL
         (m,x,y) -> KL_fit!(m, x, y; kwargs...)
+    elseif approx_method == :custom
+        @info "Using custom fit method!"
+        @assert typeof(custom_fit) <: Function
+        (m,x,y) -> custom_fit(m, x, y; kwargs...)
     else
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
