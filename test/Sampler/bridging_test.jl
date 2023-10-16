@@ -38,7 +38,7 @@ using PSDModels.BridgingDensities
             5, :Chi2U,
             ref_map;
             N_sample=500,
-            trace=true,
+            trace=false,
         )
         N = 1000
         X = PSDModels.sample(sra, N)

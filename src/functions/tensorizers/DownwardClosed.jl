@@ -26,6 +26,13 @@ function DownwardClosedTensorizer(d::Int, max_order::Int)
 end
 
 
+function permute_indices(t::DownwardClosedTensorizer{d}, perm::Vector{Int}) where {d}
+    perm_tuple(tp, perm) = Tuple([tp...][perm])
+    index_list = map(i->perm_tuple(i, perm), t.index_list)
+    M_inner = map(i->perm_tuple(i, perm), t.M_inner)
+    return DownwardClosedTensorizer{d}(index_list, M_inner)
+end
+
 @inline _valid_index(index::NTuple{<:Any, Int}) = all(i->i>0, index)
 
 function check_in_outer_margin(t::DownwardClosedTensorizer{d}, 

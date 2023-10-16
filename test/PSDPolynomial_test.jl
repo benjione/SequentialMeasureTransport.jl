@@ -167,3 +167,20 @@ end
         end
     end
 end
+
+@testset "Index Permutation" begin
+    @testset "3D downward closed tensorization" begin
+        f(x) = 2*(x[2]-0.5)^2 * (x[2]+0.5)^2 + 2*(x[1]-0.5)^2 * (x[1]+0.5)^2
+        model = PSDModel(Legendre(-15..15)^2, :downward_closed, 4)
+        # generate some data
+        X = [(rand(2) * 2 .- 1) for i in 1:200]
+        Y = f.(X)
+
+        fit!(model, X, Y, maxit=2000)
+        model_perm = PSDModels.permute_indices(model, [2,1])
+        for i=1:100
+            x = (rand(2) .- 0.5) * 30.0
+            @test model_perm(x) == model([x[2], x[1]])
+        end
+    end
+end

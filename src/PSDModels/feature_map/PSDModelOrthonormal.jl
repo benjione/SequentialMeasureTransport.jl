@@ -29,6 +29,9 @@ _tensorizer(a::PSDModelOrthonormal) = throw(error("Not implemented!"))
 next_index_proposals(a::PSDModelOrthonormal) = next_index_proposals(_tensorizer(a))
 create_proposal(a::PSDModelOrthonormal, index::Vector{Int}) = throw(error("Not implemented!"))
 
+function permute_indices(a::PSDModelOrthonormal, perm::Vector{Int})
+    return _of_same_PSD(a, a.B, permute_indices(a.Φ, perm))
+end
 
 ## Interface between OMF and non OMF mapping
 function x(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}, ξ::PSDdata{T}) where {T<:Number}

@@ -36,6 +36,7 @@ end
 
 @inline _tensorizer(a::PSDModelPolynomial) = a.Φ.ten
 
+
 ## Pretty printing
 function Base.show(io::IO, a::PSDModelPolynomial{d, T, S}) where {d, T, S}
     println(io, "PSDModelPolynomial{d=$d, T=$T, S=$S}")

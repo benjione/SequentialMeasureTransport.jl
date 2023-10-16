@@ -64,6 +64,18 @@ function reduce_dim(p::FMTensorPolynomial{d, T}, dim::Int) where {d, T}
     return FMTensorPolynomial{d-1, T}(space, norm_factors, new_N, ten_new, p.highest_order)
 end
 
+function permute_indices(p::FMTensorPolynomial{d, T}, perm::Vector{Int}) where {d, T}
+    @assert length(perm) == d
+    @assert length(unique(perm)) == d
+    ten_new = permute_indices(p.ten, perm)
+    norm_factors = p.normal_factor[perm]
+    space = reduce((x,y)->x ⊗ y, p.space.spaces[perm])
+    if d==1
+        return FMTensorPolynomial{1, T}(TensorSpace(space), norm_factors, p.N, ten_new, p.highest_order)
+    end
+    return FMTensorPolynomial{d, T}(space, norm_factors, p.N, ten_new, p.highest_order)
+end
+
 ### Constructors
 trivial_TensorPolynomial(T::Type{<:Number}, sp::Space, N::Int) = trivial_TensorPolynomial(T, TensorSpace(sp), N)
 function trivial_TensorPolynomial(T::Type{<:Number},

@@ -48,3 +48,11 @@ function add_order(t::TrivialTensorizer{d}, dim::Int) where {d}
     r_list[dim] += 1
     return TrivialTensorizer(r_list)
 end
+
+function permute_indices(t::TrivialTensorizer{d}, perm::Vector{Int}) where {d}
+    if d>1 
+        throw(error("Not implemented!"))
+    else
+        return t
+    end
+end

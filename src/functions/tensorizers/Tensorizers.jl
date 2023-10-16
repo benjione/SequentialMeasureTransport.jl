@@ -25,3 +25,7 @@ end
 function add_index!(t::Tensorizer, index::Vector{Int})
     @error "not implemented for this tensorizer"
 end
+
+function permute_indices(t::Tensorizer, perm::Vector{Int})
+    @error "not implemented for this tensorizer"
+end

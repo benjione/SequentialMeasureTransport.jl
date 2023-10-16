@@ -23,6 +23,7 @@ end
 
 PSDModel(sp::Space, ten_size::Int; kwargs...) = PSDModel{Float64}(sp, ten_size; kwargs...)
 function PSDModel{T}(sp::Space, ten_size::Int; kwargs...) where {T<:Number}
+    @info "No Tensorizer provided, using trivial Tensorizer"
     return PSDModel{T}(sp, :trivial, ten_size; kwargs...)
 end
 PSDModel(sp::Space, tensorizer::Symbol, ten_size::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, ten_size; kwargs...)
