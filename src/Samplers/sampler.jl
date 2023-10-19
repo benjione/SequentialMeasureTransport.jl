@@ -18,14 +18,29 @@ while a mapping does not have any definition of a reference or target by itself.
 """
 abstract type Sampler{d, T, R} <: Mapping{d, T} end
 
+"""
+A Sampler of p(x, y) which can in addition conditionally sample
+p(y|x), where y are the last dC variables.
+"""
+abstract type ConditionalSampler{d, T, R, dC} <: Sampler{d, T, R} end
+
+
 Sampler(model::PSDModel) = @error "not implemented for this type of PSDModel"
+ConditionalSampler(model::PSDModel, amount_cond_variable::Int) = @error "not implemented for this type of PSDModel"
+
 function Base.show(io::IO, sampler::Sampler{d, T, R}) where {d, T, R}
     println(io, "Sampler{d=$d, T=$T, R=$R}")
 end
-Distributions.pdf(sampler::Sampler, x::PSDdata) = @error "not implemented for this type of Sampler"
 
+## Interface for Sampler
+Distributions.pdf(sampler::Sampler, x::PSDdata) = throw(NotImplementedError())
+pushforward(sampler::Sampler, u::PSDdata) = throw(NotImplementedError())
+pullback(sampler::Sampler, x::PSDdata) = throw(NotImplementedError())
 
-## methods not necessarily implemented by concrete implementations:
+## methods not necessarily implemented by concrete implementations of Sampler:
+Base.rand(sampler::Sampler{d, T}) where {d, T} = sample(sampler)
+Base.rand(sampler::Sampler{d, T}, amount::Int) where {d, T} = sample(sampler, amount)
+Base.rand(sampler::Sampler{d, T}, dims::Int...) where {d, T} = reshape(sample(sampler, prod(dims)), dims)
 function sample(sampler::Sampler{d, T}) where {d, T<:Number}
     return pushforward(sampler, sample_reference(sampler))
 end
@@ -39,6 +54,28 @@ function sample(sampler::Sampler{d, T}, amount::Int; threading=false) where {d, 
         end
         return res
     end
+end
+
+## methods for ConditionalSampler
+"""
+Distribution p(x) = ∫ p(x, y) d y
+"""
+marg_pdf(sampler::ConditionalSampler, x::PSDdata) = throw(NotImplementedError())
+"""
+pushforward of T(u) = y with u ∼ ρ and y ∼ p(y|x)
+"""
+cond_pushforward(sampler::ConditionalSampler, u::PSDdata, x::PSDdata) = throw(NotImplementedError())
+cond_pullback(sampler::ConditionalSampler, y::PSDdata, x::PSDdata) = throw(NotImplementedError())
+
+marg_pushforward(sampler::ConditionalSampler, u::PSDdata) = throw(NotImplementedError())
+marg_pullback(sampler::ConditionalSampler, x::PSDdata) = throw(NotImplementedError())
+
+# already implemented for ConditionalSampler
+"""
+PDF p(y|x)
+"""
+function cond_pdf(sampler::ConditionalSampler{d, T}, y::PSDdata{T}, x::PSDdata{T}) where {d, T}
+    return Distributions.pdf(sampler, [x;y]) / marg_pdf(sampler, x)
 end
 
 ## methods for Reference distribution
