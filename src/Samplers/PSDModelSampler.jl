@@ -105,7 +105,7 @@ end
 
 ## Methods for satisfying ConditionalSampler interface
 
-function marg_pdf(sampler::ConditionalSampler{d, T, S, R, dC}, x::PSDdata{T}) where {d, T<:Number, S, R, dC}
+function marg_pdf(sampler::PSDModelSampler{d, T, S, R, dC}, x::PSDdata{T}) where {d, T<:Number, S, R, dC}
     dx = d-dC
     @assert length(x) == dx
     return sampler.margins[dx](x)
@@ -120,13 +120,13 @@ end
 
 function cond_pushforward(sampler::PSDModelSampler{d, T, S, R, dC}, u::PSDdata{T}, x::PSDdata{T}) where {d, T<:Number, S, R, dC}
     dx = d-dC
-    @assert length(u) == dC
-    @assert length(x) == dx
+    # @assert length(u) == dC
+    # @assert length(x) == dx
     y = zeros(T, dC)
     x = @view x[sampler.variable_ordering[1:dx]]
     f(k) = begin
         z->(sampler.integrals[k+dx]([x; y[1:k-1]; z])/
-                sampler.margins[k+dx-1]([x; y[1:k-1]])) - u[k] #u[sampler.variable_ordering[k]]
+                sampler.margins[k+dx-1]([x; y[1:k-1]])) - u[k]
     end
     if S<:OMF
         for k=1:d
@@ -138,7 +138,7 @@ function cond_pushforward(sampler::PSDModelSampler{d, T, S, R, dC}, u::PSDdata{T
             y[k] = find_zero(f(k), (left, right))
         end
     end
-    return invpermute!(y, sampler.variable_ordering[dx+1:end]) # might be wrong, subtract dx from variable_ordering
+    return invpermute!(y, sampler.variable_ordering[dx+1:end].-dx) # might be wrong, subtract dx from variable_ordering
 end
 
 

@@ -31,7 +31,7 @@ export marginalize_orth_measure, marginalize
 export mul!
 
 # export sampler
-export Sampler
+export Sampler, ConditionalSampler
 export SelfReinforcedSampler
 export sample
 
