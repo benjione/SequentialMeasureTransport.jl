@@ -160,7 +160,7 @@ end
 
 
 marg_pushforward_pdf_function(sra::CondSelfReinforcedSampler; layers=nothing) = begin
-    return marg_pushforward_pdf_function(sra, x->reference_pdf(sra, x); layers=layers) ## TODO
+    return marg_pushforward_pdf_function(sra, x->reference_pdf(sra, x); layers=layers)
 end
 function marg_pushforward_pdf_function(
         sra::CondSelfReinforcedSampler{d, T},
@@ -178,7 +178,7 @@ function marg_pushforward_pdf_function(
         # apply map T_i
         pdf_func = let sra=sra, pdf_func=pdf_func, sampler=sampler
             x-> begin
-                pdf_func(pullback(sampler, x)) * Distributions.pdf(sampler, x)
+                pdf_func(marg_pullback(sampler, x)) * marg_pdf(sampler, x)
             end
         end
     end
@@ -237,9 +237,9 @@ function add_layer!(
 end
 
 function add_layer!(
-        sra::CondSelfReinforcedSampler{d, T},
-        sampler::Sampler{d, T},
-    ) where {d, T<:Number}
+        sra::CondSelfReinforcedSampler{d, T, <:Any, dC},
+        sampler::ConditionalSampler{d, T, Nothing, dC},
+    ) where {d, T<:Number, dC}
     push!(sra.samplers, sampler)
     return nothing
 end
@@ -418,7 +418,7 @@ function SelfReinforced_ML_estimation(
     end
 
     sra = if amount_cond_variable == 0
-        SelfReinforcedSampler(Sampler{d, T}[], 
+        SelfReinforcedSampler(Sampler{d, T, Nothing}[], 
                                 reference_map)
     else
         CondSelfReinforcedSampler(ConditionalSampler{d, T, Nothing, amount_cond_variable}[], 
@@ -512,8 +512,9 @@ end
 ## Interface of ConditionalSampler
 
 function marg_pdf(sra::CondSelfReinforcedSampler{d, T, R, dC}, x::PSDdata{T}) where {d, T<:Number, R, dC}
-    dx = d-dC
-    return marg_pdf(sra.samplers[dx], x)
+    @assert length(x) == dC
+    pdf_func = marg_pushforward_pdf_function(sra)
+    return pdf_func(x)
 end
 
 

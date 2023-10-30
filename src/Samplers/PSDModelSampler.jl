@@ -44,7 +44,7 @@ end
 function _pushforward_first_n(sampler::PSDModelSampler{d, T, S}, 
                      u::PSDdata{T}, n::Int) where {d, T<:Number, S}
     x = zeros(T, n)
-    u = @view u[sampler.variable_ordering]
+    u = @view u[sampler.variable_ordering[1:n]]
     ## T^{-1}(x_1,...,x_k) functions, z=x_k
     f(k) = begin
         if k==1
@@ -71,7 +71,7 @@ end
 function _pullback_first_n(sampler::PSDModelSampler{d, T}, 
                         x::PSDdata{T},
                         n::Int) where {d, T<:Number}
-    x = @view x[sampler.variable_ordering]
+    x = @view x[sampler.variable_ordering[1:n]]
     f(k) = begin
         if k==1
             z->sampler.integrals[k](T[z])
@@ -80,7 +80,7 @@ function _pullback_first_n(sampler::PSDModelSampler{d, T},
         end
     end
     u = zeros(T, n)
-    for k=1:d
+    for k=1:n
         u[sampler.variable_ordering[k]] = f(k)(x[k])
     end
     return u

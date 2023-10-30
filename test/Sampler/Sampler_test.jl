@@ -200,3 +200,7 @@ end
 @testset "SRA ML estimation" begin
     include("SR_ML_test.jl")
 end
+
+@testset "Conditional Sampler" begin
+    include("conditional_sampler_test.jl")
+end

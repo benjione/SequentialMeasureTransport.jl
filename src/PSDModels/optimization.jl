@@ -93,9 +93,11 @@ function minimize!(a::PSDModel{T},
     SoSproblem = create_SoS_opt_problem(optimization_method, a.B, loss;
                 trace=trace,
                 normalization_constraint=normalization_constraint,
-                _filter_kwargs(kwargs, 
-                        _optimize_PSD_kwargs
-                )...)
+                kwargs...
+                # _filter_kwargs(kwargs, 
+                #         _optimize_PSD_kwargs
+                # )...
+                )
     set_coefficients!(a, optimize(SoSproblem))
     return nothing
 end

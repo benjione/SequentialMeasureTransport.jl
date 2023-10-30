@@ -91,7 +91,7 @@ end
         Y = f.(X)
         X = [[x] for x in X]
 
-        k = MaternKernel(ν=1.0)
+        k = MaternKernel(ν=0.7)
         model = PSDModel(X, Y, k; solver=:direct)
 
         domx = collect(range(-1, 1, length=1000))
@@ -106,7 +106,7 @@ end
         Y = f.(X)
         X = [[x] for x in X]
 
-        k = MaternKernel(ν=1.0)
+        k = MaternKernel(ν=0.5)
         model = PSDModel(X, Y, k, 
                         solver=:gradient_descent)
 
@@ -121,7 +121,7 @@ end
         Y = f.(X)
         X = [[x] for x in X]
 
-        k = MaternKernel(ν=1.0)
+        k = MaternKernel(ν=0.5)
         model = PSDModel(k, X)
 
         fit!(model, X, Y, λ_1=1e-4, λ_2=1e-8, maxit=2000)
@@ -140,7 +140,7 @@ end
     Y = f.(X)
     X = [[x] for x in X]
 
-    k = MaternKernel(ν=1.0)
+    k = MaternKernel(ν=0.5)
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
     for x in rand(100).- 0.5
@@ -156,7 +156,7 @@ end
     Y = f.(X)
     X = [[x] for x in X]
 
-    k = MaternKernel(ν=1.0)
+    k = MaternKernel(ν=0.5)
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
     @inline interval(x) = 0..x[1]
