@@ -61,6 +61,14 @@ function sample(sampler::AbstractSampler{d, T}, amount::Int; threading=true) whe
 end
 
 ## methods for ConditionalSampler
+
+# Helper functions already implemented
+# marginal dimension
+@inline _d_marg(
+            _::ConditionalSampler{d, <:Any, <:Any, dC}
+        ) where {d, dC} = d - dC
+
+## interface for ConditionalSampler
 """
 Distribution p(x) = ∫ p(x, y) d y
 """
@@ -81,6 +89,24 @@ PDF p(y|x)
 function cond_pdf(sampler::ConditionalSampler{d, T}, y::PSDdata{T}, x::PSDdata{T}) where {d, T}
     return Distributions.pdf(sampler, [x;y]) / marg_pdf(sampler, x)
 end
+
+function cond_pushforward(sampler::ConditionalSampler{d, T, <:Any, dC}, 
+            u::PSDdata{T}, 
+            x::PSDdata{T}
+        ) where {d, T, dC}
+    x = marg_pullback(sampler, x)
+    xu = pushforward(sampler, [x;u])
+    return xu[_d_marg(sampler)+1:d]
+end
+
+function cond_pullback(sra::ConditionalSampler{d, T, <:Any, dC}, 
+                y::PSDdata{T}, 
+                x::PSDdata{T}
+            ) where {d, T<:Number, dC}
+    yx = pullback(sra, [x; y])
+    return yx[_d_marg(sampler)+1:end]
+end
+
 function cond_sample(sampler::ConditionalSampler{d, T}, 
                 X::PSDDataVector{T};
                 threading=true
@@ -96,7 +122,7 @@ function cond_sample(sampler::ConditionalSampler{d, T},
     end
 end
 function cond_sample(sampler::ConditionalSampler{d, T, R, dC}, x::PSDdata{T}) where {d, T<:Number, R, dC}
-    dx = d-dC
+    dx = _d_marg(sampler)
     return cond_pushforward(sampler, sample_reference(sampler)[dx+1:d], x)
 end
 

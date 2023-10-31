@@ -392,6 +392,7 @@ function SelfReinforced_ML_estimation(
         to_subspace_reference_map=nothing,
         threading=true,
         amount_cond_variable=0,
+        amount_reduced_cond_variables=0,
         kwargs...
 ) where {dr, d2, T<:Number, S}
     d = length(X[1]) # data dimension
@@ -405,7 +406,8 @@ function SelfReinforced_ML_estimation(
             to_subspace_reference_map = reference_map
         end
         if amount_cond_variable > 0
-            throw(error("Subset estimation together with conditional Sampler not supported yet!"))
+            @assert amount_reduced_cond_variables > 0
+            @assert amount_reduced_cond_variables ≤ amount_cond_variable
         end
     end
 
@@ -455,13 +457,25 @@ function SelfReinforced_ML_estimation(
 
         ## filter to the right dimensions
         layer = if d2 < d
-            B, P, P_tilde = RandomSubsetProjection(T, d, d2) # select subset randomly
+            # select subset randomly
+            B, P, P_tilde = if amount_cond_variable==0
+                RandomSubsetProjection(T, d, d2)
+            else
+                RandomConditionalSubsetProjection(T, 
+                        d, amount_cond_variable, d2, 
+                        amount_reduced_cond_variables)
+            end
             X_filter = [project_to_subset(P_tilde, 
                             to_subspace_reference_map, 
                             subspace_reference_map,
                             x) for x in X_evolved_pb]
             ML_fit!(model_ML, X_filter; kwargs...)
-            SubsetSampler{d}(Sampler(model_ML), B, 
+            sampler = if amount_cond_variable==0
+                Sampler(model_ML)
+            else
+                ConditionalSampler(model_ML, amount_reduced_cond_variables)
+            end
+            SubsetSampler{d, amount_cond_variable}(sampler, B, 
                                 P, P_tilde, 
                                 to_subspace_reference_map, 
                                 subspace_reference_map)
@@ -512,26 +526,9 @@ end
 ## Interface of ConditionalSampler
 
 function marg_pdf(sra::CondSelfReinforcedSampler{d, T, R, dC}, x::PSDdata{T}) where {d, T<:Number, R, dC}
-    @assert length(x) == dC
+    @assert length(x) == _d_marg(sra)
     pdf_func = marg_pushforward_pdf_function(sra)
     return pdf_func(x)
-end
-
-
-function cond_pushforward(sra::CondSelfReinforcedSampler{d, T, R, dC}, 
-                    u::PSDdata{T},
-                    x::PSDdata{T}
-                ) where {d, T<:Number, R, dC}
-    dx = d-dC
-    x = marg_pullback(sra, x)
-    xu = pushforward(sra, [x; u])
-    return xu[dx+1:end]
-end
-
-function cond_pullback(sra::CondSelfReinforcedSampler{d, T}, y::PSDdata{T}, x::PSDdata{T}) where {d, T<:Number}
-    dx = d-dC
-    yx = pullback(sra, [x; y])
-    return yx[dx+1:end]
 end
 
 function marg_pushforward(sra::CondSelfReinforcedSampler{d, T}, u::PSDdata{T};
