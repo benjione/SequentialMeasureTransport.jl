@@ -120,7 +120,7 @@ end
         X = [[x] for x in X]
         model = PSDModel(Legendre(-15..15), :trivial, 30)
         loss(Z) = -1/length(Z) * sum(log.(Z))
-        minimize!(model, loss, X, maxit=3000, normalization_constraint=true)
+        minimize!(model, loss, X, maxit=5000, normalization_constraint=true, optimizer=Hypatia.Optimizer)
         domx = collect(range(-15, 15, length=2000))
         @test norm(model.(domx) .- pdf.(domx))/norm(pdf.(domx)) < 1e-1
     end
@@ -131,7 +131,7 @@ end
         X = [[x] for x in X]
         model = PSDModel(Legendre(-15..15), :downward_closed, 30)
         loss(Z) = -1/length(Z) * sum(log.(Z))
-        minimize!(model, loss, X, maxit=3000, normalization_constraint=true)
+        minimize!(model, loss, X, maxit=5000, normalization_constraint=true, optimizer=Hypatia.Optimizer)
         domx = collect(range(-15, 15, length=2000))
         @test norm(model.(domx) .- pdf.(domx))/norm(pdf.(domx)) < 1e-1
     end

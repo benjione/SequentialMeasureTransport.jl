@@ -28,7 +28,8 @@ function PSDModels.pushforward(
         m::ScalingReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return (x .- m.L) ./ (m.R .- m.L)
+    d2 = length(x)
+    return (x .- m.L[1:d2]) ./ (m.R[1:d2] .- m.L[1:d2])
 end
 
 
@@ -36,7 +37,8 @@ function PSDModels.pullback(
         m::ScalingReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}
-    return u .* (m.R .- m.L) .+ m.L
+    d2 = length(u)
+    return u .* (m.R[1:d2] .- m.L[1:d2]) .+ m.L[1:d2]
 end
 
 
@@ -44,6 +46,10 @@ function Jacobian(
         mapping::ScalingReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
+    d2 = length(x)
+    if d2 < d
+        return 1/prod(mapping.R[1:d2] .- mapping.L[1:d2])
+    end
     return 1/mapping.V
 end
 
@@ -52,5 +58,9 @@ function inverse_Jacobian(
         mapping::ScalingReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}
+    d2 = length(u)
+    if d2 < d
+        return prod(mapping.R[1:d2] .- mapping.L[1:d2])
+    end
     return mapping.V
 end

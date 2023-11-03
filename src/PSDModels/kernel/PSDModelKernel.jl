@@ -38,38 +38,21 @@ function PSDModel_gradient_descent(
         X::PSDDataVector{T},
         Y::Vector{T},
         k::Kernel;
-        optimization_method = :SDP,
         λ_1=1e-8,
         trace=false,
         B0=nothing,
         kwargs...
     ) where {T<:Number}
-    K = kernelmatrix(k, X)
-
     N = length(X)
-
-    f_A(i, A) = begin
-        v = K[i,:]
-        return dot(v, A, v)
-    end
-    f_A(A) = (1.0/N) * mapreduce(i-> (f_A(i, A) - Y[i])^2, +, 1:N) + λ_1 * tr(A)
-
     A0 = if B0===nothing
-        ones(N,N)
+        diagm(ones(N))
     else
         B0
     end
-    prob = create_SoS_opt_problem(optimization_method, 
-                A0, f_A;
-                trace=trace,
-                _filter_kwargs(kwargs, 
-                        _optimize_PSD_kwargs,
-                        (:convex, :trace)
-                )...
-            )
-    solution = optimize(prob)
-    return PSDModelKernel(solution, k, X; 
+    model = PSDModelKernel(Hermitian(A0), k, X; 
                   _filter_kwargs(kwargs, _PSDModelKernel_kwargs)...)
+    fit!(model, X, Y; trace=trace, λ_1=λ_1, kwargs...)
+    return model
 end
 
 function PSDModel_direct(

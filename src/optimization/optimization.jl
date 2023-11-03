@@ -6,7 +6,8 @@ include("manopt_optimizer.jl")
 const _optimize_PSD_kwargs = 
     (:convex, :trace, :maxit, :tol, 
     :smooth, :opt_algo, :vectorize_matrix, 
-    :normalization_constraint, :optimizer)
+    :normalization_constraint, :optimizer,
+    :optimization_method)
 
 """
 optimize_PSD_model(initial::AbstractMatrix, 

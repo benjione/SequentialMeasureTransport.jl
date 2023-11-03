@@ -88,11 +88,22 @@ function KL_fit!(model::PSDModel{T},
     Y::AbstractVector{T};
     normalization_constraint=false,
     kwargs...) where {T<:Number}
-    
-    loss(Z) = (1/length(Z)) * sum((-log.(Z) .- one(T)) .* Y)
-    minimize!(model, loss, X; 
+    if normalization_constraint == true
+        @info "By using normalization during minimization, the KL-divergence for probabilities is used."
+    end
+    # KL by α div: \int log(f/g) df - \int df + \int dg
+    # we deal with \int dg = tr(B), hence setting λ_1 = 1.0
+    loss(Z) = (1/length(Z)) * sum(-log.(Z) .* Y)
+    if normalization_constraint
+        minimize!(model, loss, X; 
             normalization_constraint=normalization_constraint,
             kwargs...)
+    else
+        minimize!(model, loss, X; 
+            normalization_constraint=false,
+            λ_1 = 1.0,
+            kwargs...)
+    end
 end
 
 function conditional_expectation(model::PSDModelOrthonormal{d, T}, 

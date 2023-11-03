@@ -19,6 +19,12 @@ export ReferenceMap
 export ScalingReference, GaussianReference, AlgebraicReference
 export pullback, pushforward, Jacobian, inverse_Jacobian
 
+"""
+Attention!
+
+Using any of the functions with dim(x) < d will take a marginal distribution and pdf.
+"""
+
 ### Interface for ReferenceMaps
 @inline function Distributions.pdf(Rmap::ReferenceMap{d, T}, 
                         x::PSDdata{T}
@@ -81,5 +87,6 @@ function inverse_Jacobian(
     ) where {d, T<:Number}
     throw(error("Not implemented"))
 end
+
 
 end # module ReferenceMaps

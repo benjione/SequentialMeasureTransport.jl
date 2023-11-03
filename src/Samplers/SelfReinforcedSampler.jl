@@ -1,4 +1,5 @@
 
+
 """
 Approximations T_1, T_2, ..., T_n of the target distribution π
 so that
@@ -8,19 +9,30 @@ All samplers are defined on the unit cube [0, 1]^d, so that
 T_1 = R ∘ T_1' ∘ R^{-1} and
     T_1 ∘ T_2 ∘ ... ∘ T_n ∘ ρ = R ∘ T_1' ∘ ... ∘ T_n' ∘ R^{-1} ∘ ρ = π
 """
-struct SelfReinforcedSampler{d, T, R} <: Sampler{d, T, R}
-    samplers::Vector{<:Sampler{d, T}}   # defined on [0, 1]^d
+struct CondSelfReinforcedSampler{d, T, R, dC} <: ConditionalSampler{d, T, R, dC}
+    samplers::Vector{<:ConditionalSampler{d, T, Nothing, dC}}   # defined on [0, 1]^d
     R_map::R    # reference map from reference distribution to uniform on [0, 1]^d
-    function SelfReinforcedSampler(
-        samplers::Vector{<:Sampler{d, T}},
-        R_map::R
-    ) where {d, T<:Number, R<:ReferenceMap}
-        new{d, T, R}(samplers, R_map)
+    function CondSelfReinforcedSampler(
+        samplers::Vector{<:ConditionalSampler{d, T, Nothing, dC}},
+        R_map::R,
+    ) where {d, T<:Number, R<:ReferenceMap, dC}
+        new{d, T, R, dC}(samplers, R_map)
     end
 end
 
+
+# Not a conditional sampler
+const SelfReinforcedSampler{d, T, R} = CondSelfReinforcedSampler{d, T, R, 0}
+
+function SelfReinforcedSampler(
+            samplers::Vector{<:ConditionalSampler{d, T, Nothing, 0}},
+            R_map::R;
+        ) where {d, T<:Number, R<:ReferenceMap}
+    return CondSelfReinforcedSampler(samplers, R_map)
+end
+
 ## Pretty printing
-function Base.show(io::IO, sra::SelfReinforcedSampler{d, T}) where {d, T<:Number}
+function Base.show(io::IO, sra::CondSelfReinforcedSampler{d, T}) where {d, T<:Number}
     println(io, "SelfReinforcedSampler{d=$d, T=$T}")
     println(io, "  samplers:")
     for (i, sampler) in enumerate(sra.samplers)
@@ -35,7 +47,7 @@ end
 
 ## Overwrite pdf function from Distributions
 function Distributions.pdf(
-        sar::SelfReinforcedSampler{d, T}, 
+        sar::CondSelfReinforcedSampler{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
     pdf_func = pushforward_pdf_function(sar)
@@ -43,7 +55,7 @@ function Distributions.pdf(
 end
 
 function pullback_pdf_function(
-        sra::SelfReinforcedSampler{d, T},
+        sra::CondSelfReinforcedSampler{d, T},
         pdf_tar::Function; # defined on [a, b]^d
         layers=nothing
     ) where {d, T<:Number}
@@ -73,7 +85,7 @@ function pullback_pdf_function(
 end
 
 function _pullback_jacobian_function(
-        sra::SelfReinforcedSampler{d, T};
+        sra::CondSelfReinforcedSampler{d, T};
         layers=nothing
     ) where {d, T<:Number}
     jacob_func = x->1.0
@@ -100,7 +112,7 @@ function _pullback_jacobian_function(
 end
 
 function _broadcasted_pullback_pdf_function(
-        sra::SelfReinforcedSampler{d, T},
+        sra::CondSelfReinforcedSampler{d, T},
         broad_pdf_tar::Function; # defined on [a, b]^d
         layers=nothing
     ) where {d, T<:Number}
@@ -115,11 +127,11 @@ function _broadcasted_pullback_pdf_function(
     return pdf_func
 end
 
-pushforward_pdf_function(sra::SelfReinforcedSampler; layers=nothing) = begin
+pushforward_pdf_function(sra::CondSelfReinforcedSampler; layers=nothing) = begin
     return pushforward_pdf_function(sra, x->reference_pdf(sra, x); layers=layers)
 end
 function pushforward_pdf_function(
-        sra::SelfReinforcedSampler{d, T},
+        sra::CondSelfReinforcedSampler{d, T},
         pdf_ref::Function;
         layers=nothing
     ) where {d, T<:Number}
@@ -146,15 +158,48 @@ function pushforward_pdf_function(
     return pdf_func
 end
 
+
+marg_pushforward_pdf_function(sra::CondSelfReinforcedSampler; layers=nothing) = begin
+    return marg_pushforward_pdf_function(sra, x->reference_pdf(sra, x); layers=layers)
+end
+function marg_pushforward_pdf_function(
+        sra::CondSelfReinforcedSampler{d, T},
+        pdf_ref::Function;
+        layers=nothing
+    ) where {d, T<:Number}
+    # from last to first
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
+    pdf_func = let sra=sra, pdf_func=pdf_ref
+        u->begin
+            pdf_func(_ref_pullback(sra, u)) * _ref_inv_Jacobian(sra, u)
+        end
+    end
+    for sampler in reverse(sra.samplers[_layers])
+        # apply map T_i
+        pdf_func = let sra=sra, pdf_func=pdf_func, sampler=sampler
+            x-> begin
+                pdf_func(marg_pullback(sampler, x)) * marg_pdf(sampler, x)
+            end
+        end
+    end
+    pdf_func = let sra=sra, pdf_func=pdf_func
+        x->begin
+            pdf_func(_ref_pushforward(sra, x)) * _ref_Jacobian(sra, x) # [a, b]^d -> [0, 1]^d
+        end
+    end
+    return pdf_func
+end
+
+
 function add_layer!(
-        sra::SelfReinforcedSampler{d, T},
+        sra::CondSelfReinforcedSampler{d, T, <:Any, dC},
         pdf_tar::Function,
         model::PSDModelOrthonormal{d, T},
         fit_method!::Function;
         N_sample=1000,
         broadcasted_tar_pdf=false,
         kwargs...
-    ) where {d, T<:Number}
+    ) where {d, T<:Number, dC}
     # sample from reference map
     X = eachcol(rand(T, d, N_sample))
     pdf_tar_pullbacked = if broadcasted_tar_pdf
@@ -183,14 +228,18 @@ function add_layer!(
 
     fit_method!(model, collect(X), Y)
     normalize!(model)
-    push!(sra.samplers, Sampler(model))
+    if dC == 0
+        push!(sra.samplers, Sampler(model))
+    else
+        push!(sra.samplers, ConditionalSampler(model, dC))
+    end
     return nothing
 end
 
 function add_layer!(
-        sra::SelfReinforcedSampler{d, T},
-        sampler::Sampler{d, T},
-    ) where {d, T<:Number}
+        sra::CondSelfReinforcedSampler{d, T, <:Any, dC},
+        sampler::ConditionalSampler{d, T, Nothing, dC},
+    ) where {d, T<:Number, dC}
     push!(sra.samplers, sampler)
     return nothing
 end
@@ -246,6 +295,7 @@ function SelfReinforcedSampler(
                 ### others
                 broadcasted_tar_pdf=false,
                 threading=true,
+                amount_cond_variable=0,
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
@@ -305,9 +355,17 @@ function SelfReinforcedSampler(
     end
 
     normalize!(model)
-    samplers = [Sampler(model)]
+    samplers = if amount_cond_variable==0
+        [Sampler(model)]
+    else
+        [ConditionalSampler(model, amount_cond_variable)]
+    end
 
-    sra = SelfReinforcedSampler(samplers, reference_map)
+    sra = if amount_cond_variable==0
+        SelfReinforcedSampler(samplers, reference_map)
+    else
+        CondSelfReinforcedSampler(samplers, reference_map)
+    end
 
     for i in 2:amount_layers
         layer_method = let i=i, bridging_π=bridging_π
@@ -333,6 +391,8 @@ function SelfReinforced_ML_estimation(
         subspace_reference_map=nothing,
         to_subspace_reference_map=nothing,
         threading=true,
+        amount_cond_variable=0,
+        amount_reduced_cond_variables=0,
         kwargs...
 ) where {dr, d2, T<:Number, S}
     d = length(X[1]) # data dimension
@@ -345,6 +405,10 @@ function SelfReinforced_ML_estimation(
         if to_subspace_reference_map === nothing
             to_subspace_reference_map = reference_map
         end
+        if amount_cond_variable > 0
+            @assert amount_reduced_cond_variables > 0
+            @assert amount_reduced_cond_variables ≤ amount_cond_variable
+        end
     end
 
     L = domain_interval_left(model)
@@ -355,8 +419,13 @@ function SelfReinforced_ML_estimation(
         throw(error("Do not use OMF models for self reinforced sampler, use a Gaussian reference map instead!"))
     end
 
-    sra = SelfReinforcedSampler(Sampler{d, T}[], 
+    sra = if amount_cond_variable == 0
+        SelfReinforcedSampler(Sampler{d, T, Nothing}[], 
                                 reference_map)
+    else
+        CondSelfReinforcedSampler(ConditionalSampler{d, T, Nothing, amount_cond_variable}[], 
+                                reference_map)
+    end
 
     for t in bridge.t_vec
         @assert t ≥ 0.0
@@ -387,30 +456,47 @@ function SelfReinforced_ML_estimation(
         end
 
         ## filter to the right dimensions
-        if d2 < d
-            B, P, P_tilde = RandomSubsetProjection(T, d, d2) # select subset randomly
+        layer = if d2 < d
+            # select subset randomly
+            B, P, P_tilde = if amount_cond_variable==0
+                RandomSubsetProjection(T, d, d2)
+            else
+                RandomConditionalSubsetProjection(T, 
+                        d, amount_cond_variable, d2, 
+                        amount_reduced_cond_variables)
+            end
             X_filter = [project_to_subset(P_tilde, 
                             to_subspace_reference_map, 
                             subspace_reference_map,
                             x) for x in X_evolved_pb]
             ML_fit!(model_ML, X_filter; kwargs...)
-            layer = SubsetSampler{d}(Sampler(model_ML), B, 
+            sampler = if amount_cond_variable==0
+                Sampler(model_ML)
+            else
+                ConditionalSampler(model_ML, amount_reduced_cond_variables)
+            end
+            SubsetSampler{d, amount_cond_variable}(sampler, B, 
                                 P, P_tilde, 
                                 to_subspace_reference_map, 
                                 subspace_reference_map)
         else
             ML_fit!(model_ML, X_evolved_pb; kwargs...)
-            layer = Sampler(model_ML)
+            if amount_cond_variable==0
+                Sampler(model_ML)
+            else
+                ConditionalSampler(model_ML, amount_cond_variable)
+            end
         end
-
         add_layer!(sra, layer)
     end
 
     return sra
 end
 
+## Interface of Sampler
+
 function pushforward(
-        sra::SelfReinforcedSampler{d, T}, 
+        sra::CondSelfReinforcedSampler{d, T}, 
         u::PSDdata{T};
         layers=nothing
     ) where {d, T<:Number}
@@ -424,7 +510,7 @@ function pushforward(
 end
 
 function pullback(
-        sra::SelfReinforcedSampler{d, T}, 
+        sra::CondSelfReinforcedSampler{d, T}, 
         x::PSDdata{T};
         layers=nothing
     ) where {d, T<:Number}
@@ -432,6 +518,36 @@ function pullback(
     x = _ref_pushforward(sra, x)
     for j=_layers
         x = pullback(sra.samplers[j], x)
+    end
+    x = _ref_pullback(sra, x)
+    return x
+end
+
+## Interface of ConditionalSampler
+
+function marg_pdf(sra::CondSelfReinforcedSampler{d, T, R, dC}, x::PSDdata{T}) where {d, T<:Number, R, dC}
+    @assert length(x) == _d_marg(sra)
+    pdf_func = marg_pushforward_pdf_function(sra)
+    return pdf_func(x)
+end
+
+function marg_pushforward(sra::CondSelfReinforcedSampler{d, T}, u::PSDdata{T};
+                        layers=nothing) where {d, T<:Number}
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
+    u = _ref_pushforward(sra, u)
+    for j=reverse(_layers) # reverse order
+        u = marg_pushforward(sra.samplers[j], u)
+    end
+    u = _ref_pullback(sra, u)
+    return u
+end
+
+function marg_pullback(sra::CondSelfReinforcedSampler{d, T}, x::PSDdata{T};
+                        layers=nothing) where {d, T<:Number}
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
+    x = _ref_pushforward(sra, x)
+    for j=_layers
+        x = marg_pullback(sra.samplers[j], x)
     end
     x = _ref_pullback(sra, x)
     return x
