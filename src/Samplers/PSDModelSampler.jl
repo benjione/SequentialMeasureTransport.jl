@@ -83,6 +83,7 @@ function _pullback_first_n(sampler::PSDModelSampler{d, T},
     for k=1:n
         u[sampler.variable_ordering[k]] = f(k)(x[k])
     end
+    u = map(x->x ≤ 0 ? (x ≥ one(T) ? x : one(T)) : zero(T) : x, u)
     return u
 end
 
