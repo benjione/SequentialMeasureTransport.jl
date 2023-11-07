@@ -38,12 +38,12 @@ end
             amount_cond_variable=1,
         )
         # test densities are close
-        for x in range(-5, 5, length=20)
-            for y in range(-5, 5, length=20)
+        for x in range(-5.0, 5.0, length=20)
+            for y in range(-5.0, 5.0, length=20)
                 @test abs(pdf(sra, [x, y]) - f([x, y])) < 0.1
             end
         end
-        for x in range(-4, 4, length=100)
+        for x in range(-4.0, 4.0, length=100)
             @test abs(PSDModels.marg_pdf(sra, [x]) - f_marg(x)) < 0.2
         end
     end

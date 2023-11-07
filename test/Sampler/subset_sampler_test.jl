@@ -51,10 +51,14 @@ end
     X2 = rand(distr2, N2)
     X = hcat(X1, X2)
     T = Float64
-    bridge = DiffusionBrigdingDensity{2}(f, T[1.5, 1.3, 1.0, 0.8, 0.75, 0.5, 0.3, 0.25, 0.18, 0.13, 0.1, 0.07, 0.02, 0.01, 0.005, 0.0], T(2.0))
-    ref_map = PSDModels.ReferenceMaps.GaussianReference{3, T}(T(2.0))
-    to_subspace_ref_map = PSDModels.ReferenceMaps.GaussianReference{3, T}(T(2.0))
-    subspace_ref_map = PSDModels.ReferenceMaps.GaussianReference{2, T}(T(2.0))
+    bridge = DiffusionBrigdingDensity{2}(f, T[1.5, 1.3, 1.0, 0.8, 0.75, 
+                                            0.5, 0.3, 0.25, 0.18, 0.13, 
+                                            0.1, 0.07, 0.02, 0.01, 0.005, 0.0], T(2.0))
+    ref_map = PSDModels.ReferenceMaps.GaussianReference{3, T}(T(2.5))
+    to_subspace_ref_map = PSDModels.ReferenceMaps.GaussianReference{3, T}(T(3.0))
+    subspace_ref_map = PSDModels.ReferenceMaps.GaussianReference{2, T}(T(3.0))
+    # to_subspace_ref_map = PSDModels.ReferenceMaps.AlgebraicReference{3, T}()
+    # subspace_ref_map = PSDModels.ReferenceMaps.AlgebraicReference{2, T}()
 
     model = PSDModel{T}(Legendre(T(0)..T(1))^2, :downward_closed, 3)
 

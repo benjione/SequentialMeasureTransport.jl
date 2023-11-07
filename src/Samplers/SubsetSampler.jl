@@ -5,9 +5,10 @@ struct SubsetSampler{d, d_sub, T<:Number,
             R<:ReferenceMap{d, T}, 
             R_sub<:ReferenceMap{d_sub, T},
             dC,
-            d_sub_cond          # reduced dimension of conditional variables
+            d_sub_cond,          # reduced dimension of conditional variables
+            sampler_type<:ConditionalSampler{d_sub, T, <:Any, d_sub_cond}
         } <: ConditionalSampler{d, T, Nothing, dC}
-    sampler::ConditionalSampler{d_sub, T, <:Any, d_sub_cond}
+    sampler::sampler_type
     X::AbstractMatrix{T}            # bases X of subspace, X ∈ R^{d x d2}
     P::AbstractMatrix{T}            # Projection so that P * y ∈ S and (I - P) * y = X' * y ∈ S^⟂
     P_tilde::AbstractMatrix{T}      # transform of y ∈ R^d to subspace α ∈ R^d2
@@ -24,7 +25,11 @@ struct SubsetSampler{d, d_sub, T<:Number,
                    ones(T, length(sampler_variables)))
         P_tilde = X'
         P = X * P_tilde
-        new{d, d2, T, R, R2, dC, d_sub_cond}(sampler, X, P, P_tilde, R_map, R_map_sub)
+        new{d, d2, T, R, R2, dC, d_sub_cond, typeof(sampler)}(
+                sampler, X, P, 
+                P_tilde, R_map, 
+                R_map_sub
+            )
     end
     function SubsetSampler{d}(sampler::Sampler{d2, T}, 
             sampler_variables::AbstractVector{Int},
@@ -55,7 +60,7 @@ struct SubsetSampler{d, d_sub, T<:Number,
         @assert size(P, 2) == d
         @assert size(P_tilde, 1) == d2
         @assert size(P_tilde, 2) == d
-        new{d, d2, T, R, R2, dC, d_sub_cond}(sampler, X, P, P_tilde, R_map, R_map_sub)
+        new{d, d2, T, R, R2, dC, d_sub_cond, typeof(sampler)}(sampler, X, P, P_tilde, R_map, R_map_sub)
     end
     # function SubsetSampler{d, dC}(sampler::Sampler{d2, T}, 
     #                         X::AbstractMatrix{T},
@@ -80,9 +85,9 @@ Hence, det(∂v (P * T(v) + (1-P) v)) = det(∂v T(v)) * det(∂v v)
 Total expression of forward is with T being the sampler:
 R^{-1}(y) = X * R_sub^{-1}(T(R_sub(X' R^{-1}(x)))) + (I - P) * R^{-1}(x)
 """
-function Distributions.pdf(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub}, 
+function Distributions.pdf(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub, samplerType}, 
                         x::PSDdata{T}
-                    ) where {T<:Number, R, R_sub}
+                    ) where {T<:Number, R, R_sub, samplerType}
     xs = pullback(sampler.R_map, x) # from [0,1]^d to R^d
     sub_x = sampler.P_tilde * xs # from R^d to R^d2
     sub_x_maped = pushforward(sampler.R_map_sub, sub_x) # from R^d2 to [0,1]^d2
@@ -149,9 +154,9 @@ function project_to_subset(P_tilde::AbstractMatrix{T},
     return sub_x
 end
 
-function pushforward(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub}, 
+function pushforward(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub,<:Any, <:Any,ST}, 
                     u::PSDdata{T}
-            ) where {T<:Number, R, R_sub}
+            ) where {T<:Number, R, R_sub, ST}
     us = pullback(sampler.R_map, u)
     sub_u = sampler.P_tilde * us
     sub_x = pushforward(sampler.sampler, pushforward(sampler.R_map_sub, sub_u))
@@ -160,7 +165,9 @@ function pushforward(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub},
     return x
 end
 
-function pullback(sampler::SubsetSampler{<:Any, <:Any, T, R}, x::PSDdata{T}) where {T<:Number, R}
+function pullback(sampler::SubsetSampler{<:Any, <:Any, T, R, <:Any, <:Any, <:Any, ST}, 
+                    x::PSDdata{T}
+            ) where {T<:Number, R, ST}
     xs = pullback(sampler.R_map, x)
     sub_x = sampler.P_tilde * xs
     sub_u = pullback(sampler.sampler, pushforward(sampler.R_map_sub, sub_x))
@@ -177,8 +184,8 @@ end
 """
 Distribution p(x) = ∫ p(x, y) d y
 """
-function marg_pdf(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_cond}, 
-            x::PSDdata{T}) where {d, d_sub, T<:Number, R, R2, dC, d_sub_cond}
+function marg_pdf(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_cond, ST}, 
+            x::PSDdata{T}) where {d, d_sub, T<:Number, R, R2, dC, d_sub_cond, ST}
     xs = pullback(sampler.R_map, x) # from [0,1]^dx to R^dx
     sub_x = _marg_P_tilde(sampler) * xs # from R^dx to R^d_sub_marg
     sub_x_maped = pushforward(sampler.R_map_sub, sub_x) # from R^d_sub_marg to [0,1]^d_sub_marg
@@ -192,9 +199,9 @@ function marg_pdf(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_cond},
     return inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * Jacobian(sampler.R_map, us)
 end
 
-function marg_pushforward(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_cond}, 
+function marg_pushforward(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_cond, ST}, 
                 u::PSDdata{T}
-            ) where {d, d_sub, T<:Number, R, R2, dC, d_sub_cond}
+            ) where {d, d_sub, T<:Number, R, R2, dC, d_sub_cond, ST}
     us = pullback(sampler.R_map, u)
     sub_u = _marg_P_tilde(sampler) * us
     sub_x = marg_pushforward(sampler.sampler, pushforward(sampler.R_map_sub, sub_u))
@@ -203,9 +210,9 @@ function marg_pushforward(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_c
     return x
 end
 
-function marg_pullback(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_cond},
+function marg_pullback(sampler::SubsetSampler{d, d_sub, T, R, R2, dC, d_sub_cond, ST},
                 x::PSDdata{T}
-            ) where {d, d_sub, T<:Number, R, R2, dC, d_sub_cond}
+            ) where {d, d_sub, T<:Number, R, R2, dC, d_sub_cond, ST}
     xs = pullback(sampler.R_map, x)
     sub_x = _marg_P_tilde(sampler) * xs
     sub_u = marg_pullback(sampler.sampler, pushforward(sampler.R_map_sub, sub_x))

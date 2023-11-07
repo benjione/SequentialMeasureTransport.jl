@@ -2,7 +2,7 @@
 
 abstract type OrthonormalTraceModel{T, S} <: TraceModel{T} end
 
-function ΦΦT(a::OrthonormalTraceModel{T, Nothing}, x::PSDdata{T}) where {T<:Number}
+function ΦΦT(a::OT, x::PSDdata{T}) where {T<:Number, OT<:OrthonormalTraceModel{T, Nothing}}
     return a.ΦΦT(x)
 end
 

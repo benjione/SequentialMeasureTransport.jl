@@ -506,7 +506,7 @@ function pushforward(
         u = pushforward(sra.samplers[j], u)
     end
     u = _ref_pullback(sra, u)
-    return u
+    return u::Vector{T}
 end
 
 function pullback(
@@ -520,7 +520,7 @@ function pullback(
         x = pullback(sra.samplers[j], x)
     end
     x = _ref_pullback(sra, x)
-    return x
+    return x::Vector{T}
 end
 
 ## Interface of ConditionalSampler

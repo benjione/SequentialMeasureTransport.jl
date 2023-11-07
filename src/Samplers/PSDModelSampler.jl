@@ -4,10 +4,10 @@ struct PSDModelSampler{d, T<:Number, S, R, dC} <: ConditionalSampler{d, T, R, dC
     model::PSDModelOrthonormal{d, T, S}                 # model to sample from
     margins::Vector{<:PSDModelOrthonormal{<:Any, T, S}} # start with x_{≤1}, then x_{≤2}, ...
     integrals::Vector{<:OrthonormalTraceModel{T, S}}    # integrals of marginals
-    variable_ordering::AbstractVector{Int}              # variable ordering for the model
+    variable_ordering::Vector{Int}                      # variable ordering for the model
     R_map::R                                            # reference map from reference distribution to uniform
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
-                             variable_ordering::AbstractVector{Int},
+                             variable_ordering::Vector{Int},
                              amount_cond_variable::Int) where {d, T<:Number, S}
         @assert amount_cond_variable < d
         # check that the last {amount_cond_variable} variables are the last ones in the ordering
@@ -20,7 +20,7 @@ struct PSDModelSampler{d, T<:Number, S, R, dC} <: ConditionalSampler{d, T, R, dC
         new{d, T, S, Nothing, amount_cond_variable}(model, margins, integrals, variable_ordering, nothing)
     end
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
-                             variable_ordering::AbstractVector{Int}) where {d, T<:Number, S}
+                             variable_ordering::Vector{Int}) where {d, T<:Number, S}
         PSDModelSampler(model, variable_ordering, 0)
     end
 end
@@ -46,7 +46,7 @@ function _pushforward_first_n(sampler::PSDModelSampler{d, T, S},
     x = zeros(T, n)
     u = @view u[sampler.variable_ordering[1:n]]
     ## T^{-1}(x_1,...,x_k) functions, z=x_k
-    f(k) = begin
+    f(k::Int) = begin
         if k==1
             z->sampler.integrals[k](T[z]) - u[k] #u[sampler.variable_ordering[k]]
         else
@@ -56,12 +56,12 @@ function _pushforward_first_n(sampler::PSDModelSampler{d, T, S},
     end
     if S<:OMF 
         for k=1:n
-            x[k] = find_zero(f(k), zero(T))
+            x[k] = find_zero(f(k), zero(T))::T
         end
     else
         for k=1:n
-            left, right = domain_interval(sampler.model, sampler.variable_ordering[k])
-            x[k] = find_zero(f(k), (left, right))
+            left, right = domain_interval(sampler.model, sampler.variable_ordering[k])::Tuple{T, T}
+            x[k] = find_zero(f(k), (left, right))::T
         end
     end
     return invpermute!(x, sampler.variable_ordering[1:n])
@@ -72,19 +72,29 @@ function _pullback_first_n(sampler::PSDModelSampler{d, T},
                         x::PSDdata{T},
                         n::Int) where {d, T<:Number}
     x = @view x[sampler.variable_ordering[1:n]]
-    f(k) = begin
+    f(k::Int) = begin
         if k==1
             z->sampler.integrals[k](T[z])
         else
             z->(sampler.integrals[k]([x[1:k-1]; z])/sampler.margins[k-1](x[1:k-1]))
         end
     end
-    u = zeros(T, n)
+    u = Vector{T}(undef, n)
     for k=1:n
         u[sampler.variable_ordering[k]] = f(k)(x[k])
     end
-    u = map(x->x ≤ 0 ? (x ≥ one(T) ? x : one(T)) : zero(T) : x, u)
-    return u
+    # typestable function
+    _rounding(u::Vector{T}) = begin
+        map(u) do x
+            if zero(T) ≤ x ≤ one(T)
+                x
+            else
+                zero(T) > x ? zero(T) : one(T)
+            end
+        end
+    end
+    u = _rounding(u)
+    return u::Vector{T}
 end
 
 
@@ -94,7 +104,7 @@ function Distributions.pdf(
         sar::PSDModelSampler{d, T},
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return sar.model(x)
+    return sar.model(x)::T
 end
 
 @inline pushforward(sampler::PSDModelSampler{d, T, S}, 
