@@ -2,7 +2,6 @@ using PSDModels
 using LinearAlgebra
 using ApproxFun
 using Distributions
-using Hypatia # alternative solver for some problems
 using Test
 
 @testset "internal utility test" begin

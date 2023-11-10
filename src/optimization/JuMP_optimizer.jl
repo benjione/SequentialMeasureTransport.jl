@@ -102,7 +102,7 @@ function _fit_JuMP!(a::PSDModel{T},
     end
 
     K = reduce(hcat, Φ.(Ref(a), X))
-    @time begin
+
     _K_tmp = similar(K)
     for i=1:N
         _K_tmp[i, :] = K[i,:] .* weights
@@ -164,7 +164,7 @@ function _fit_JuMP!(a::PSDModel{T},
             JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, l2])
         end
     end
-    end
+
 
     if λ_1 > 0.0
         JuMP.add_to_expression!(ex, λ_1 * nuclearnorm(B))
@@ -172,9 +172,9 @@ function _fit_JuMP!(a::PSDModel{T},
     if λ_2 > 0.0
         JuMP.add_to_expression!(ex, λ_2 * opnorm(B, 2)^2)
     end
-    @time begin
+
     JuMP.@objective(model, Min, ex);
-    end
+
     # @show t2
     if normalization
         # IMPORTANT: only valid for tensorized polynomial maps.

@@ -124,7 +124,7 @@ end
         k = MaternKernel(ν=0.5)
         model = PSDModel(k, X)
 
-        fit!(model, X, Y, λ_1=1e-4, λ_2=1e-8, maxit=2000)
+        fit!(model, X, Y, λ_1=1e-4, λ_2=0.0, maxit=2000)
 
         domx = collect(range(-1, 1, length=1000))
         @test norm(model.(domx) - f.(domx))/norm(f.(domx)) < 1.5e-1

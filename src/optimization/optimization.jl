@@ -68,7 +68,7 @@ function create_SoS_SDP_problem(
             optimizer=nothing,
             normalization_constraint::Bool=false,
             fixed_variables=nothing,
-            SDP_library=:JuMP,
+            SDP_library=:Convex,
         ) where {T<:Number}
     if SDP_library == :Convex
     return SDPOptProp(initial, loss; 
