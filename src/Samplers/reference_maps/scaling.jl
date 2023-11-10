@@ -12,6 +12,9 @@ struct ScalingReference{d, T} <: ReferenceMap{d, T}
         V = prod(R .- L)
         new{d, T}(L, R, V)
     end
+    function ScalingReference(L::Vector{T}, R::Vector{T}) where {T<:Number}
+        ScalingReference{length(L)}(L, R)
+    end
 end
 
 function ScalingReference(model::PSDModelOrthonormal{d, T, S}) where {d, T, S}

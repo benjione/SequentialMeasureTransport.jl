@@ -1,6 +1,7 @@
 abstract type OptProp{T} end
 
 include("SDP_optimizer.jl")
+include("JuMP_optimizer.jl")
 include("manopt_optimizer.jl")
 
 const _optimize_PSD_kwargs = 
@@ -67,7 +68,9 @@ function create_SoS_SDP_problem(
             optimizer=nothing,
             normalization_constraint::Bool=false,
             fixed_variables=nothing,
+            SDP_library=:JuMP,
         ) where {T<:Number}
+    if SDP_library == :Convex
     return SDPOptProp(initial, loss; 
             trace=trace,
             maxit=maxit,
@@ -75,4 +78,16 @@ function create_SoS_SDP_problem(
             normalization=normalization_constraint,
             fixed_variables=fixed_variables,
         )
+    elseif SDP_library == :JuMP
+        return JuMPOptProp(initial, loss; 
+            trace=trace,
+            maxit=maxit,
+            optimizer=optimizer,
+            normalization=normalization_constraint,
+            fixed_variables=fixed_variables,
+        )
+    else
+        throw(error("SDP library $SDP_library not implemented."))
+        return nothing
+    end
 end

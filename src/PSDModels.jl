@@ -15,7 +15,6 @@ import Distributions
 import Random
 
 include("utils.jl")
-include("optimization/optimization.jl")
 
 export PSDModel
 ## export optimization
@@ -45,6 +44,9 @@ abstract type TraceModel{T} end
 include("functions/functions.jl")
 include("PSDModels/models.jl")
 include("TraceModels/models.jl")
+
+# Optimization methods on models
+include("optimization/optimization.jl")
 
 # Samplers for PSD models
 include("Samplers/sampler.jl")

@@ -40,4 +40,4 @@ unslice_matrix(A::Vector{Vector{T}}) where {T<:Number} = reduce(hcat, A)
 
 ## norm utilitys
 
-nuclearnorm(A::AbstractMatrix) = sum(svdvals(A))
+nuclearnorm(A::AbstractMatrix) = tr(A)

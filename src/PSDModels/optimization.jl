@@ -8,14 +8,19 @@ function fit!(a::PSDModel{T},
                 X::PSDDataVector{T}, 
                 Y::Vector{T},
                 weights::Vector{T}; 
+                SDP_library=:JuMP,
                 kwargs...
             ) where {T<:Number}
     N = length(X)
+    if SDP_library == :JuMP
+        return _fit_JuMP!(a, X, Y, weights; kwargs...)
+    end
     loss(Z) = (1.0/N) * sum((Z .- Y).^2 .* weights)
 
-    minimize!(a, loss, X; kwargs...)
+    minimize!(a, loss, X; SDP_library=SDP_library, kwargs...)
     return loss(a.(X))
 end
+
 
 """
 minimize!(a::PSDModel{T}, L::Function, X::PSDDataVector{T}; λ_1=1e-8,
