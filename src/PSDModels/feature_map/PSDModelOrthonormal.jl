@@ -22,6 +22,9 @@ domain_interval_right(a::PSDModelOrthonormal, k::Int) = domain_interval(a, k)[2]
 domain_interval_left(a::PSDModelOrthonormal{d}) where {d} = domain_interval_left.(Ref(a), collect(1:d))
 domain_interval_right(a::PSDModelOrthonormal{d}) where {d} = domain_interval_right.(Ref(a), collect(1:d))
 
+_volume(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}) = throw(error("Not implemented!"))
+_volume(a::PSDModelOrthonormal) = prod(domain_interval_right(a) - domain_interval_left(a))
+
 ## general interface
 _tensorizer(a::PSDModelOrthonormal) = throw(error("Not implemented!"))
 

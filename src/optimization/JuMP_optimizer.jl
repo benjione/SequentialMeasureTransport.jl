@@ -183,7 +183,162 @@ function _fit_JuMP!(a::PSDModel{T},
     end
 
     JuMP.optimize!(model)
-    set_coefficients!(a, Hermitian(T.(JuMP.value(B))))
-    _loss(Z) = (1.0/N) * sum((Z .- Y).^2 .* weights)
-    return 
+    res_B = Hermitian(T.(JuMP.value(B)))
+    e_vals, e_vecs = eigen(res_B)
+    e_vals[e_vals .< 0.0] .= 0.0
+    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2 .* weights)
+    return _loss(a.(X))
+end
+
+
+"""
+Maximum likelihood implementation for JuMP solver.
+"""
+function _ML_JuMP!(a::PSDModel{T}, 
+                samples::PSDDataVector{T};
+                λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                optimizer=nothing,
+                maxit=5000,
+                normalization=false,
+                fixed_variables=nothing,
+            ) where {T<:Number}
+    verbose_solver = trace ? true : false
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+    N = size(a.B, 1)
+    JuMP.@variable(model, B[1:N, 1:N], PSD)
+
+    JuMP.set_start_value.(B, a.B)
+    if fixed_variables !== nothing
+        throw(@error "fixed variables not supported yet by JuMP interface!")
+    end
+
+    K = reduce(hcat, Φ.(Ref(a), samples))
+
+    m = length(samples)
+    JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
+    
+    JuMP.@variable(model, t)
+    JuMP.@constraint(model, [t; ex; ones(m)] in JuMP.MOI.RelativeEntropyCone(2*m+1))
+    
+    # JuMP.@variable(model, t[i=1:m])
+    # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
+
+    JuMP.@expression(model, min_func, (1/m)*t)
+    if λ_1 > 0.0
+        JuMP.add_to_expression!(min_func, λ_1 * nuclearnorm(B))
+    end
+    if λ_2 > 0.0
+        JuMP.add_to_expression!(min_func, λ_2 * opnorm(B, 2)^2)
+    end
+
+
+    JuMP.@objective(model, Min, min_func);
+
+    # @show t2
+    if normalization
+        # IMPORTANT: only valid for tensorized polynomial maps.
+        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
+        JuMP.@constraint(model, tr(B) == 1)
+    end
+
+    JuMP.optimize!(model)
+    res_B = Hermitian(T.(JuMP.value(B)))
+    e_vals, e_vecs = eigen(res_B)
+    e_vals[e_vals .< 0.0] .= 0.0
+    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = -(1.0/length(Z)) * sum(log.(Z))
+    return _loss(a.(samples))
+end
+
+
+function _KL_JuMP!(a::PSDModel{T}, 
+                X::PSDDataVector{T},
+                Y::Vector{T};
+                λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                optimizer=nothing,
+                maxit=5000,
+                normalization=false,
+                fixed_variables=nothing,
+            ) where {T<:Number}
+    verbose_solver = trace ? true : false
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+    N = size(a.B, 1)
+    JuMP.@variable(model, B[1:N, 1:N], PSD)
+
+    JuMP.set_start_value.(B, a.B)
+    if fixed_variables !== nothing
+        throw(@error "fixed variables not supported yet by JuMP interface!")
+    end
+
+    K = reduce(hcat, Φ.(Ref(a), X))
+
+    m = length(X)
+    JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
+    
+    JuMP.@variable(model, t)
+    JuMP.@constraint(model, [t; ex; Y] in JuMP.MOI.RelativeEntropyCone(2*m+1))
+    
+    # JuMP.@variable(model, t[i=1:m])
+    # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
+
+    JuMP.@expression(model, min_func, t + tr(B))
+    if λ_2 > 0.0
+        JuMP.add_to_expression!(min_func, λ_2 * opnorm(B, 2)^2)
+    end
+
+
+    JuMP.@objective(model, Min, min_func);
+
+    # @show t2
+    if normalization
+        # IMPORTANT: only valid for tensorized polynomial maps.
+        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
+        JuMP.@constraint(model, tr(B) == 1)
+    end
+
+    JuMP.optimize!(model)
+    res_B = Hermitian(T.(JuMP.value(B)))
+    e_vals, e_vecs = eigen(res_B)
+    e_vals[e_vals .< 0.0] .= 0.0
+    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
+    return _loss(a.(X))
 end

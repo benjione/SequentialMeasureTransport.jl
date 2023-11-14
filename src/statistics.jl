@@ -6,6 +6,8 @@ using ..PSDModels: PSDModelOrthonormal
 using ..PSDModels: SelfReinforcedSampler
 using ..PSDModels: domain_interval_left, domain_interval_right
 using ..PSDModels: greedy_IRLS
+using ..PSDModels: _ML_JuMP!
+using ..PSDModels: _KL_JuMP!
 using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
@@ -18,8 +20,12 @@ export ML_fit!, Chi2_fit!, Chi2U_fit!, TV_fit!, KL_fit!, Hellinger_fit!
 Maximum likelihood fit of a PSD model to the samples.
 """
 function ML_fit!(model::PSDModel{T}, 
-    samples::PSDDataVector{T};
-    kwargs...) where {T<:Number}
+        samples::PSDDataVector{T};
+        SDP_library=:JuMP,
+        kwargs...) where {T<:Number}
+    if SDP_library == :JuMP
+        return _ML_JuMP!(model, samples; normalization=true, kwargs...)
+    end
 
     loss_KL(Z) = -(1/length(Z)) * sum(log.(Z))
     minimize!(model, loss_KL, samples; 
@@ -84,10 +90,21 @@ end
 KL-divergence extended to positive measures, defined by the alpha-divergence.
 """
 function KL_fit!(model::PSDModel{T},
-    X::PSDDataVector{T},
-    Y::AbstractVector{T};
-    normalization_constraint=false,
-    kwargs...) where {T<:Number}
+        X::PSDDataVector{T},
+        Y::AbstractVector{T};
+        normalization_constraint=false,
+        SDP_library=:JuMP,
+        data_normalization=true,
+        kwargs...) where {T<:Number}
+    # Helps some solvers, such as SCS, not needed with Hypatia
+    if data_normalization
+        Y = Y ./ sum(Y)
+    end
+    if SDP_library == :JuMP
+        return _KL_JuMP!(model, X, Y; 
+                        normalization=normalization_constraint, 
+                        kwargs...)
+    end
     if normalization_constraint == true
         @info "By using normalization during minimization, the KL-divergence for probabilities is used."
     end
