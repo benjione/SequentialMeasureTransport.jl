@@ -46,9 +46,12 @@ Z_y/Z_f^2 * ∫ (f(x) - y(x))^2/y(x) dx
 function Chi2_fit!(model::PSDModel{T}, 
     X::PSDDataVector{T},
     Y::AbstractVector{T};
-    ϵ=1e-5,
+    ϵ=1e-5, data_normalization=true,
     IRLS=true,
     kwargs...) where {T<:Number}
+    if data_normalization
+        Y = Y ./ sum(Y)
+    end
 
     if IRLS
         # Chi2 defined by Z_y / Z_f^2 ∫ (f(x) - y(x))^2/y(x) dx
@@ -66,10 +69,13 @@ function Chi2_fit!(model::PSDModel{T},
 end
 
 function Hellinger_fit!(model::PSDModel{T}, 
-    X::PSDDataVector{T},
-    Y::AbstractVector{T};
-    kwargs...) where {T<:Number}
-
+        X::PSDDataVector{T},
+        Y::AbstractVector{T};
+        data_normalization=true,
+        kwargs...) where {T<:Number}
+    if data_normalization
+        Y = Y ./ sum(Y)
+    end
     loss_Hellinger(Z) = (1/length(Z)) * 0.5 * sum(Z.+Y.-2.0*sqrt.(Z.*Y))
     minimize!(model, loss_Hellinger, X; kwargs...)
 end
@@ -78,7 +84,11 @@ function TV_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::AbstractVector{T};
     ϵ=1e-5,
+    data_normalization=true,
     kwargs...) where {T<:Number}
+    if data_normalization
+        Y = Y ./ sum(Y)
+    end
     
     reweight(Z) = 1 ./ (abs.(Z .- Y) .+ ϵ)
 

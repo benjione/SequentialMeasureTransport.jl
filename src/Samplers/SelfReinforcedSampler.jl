@@ -198,6 +198,7 @@ function add_layer!(
         fit_method!::Function;
         N_sample=1000,
         broadcasted_tar_pdf=false,
+        threading=true,
         kwargs...
     ) where {d, T<:Number, dC}
     # sample from reference map
@@ -219,7 +220,11 @@ function add_layer!(
     Y = if broadcasted_tar_pdf
         pdf_tar_pullbacked_sample(X)
     else
-        pdf_tar_pullbacked_sample.(X)
+        _Y = zeros(T, N_sample)
+        @_condusethreads threading for i in 1:N_sample
+            _Y[i] = pdf_tar_pullbacked_sample(X[i])
+        end
+        _Y
     end
 
     if any(isnan, Y)
@@ -341,7 +346,11 @@ function SelfReinforcedSampler(
     Y = if broadcasted_tar_pdf
         π_tar_samp(X, 1)
     else
-        π_tar_samp.(X, Ref(1))
+        _Y = zeros(T, N_sample)
+        @_condusethreads threading for i in 1:N_sample
+            _Y[i] = π_tar_samp(X[i], 1)
+        end
+        _Y
     end
 
     if any(isnan, Y)
@@ -374,6 +383,7 @@ function SelfReinforcedSampler(
         add_layer!(sra, layer_method, deepcopy(model), fit_method!; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf,
+                threading=threading,
                 kwargs...)
     end
     

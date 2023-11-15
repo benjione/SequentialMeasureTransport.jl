@@ -70,6 +70,7 @@ function _fit_JuMP!(a::PSDModel{T},
                 weights::Vector{T};
                 λ_1 = 0.0,
                 λ_2 = 0.0,
+                optim_threading=false, # only for problem setup
                 trace=false,
                 optimizer=nothing,
                 maxit=5000,
@@ -138,33 +139,66 @@ function _fit_JuMP!(a::PSDModel{T},
             kv_f(j, l) * B[j, l] for j=1:N, l=1:N
         ) 
     )
-    for j=1:N
-        for l=1:(j-1)
-            coeff = 4.0 * kv1_f(j, l)
-            JuMP.add_to_expression!(ex, coeff * B[j, l]^2)
+    # use the lock also when not threading, performance overhead should be small
+    if optim_threading
+        lk = Threads.ReentrantLock()
+        Threads.@threads for j=1:N
+            for l=1:(j-1)
+                coeff_vec = Vector{T}(undef, N)
+                for j2=1:N
+                    coeff_vec[j2] = 4.0 * kv2_f(j, l, j2, j2)
+                end
+                coeff1 = 4.0 * kv1_f(j, l)
+                coeff2 = 2.0 * kv2_f(j, j, l, l)
+                lock(lk) do
+                    JuMP.add_to_expression!(ex, sum(coeff_vec[i] * B[j, l] * B[i,i] for i=1:N))
+                    JuMP.add_to_expression!(ex, coeff1 * B[j, l]^2)
+                    JuMP.add_to_expression!(ex, coeff2 * B[j, j] * B[l, l])
+                end
+                for l2=1:(l-1)
+                    coeff_vec[l2] = 8.0 * kv2_f(j, l, j, l2)
+                end
+                if (l-1)>0
+                    lock(lk) do
+                        JuMP.add_to_expression!(ex, sum(coeff_vec[i] * B[j, l] * B[j, i] for i=1:(l-1)))
+                    end
+                end
+                for j2=1:(j-1), l2=1:(j2-1)
+                    coeff = 8.0 * kv2_f(j, l, j2, l2)
+                    lock(lk) do
+                        JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, l2])
+                    end
+                end
+            end
         end
-    end
-    for j=1:N
-        for j2=1:(j-1)
-            coeff = 2.0 * kv2_f(j, j, j2, j2)
-            JuMP.add_to_expression!(ex, coeff * B[j, j] * B[j2, j2])
-        end
-    end
-    for j=1:N, l=1:(j-1)
-        for j2=1:N
-            coeff = 4.0 * kv2_f(j, l, j2, j2)
-            JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, j2])
-        end
-        for l2=1:(l-1)
-            coeff = 8.0 * kv2_f(j, l, j, l2)
-            JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j, l2])
-        end
-        for j2=1:(j-1), l2=1:(j2-1)
-            coeff = 8.0 * kv2_f(j, l, j2, l2)
-            JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, l2])
-        end
-    end
+    else
+        for j=1:N
+            for l=1:(j-1)
+                coeff = 4.0 * kv1_f(j, l)
+                JuMP.add_to_expression!(ex, coeff * B[j, l]^2)
+            end
 
+            for j2=1:(j-1)
+                coeff = 2.0 * kv2_f(j, j, j2, j2)
+                JuMP.add_to_expression!(ex, coeff * B[j, j] * B[j2, j2])
+            end
+
+            for l=1:(j-1)
+                for j2=1:N
+                    coeff = 4.0 * kv2_f(j, l, j2, j2)
+                    JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, j2])
+                end
+                for l2=1:(l-1)
+                    coeff = 8.0 * kv2_f(j, l, j, l2)
+                    JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j, l2])
+                end
+                for j2=1:(j-1), l2=1:(j2-1)
+                    coeff = 8.0 * kv2_f(j, l, j2, l2)
+                    JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, l2])
+                end
+            end
+        end
+    end
 
     if λ_1 > 0.0
         JuMP.add_to_expression!(ex, λ_1 * nuclearnorm(B))

@@ -34,6 +34,19 @@ function map_threaded(f, A::AbstractArray{T}) where {T}
     return res
 end
 
+## threading based on variable, 
+## see https://discourse.julialang.org/t/putting-threads-threads-or-any-macro-in-an-if-statement/41406/6
+macro _condusethreads(multithreaded, expr::Expr)
+    ex = quote
+        if $multithreaded
+            Threads.@threads $expr
+        else
+            $expr
+        end
+    end
+    esc(ex)
+end
+
 ## slicing
 slice_matrix(A::Array{T}) where {T<:Number} = ndims(A)>1 ? Vector{T}[c for c in eachcol(A)] : A
 unslice_matrix(A::Vector{Vector{T}}) where {T<:Number} = reduce(hcat, A)
