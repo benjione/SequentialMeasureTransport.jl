@@ -15,10 +15,15 @@ function DownwardClosedTensorizer(index_list::Vector{NTuple{d, Int}}) where {d}
     return DownwardClosedTensorizer(index_list, M_inner)
 end
 
-function DownwardClosedTensorizer(d::Int, max_order::Int)
+function DownwardClosedTensorizer(d::Int, max_order::Int; max_Φ_size=nothing)
     index_list = NTuple{d, Int}[];
     for i=0:max_order
         vec = map(i->i.+1, collect(multiexponents(d, i)))
+        if max_Φ_size !== nothing
+            if length(vec) + length(index_list) > max_Φ_size
+                vec = StatsBase.sample(vec, max_Φ_size-length(index_list); replace=false)
+            end
+        end
         push!(index_list, Tuple.(vec)...)
     end
     inner_margin = map(i->i.+1, collect(multiexponents(d, max_order)))

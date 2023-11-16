@@ -88,12 +88,16 @@ function trivial_TensorPolynomial(T::Type{<:Number},
     return FMTensorPolynomial{d, T}(space, normal_factor, N, ten, high_order)
 end
 
-downwardClosed_Polynomial(T::Type{<:Number}, sp::Space, max_order::Int) = trivial_TensorPolynomial(T, TensorSpace(sp), max_order)
+downwardClosed_Polynomial(T::Type{<:Number}, 
+                        sp::Space, 
+                        max_order::Int;
+                        kwargs...) = trivial_TensorPolynomial(T, TensorSpace(sp), max_order)
 function downwardClosed_Polynomial(T::Type{<:Number},
                                     space::TensorSpace, 
-                                   max_order::Int)
+                                   max_order::Int;
+                                   max_Φ_size=nothing)
     d = length(space.spaces)
-    ten = DownwardClosedTensorizer(d, max_order)
+    ten = DownwardClosedTensorizer(d, max_order; max_Φ_size=max_Φ_size)
     normal_factor = set_normalization_factors(T, space, max_order)
     N = max_N(ten)
     return FMTensorPolynomial{d, T}(space, normal_factor, N, ten, max_order)

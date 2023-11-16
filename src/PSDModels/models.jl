@@ -28,11 +28,12 @@ function PSDModel{T}(sp::Space, ten_size::Int; kwargs...) where {T<:Number}
 end
 PSDModel(sp::Space, tensorizer::Symbol, ten_size::Int; kwargs...) = PSDModel{Float64}(sp, tensorizer, ten_size; kwargs...)
 function PSDModel{T}(sp::Space, tensorizer::Symbol, ten_size::Int; 
-                     sparse=false, mapping=nothing, kwargs...) where {T<:Number}
+                     sparse=false, mapping=nothing, 
+                     max_Φ_size=nothing, kwargs...) where {T<:Number}
     Φ, N = if tensorizer == :trivial
         trivial_TensorPolynomial(T, sp, ten_size), ten_size
     elseif tensorizer == :downward_closed
-        poly = downwardClosed_Polynomial(T, sp, ten_size)
+        poly = downwardClosed_Polynomial(T, sp, ten_size; max_Φ_size=max_Φ_size)
         poly, max_N(poly.ten)
     else
         throw(error("Tensorizer not implemented"))
