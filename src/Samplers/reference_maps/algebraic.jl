@@ -21,20 +21,20 @@ function PSDModels.pullback(
         m::AlgebraicReference{<:Any, T}, 
         u::PSDdata{T}
     ) where {T<:Number}
-    ξ = 2*(u .- 0.5)
-    return ξ./sqrt.(1 .- ξ.^2)
+    ξ = 2.0*(u .- 0.5)
+    return ξ./sqrt.(1.0 .- ξ.^2)
 end
 
 
-function Jacobian(
+function PSDModels.Jacobian(
         m::AlgebraicReference{<:Any, T}, 
         x::PSDdata{T}
     ) where {T<:Number}
-    return mapreduce(xi->2.0/(1+xi^2)^(3/2), *, x)
+    return mapreduce(xi->0.5/(1+xi^2)^(3/2), *, x)
 end
 
 
-function inverse_Jacobian(
+function PSDModels.inverse_Jacobian(
         mapping::AlgebraicReference{<:Any, T}, 
         u::PSDdata{T}
     ) where {T<:Number}

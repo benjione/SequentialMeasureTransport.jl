@@ -59,4 +59,8 @@ using .Statistics
 include("plotting/plotting.jl")
 using .Plotting
 
+# for AbstractMCMC interface
+include("MCMC/mcmc.jl")
+# using .MCMC
+
 end # module PositiveSemidefiniteModels

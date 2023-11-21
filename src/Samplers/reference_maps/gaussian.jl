@@ -41,7 +41,7 @@ function PSDModels.pullback(
 end
 
 
-function Jacobian(
+function PSDModels.Jacobian(
         m::GaussianReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -49,7 +49,7 @@ function Jacobian(
 end
 
 
-function inverse_Jacobian(
+function PSDModels.inverse_Jacobian(
         mapping::GaussianReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

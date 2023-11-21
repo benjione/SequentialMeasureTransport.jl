@@ -60,7 +60,7 @@ function _pushforward_first_n(sampler::PSDModelSampler{d, T, S},
         end
     else
         for k=1:n
-            left, right = domain_interval(sampler.model, sampler.variable_ordering[k])::Tuple{T, T}
+            left, right = domain_interval(sampler.model, sampler.variable_ordering[k])
             x[k] = find_zero(f(k), (left, right))::T
         end
     end
@@ -112,6 +112,13 @@ end
 
 @inline pullback(sampler::PSDModelSampler{d, T}, 
                  x::PSDdata{T}) where {d, T<:Number} = return _pullback_first_n(sampler, x, d)
+
+@inline Jacobian(sampler::PSDModelSampler{d, T, <:Any, Nothing}, 
+                 x::PSDdata{T}
+        ) where {d, T<:Number} = 1/inverse_Jacobian(sampler, pushforward(sampler, x))
+@inline inverse_Jacobian(sampler::PSDModelSampler{d, T, <:Any, Nothing}, 
+                        x::PSDdata{T}
+        ) where {d, T<:Number} = Distributions.pdf(sampler, x)
 
 
 ## Methods for satisfying ConditionalSampler interface

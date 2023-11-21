@@ -2,7 +2,7 @@ module ReferenceMaps
 
 import ..PSDModels
 using ..PSDModels: PSDModelOrthonormal, domain_interval_left, domain_interval_right,
-                   PSDdata, Mapping, pullback, pushforward
+                   PSDdata, Mapping, pullback, pushforward, Jacobian, inverse_Jacobian
 
 using SpecialFunctions: erf, erfcinv
 using Distributions
@@ -17,7 +17,6 @@ include("algebraic.jl")
 
 export ReferenceMap
 export ScalingReference, GaussianReference, AlgebraicReference
-export pullback, pushforward, Jacobian, inverse_Jacobian
 
 """
 Attention!
@@ -69,7 +68,7 @@ end
 
 Computes the Jacobian of the mapping at the point u.
 """
-function Jacobian(
+function PSDModels.Jacobian(
         mapping::ReferenceMap{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -81,7 +80,7 @@ inverse_Jacobian(mapping, u)
 
 Computes the inverse Jacobian of the mapping at the point x.
 """
-function inverse_Jacobian(
+function PSDModels.inverse_Jacobian(
         mapping::ReferenceMap{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

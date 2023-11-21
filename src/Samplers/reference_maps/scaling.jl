@@ -45,7 +45,7 @@ function PSDModels.pullback(
 end
 
 
-function Jacobian(
+function PSDModels.Jacobian(
         mapping::ScalingReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -57,7 +57,7 @@ function Jacobian(
 end
 
 
-function inverse_Jacobian(
+function PSDModels.inverse_Jacobian(
         mapping::ScalingReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

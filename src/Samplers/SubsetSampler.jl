@@ -101,6 +101,15 @@ function Distributions.pdf(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub, sam
     return inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * Jacobian(sampler.R_map, us)
 end
 
+function inverse_Jacobian(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}, 
+                x::PSDdata{T}
+            ) where {T<:Number, R, R_sub, ST}
+    return Distributions.pdf(sampler, x)
+end
+Jacobian(sampler::SubsetSampler{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}, 
+                x::PSDdata{T}
+            ) where {T<:Number, R, R_sub, ST} = 1.0/inverse_Jacobian(sampler, pushforward(sampler, x))
+
 ###
 ## Helper functions
 @inline _d_sub_marg(

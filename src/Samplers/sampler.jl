@@ -3,6 +3,8 @@ abstract type Mapping{d, T} end
 ### methods interface for Mapping
 pushforward(sampler::Mapping, u::PSDdata) = throw(NotImplementedError())
 pullback(sampler::Mapping, x::PSDdata) = throw(NotImplementedError())
+Jacobian(sampler::Mapping, x::PSDdata) = throw(NotImplementedError())
+inverse_Jacobian(sampler::Mapping, u::PSDdata) = throw(NotImplementedError())
 
 # include reference maps
 include("reference_maps/reference_maps.jl")
@@ -36,10 +38,19 @@ function Base.show(io::IO, sampler::Sampler{d, T, R}) where {d, T, R}
     println(io, "Sampler{d=$d, T=$T, R=$R}")
 end
 
+import Serialization as ser
+"""
+For now, naive implementation of saving and loading samplers.
+"""
+function save_sampler(sampler::AbstractSampler, filename::String)
+    ser.serialize(filename, sampler)
+end
+function load_sampler(filename::String)
+    return ser.deserialize(filename)
+end
+
 ## Interface for Sampler
 Distributions.pdf(sampler::AbstractSampler, x::PSDdata) = throw(NotImplementedError())
-pushforward(sampler::AbstractSampler, u::PSDdata) = throw(NotImplementedError())
-pullback(sampler::AbstractSampler, x::PSDdata) = throw(NotImplementedError())
 
 ## methods not necessarily implemented by concrete implementations of Sampler:
 Base.rand(sampler::AbstractSampler{d, T}) where {d, T} = sample(sampler)
@@ -49,15 +60,23 @@ function sample(sampler::AbstractSampler{d, T}) where {d, T<:Number}
     return pushforward(sampler, sample_reference(sampler))
 end
 function sample(sampler::AbstractSampler{d, T}, amount::Int; threading=true) where {d, T}
-    if threading==false
-        return PSDdata{T}[sample(sampler) for _=1:amount]
-    else
-        res = Vector{PSDdata{T}}(undef, amount)
-        Threads.@threads for i=1:amount
-            res[i] = sample(sampler)
-        end
-        return res
+    res = Vector{PSDdata{T}}(undef, amount)
+    @_condusethreads threading for i=1:amount
+        res[i] = sample(sampler)
     end
+    return res
+end
+function pushforward(sampler::AbstractSampler{d, T}, π::Function) where {d, T}
+    π_pushed = let sampler=sampler, π=π
+        (x) -> π(pullback(sampler, x)) * inverse_Jacobian(sampler, x)
+    end
+    return π_pushed
+end
+function pullback(sampler::AbstractSampler{d, T}, π::Function) where {d, T}
+    π_pulled = let sampler=sampler, π=π
+        (u) -> π(pushforward(sampler, u)) * Jacobian(sampler, u)
+    end
+    return π_pulled
 end
 
 ## methods for ConditionalSampler

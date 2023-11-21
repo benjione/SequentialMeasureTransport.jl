@@ -68,12 +68,7 @@ function pullback_pdf_function(
     end
     for sampler in sra.samplers[_layers]
         # apply map T_i
-        pdf_func = let sra=sra, pdf_func=pdf_func, sampler=sampler
-            u-> begin
-                x = pushforward(sampler, u) # [0,1]->[a, b]
-                return pdf_func(x) * (1/(Distributions.pdf(sampler, x)))
-            end
-        end
+        pdf_func = pullback(sampler, pdf_func)
     end
     # apply map R (domain transformation)
     pdf_func = let sra=sra, pdf_func=pdf_func
@@ -144,11 +139,7 @@ function pushforward_pdf_function(
     end
     for sampler in reverse(sra.samplers[_layers])
         # apply map T_i
-        pdf_func = let sra=sra, pdf_func=pdf_func, sampler=sampler
-            x-> begin
-                pdf_func(pullback(sampler, x)) * Distributions.pdf(sampler, x)
-            end
-        end
+        pdf_func = pushforward(sampler, pdf_func)
     end
     pdf_func = let sra=sra, pdf_func=pdf_func
         x->begin
@@ -532,6 +523,16 @@ function pullback(
     x = _ref_pullback(sra, x)
     return x::Vector{T}
 end
+
+"""
+TODO: can be done prettier
+"""
+function inverse_Jacobian(sra::CondSelfReinforcedSampler{d, T},
+            x::PSDdata{T}) where {d, T<:Number}
+    pushforward_pdf_function(sra, x->one(T))(x)
+end
+@inline Jacobian(sra::CondSelfReinforcedSampler{d, T},
+            x::PSDdata{T}) where {d, T<:Number} = 1/inverse_Jacobian(sra, pushforward(sra, x))
 
 ## Interface of ConditionalSampler
 
