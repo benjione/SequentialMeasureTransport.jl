@@ -494,6 +494,132 @@ function SelfReinforced_ML_estimation(
     return sra
 end
 
+function Adaptive_Self_reinforced_ML_estimation(
+    X_train::PSDDataVector{T},
+    X_val::PSDDataVector{T},
+    model::PSDModelOrthonormal{d2, T, S},
+    β::T,
+    reference_map::ReferenceMap{dr, T};
+    ϵ=1e-3,
+    subsample_data=false,
+    subsample_size=2000,
+    subspace_reference_map=nothing,
+    to_subspace_reference_map=nothing,
+    threading=true,
+    amount_cond_variable=0,
+    amount_reduced_cond_variables=0,
+    kwargs...
+) where {T<:Number, S, dr, d2}
+    d = length(X_train[1]) # data dimension
+    @assert d2 ≤ d
+    @assert dr == d
+
+    bridge = BridgingDensities.DiffusionBrigdingDensity{d2, T}()
+
+    if d2 < d
+        @assert subspace_reference_map !== nothing
+        @assert typeof(subspace_reference_map) <: ReferenceMap{d2, T}
+        if to_subspace_reference_map === nothing
+            to_subspace_reference_map = reference_map
+        end
+        if amount_cond_variable > 0
+            @assert amount_reduced_cond_variables > 0
+            @assert amount_reduced_cond_variables ≤ amount_cond_variable
+        end
+    end
+
+    L = domain_interval_left(model)
+    R = domain_interval_right(model)
+    @assert all(L .== 0.0)
+    @assert all(R .== 1.0)
+    if S<:OMF
+        throw(error("Do not use OMF models for self reinforced sampler, use a Gaussian reference map instead!"))
+    end
+
+    sra = if amount_cond_variable == 0
+        SelfReinforcedSampler(Sampler{d, T, Nothing}[], 
+                                reference_map)
+    else
+        CondSelfReinforcedSampler(ConditionalSampler{d, T, Nothing, amount_cond_variable}[], 
+                                reference_map)
+    end
+
+    Residual(maping) = mapreduce(x->-log(Distributions.pdf(maping, x)), +, X_val)
+    last_residual = Inf
+
+    while true
+        t_ℓ = BridgingDensities.add_timestep!(bridge, β)
+        model_ML = deepcopy(model)
+    
+        X_iter = if subsample_data
+            StatsBase.sample(X_train, subsample_size, replace=false)
+        else
+            X_train
+        end
+
+        ## Create bridging densities according to method
+        X_evolved = evolve_samples(bridge, X_iter, t_ℓ)
+
+        ## pullback and mapping to reference space
+        X_evolved_pb = if length(sra.samplers)>0
+            if threading
+                map_threaded(x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
+            else
+                map(x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
+            end
+        else
+            if threading
+                map_threaded(x->_ref_pushforward(sra, x), X_evolved)
+            else
+                map(x->_ref_pushforward(sra, x), X_evolved)
+            end
+        end
+
+        ## filter to the right dimensions
+        layer = if d2 < d
+            # select subset randomly
+            B, P, P_tilde = if amount_cond_variable==0
+                RandomSubsetProjection(T, d, d2)
+            else
+                RandomConditionalSubsetProjection(T, 
+                        d, amount_cond_variable, d2, 
+                        amount_reduced_cond_variables)
+            end
+            X_filter = [project_to_subset(P_tilde, 
+                            to_subspace_reference_map, 
+                            subspace_reference_map,
+                            x) for x in X_evolved_pb]
+            ML_fit!(model_ML, X_filter; kwargs...)
+            sampler = if amount_cond_variable==0
+                Sampler(model_ML)
+            else
+                ConditionalSampler(model_ML, amount_reduced_cond_variables)
+            end
+            SubsetSampler{d, amount_cond_variable}(sampler, B, 
+                                P, P_tilde, 
+                                to_subspace_reference_map, 
+                                subspace_reference_map)
+        else
+            ML_fit!(model_ML, X_evolved_pb; kwargs...)
+            if amount_cond_variable==0
+                Sampler(model_ML)
+            else
+                ConditionalSampler(model_ML, amount_cond_variable)
+            end
+        end
+        add_layer!(sra, layer)
+
+        residual = Residual(sra)
+        if residual > (1.0 + ϵ)* last_residual
+            pop!(sra.samplers)
+            break
+        end
+        last_residual = residual
+    end
+
+    return sra
+end
+
 ## Interface of Sampler
 
 function pushforward(

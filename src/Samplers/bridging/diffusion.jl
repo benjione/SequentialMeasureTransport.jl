@@ -15,6 +15,26 @@ struct DiffusionBrigdingDensity{d, T} <: BridgingDensity{d, T}
         t_vec = choosing_timesteps(β, d, N)
         new{d, T}(target_density, t_vec, one(T))
     end
+    function DiffusionBrigdingDensity{d, T}() where {d, T<:Number}
+        new{d, T}(x->1.0, T[], one(T))
+    end
+end
+
+function add_timestep!(bridge::DiffusionBrigdingDensity{d, T}, β::T) where {d, T<:Number}
+    
+    next_t(t_previous) = begin
+        return -0.5 * log(1.0 -
+                (1/β^(2/d)) * (1.0 - exp(-2.0 * t_previous)))
+    end
+
+    t_ℓ = if length(bridge.t_vec) == 0
+        -0.5 * log(1.0 - (1/β^(2/d)))
+    else
+        next_t(bridge.t_vec[end])
+    end
+
+    push!(bridge.t_vec, t_ℓ)
+    return t_ℓ
 end
 
 function choosing_timesteps(β::T, d, N::Int) where { T<:Number}
