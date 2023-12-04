@@ -60,7 +60,12 @@ function optimize(prob::JuMPOptProp{T}) where {T<:Number}
     end
 
     JuMP.optimize!(model)
-    return Hermitian(T.(JuMP.value(B)))
+    res_B = Hermitian(T.(JuMP.value(B)))
+
+    finalize(model)
+    model = nothing
+    GC.gc()
+    return res_B
 end
 
 
@@ -223,6 +228,10 @@ function _fit_JuMP!(a::PSDModel{T},
     res_B = e_vecs * Diagonal(e_vals) * e_vecs'
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2 .* weights)
+
+    finalize(model)
+    model = nothing
+    GC.gc()
     return _loss(a.(X))
 end
 
@@ -301,6 +310,10 @@ function _ML_JuMP!(a::PSDModel{T},
     res_B = e_vecs * Diagonal(e_vals) * e_vecs'
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = -(1.0/length(Z)) * sum(log.(Z))
+
+    finalize(model)
+    model = nothing
+    GC.gc()
     return _loss(a.(samples))
 end
 
@@ -374,5 +387,9 @@ function _KL_JuMP!(a::PSDModel{T},
     res_B = e_vecs * Diagonal(e_vals) * e_vecs'
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
+
+    finalize(model)
+    model = nothing
+    GC.gc()
     return _loss(a.(X))
 end
