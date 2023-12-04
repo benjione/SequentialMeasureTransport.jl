@@ -544,8 +544,8 @@ function Adaptive_Self_reinforced_ML_estimation(
                                 reference_map)
     end
 
-    Residual(maping) = mapreduce(x->-log(Distributions.pdf(maping, x)), +, X_val)
-    last_residual = Inf
+    Residual(mapping) = mapreduce(x->-log(Distributions.pdf(mapping, x)), +, X_val)
+    last_residual = Inf64
 
     while true
         t_ℓ = BridgingDensities.add_timestep!(bridge, β)
@@ -561,7 +561,7 @@ function Adaptive_Self_reinforced_ML_estimation(
         X_evolved = evolve_samples(bridge, X_iter, t_ℓ)
 
         ## pullback and mapping to reference space
-        X_evolved_pb = if length(sra.samplers)>0
+        X_evolved = if length(sra.samplers)>0
             if threading
                 map_threaded(x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
             else
@@ -588,7 +588,7 @@ function Adaptive_Self_reinforced_ML_estimation(
             X_filter = [project_to_subset(P_tilde, 
                             to_subspace_reference_map, 
                             subspace_reference_map,
-                            x) for x in X_evolved_pb]
+                            x) for x in X_evolved]
             ML_fit!(model_ML, X_filter; kwargs...)
             sampler = if amount_cond_variable==0
                 Sampler(model_ML)
@@ -600,7 +600,7 @@ function Adaptive_Self_reinforced_ML_estimation(
                                 to_subspace_reference_map, 
                                 subspace_reference_map)
         else
-            ML_fit!(model_ML, X_evolved_pb; kwargs...)
+            ML_fit!(model_ML, X_evolved; kwargs...)
             if amount_cond_variable==0
                 Sampler(model_ML)
             else
@@ -615,6 +615,9 @@ function Adaptive_Self_reinforced_ML_estimation(
             break
         end
         last_residual = residual
+        X_evolved = nothing
+        X_iter = nothing
+        GC.gc()
     end
 
     return sra
