@@ -34,7 +34,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U,
+            2, :Chi2,
             PSDModels.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
         )
@@ -51,7 +51,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U,
+            2, :Chi2,
             PSDModels.GaussianReference{2, Float64}(2.0);
             relaxation_method=:algebraic,
             N_sample=1000
@@ -65,7 +65,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U,
+            2, :Chi2,
             PSDModels.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
             broadcasted_tar_pdf=true,
@@ -83,7 +83,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U,
+            2, :Chi2,
             PSDModels.GaussianReference{2, Float64}(2.0);
             N_sample=500,
             broadcasted_tar_pdf=true,
@@ -99,7 +99,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            1, :Chi2U,
+            1, :Chi2,
             PSDModels.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
             relaxation_method=:algebraic,
             N_sample=1000,
@@ -115,7 +115,7 @@ end
         sra = SelfReinforcedSampler(
             f,
             model,
-            2, :Chi2U,
+            2, :Chi2,
             PSDModels.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
             N_sample=500,
             broadcasted_tar_pdf=true,

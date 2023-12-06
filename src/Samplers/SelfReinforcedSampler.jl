@@ -295,10 +295,7 @@ function SelfReinforcedSampler(
                 kwargs...) where {d, T<:Number, S}
 
     fit_method! = if approx_method == :Chi2
-        @info "Chi2 will be soon deprecated!"
         (m,x,y) -> Chi2_fit!(m, x, y; kwargs...)
-    elseif approx_method == :Chi2U
-        (m,x,y) -> Chi2U_fit!(m, x, y; kwargs...)
     elseif approx_method == :Hellinger
         (m,x,y) -> Hellinger_fit!(m, x, y; kwargs...)
     elseif approx_method == :TV

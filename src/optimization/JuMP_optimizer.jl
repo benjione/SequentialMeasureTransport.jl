@@ -393,3 +393,88 @@ function _KL_JuMP!(a::PSDModel{T},
     GC.gc()
     return _loss(a.(X))
 end
+
+
+
+function _α_divergence_JuMP!(a::PSDModel{T},
+                α::T,
+                X::PSDDataVector{T},
+                Y::Vector{T};
+                λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                optimizer=nothing,
+                maxit=5000,
+                normalization=false,
+                fixed_variables=nothing,
+            ) where {T<:Number}
+    verbose_solver = trace ? true : false
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+    N = size(a.B, 1)
+    JuMP.@variable(model, B[1:N, 1:N], PSD)
+
+    JuMP.set_start_value.(B, a.B)
+    if fixed_variables !== nothing
+        throw(@error "fixed variables not supported yet by JuMP interface!")
+    end
+
+    K = reduce(hcat, Φ.(Ref(a), X))
+
+    m = length(X)
+    JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
+    
+    Y_α = Y.^(-α)
+    JuMP.@variable(model, t)
+    JuMP.@variable(model, r[1:m])
+    if 0 < α < 1
+        JuMP.@constraint(model, [i=1:m], [Y[i]; ex[i]; r[i]] in JuMP.MOI.PowerCone(α))
+    elseif α > 1
+        JuMP.@constraint(model, [i=1:m], [r[i]; ex[i]; Y[i]] in JuMP.MOI.PowerCone(1/α))
+    else
+        JuMP.@constraint(model, [i=1:m], [r[i]; Y_α[i]; ex[i]] in JuMP.MOI.PowerCone(1/(1-α)))
+    end
+    JuMP.@constraint(model, t == sum(r))
+
+    JuMP.@expression(model, min_func, (1/(α*(α-1))) * t + (1/α)* tr(B))
+    if λ_2 > 0.0
+        JuMP.add_to_expression!(min_func, λ_2 * opnorm(B, 2)^2)
+    end
+
+
+    JuMP.@objective(model, Min, min_func);
+
+    # @show t2
+    if normalization
+        # IMPORTANT: only valid for tensorized polynomial maps.
+        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
+        JuMP.@constraint(model, tr(B) == 1)
+    end
+
+    JuMP.optimize!(model)
+    res_B = Hermitian(T.(JuMP.value(B)))
+    e_vals, e_vecs = eigen(res_B)
+    e_vals[e_vals .< 0.0] .= 0.0
+    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = (1.0/length(Z)) * (one(T)/(α*(α-one(T)))) * sum(Z.^(1-α) .* Y.^(α) .- α * Y) + (one(T)/α) * tr(a.B)
+
+    finalize(model)
+    model = nothing
+    GC.gc()
+    return _loss(a.(X))
+end

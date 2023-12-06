@@ -4,7 +4,7 @@
     sra = SelfReinforcedSampler(
         f,
         model,
-        1, :Chi2U,
+        1, :Chi2,
         PSDModels.ScalingReference{2}([-5.0, 3.0], [-3.0, 10.0]);
         N_sample=500,
     )
@@ -29,7 +29,7 @@ end
     sra = SelfReinforcedSampler(
         f,
         model,
-        1, :Chi2U,
+        1, :Chi2,
         PSDModels.GaussianReference{2, Float64}(1.0);
         N_sample=500,
     )
@@ -48,7 +48,7 @@ end
     sra = SelfReinforcedSampler(
         f,
         model,
-        1, :Chi2U,
+        1, :Chi2,
         PSDModels.AlgebraicReference{2, Float64}();
         N_sample=1000,
         maxit=6000,trace=false

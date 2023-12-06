@@ -8,11 +8,12 @@ using ..PSDModels: domain_interval_left, domain_interval_right
 using ..PSDModels: greedy_IRLS
 using ..PSDModels: _ML_JuMP!
 using ..PSDModels: _KL_JuMP!
+using ..PSDModels: _α_divergence_JuMP!
 using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
 
-export ML_fit!, Chi2_fit!, Chi2U_fit!, TV_fit!, KL_fit!, Hellinger_fit!
+export ML_fit!, Chi2_fit!, TV_fit!, KL_fit!, Hellinger_fit!, α_divergence_fit!
 
 """
     ML_fit!(model, samples; kwargs...)
@@ -33,10 +34,6 @@ function ML_fit!(model::PSDModel{T},
             kwargs...)
 end
 
-# no differentiation between chi2 and chi2U anymore.
-@inline Chi2U_fit!(model::PSDModel{T}, 
-    X::PSDDataVector{T},Y::AbstractVector{T};
-    kwargs...) where {T<:Number} = Chi2_fit!(model, X, Y; kwargs...)
 """
     Chi2_fit!(model, samples; kwargs...)
 
@@ -72,9 +69,13 @@ function Hellinger_fit!(model::PSDModel{T},
         X::PSDDataVector{T},
         Y::AbstractVector{T};
         data_normalization=true,
+        SDP_library=:JuMP,
         kwargs...) where {T<:Number}
     if data_normalization
         Y = Y ./ sum(Y)
+    end
+    if SDP_library == :JuMP
+        return α_divergence_fit!(model, T(0.5), X, Y; SDP_library=SDP_library,kwargs...)
     end
     loss_Hellinger(Z) = (1/length(Z)) * 0.5 * sum(Z.+Y.-2.0*sqrt.(Z.*Y))
     minimize!(model, loss_Hellinger, X; kwargs...)
@@ -93,6 +94,25 @@ function TV_fit!(model::PSDModel{T},
     reweight(Z) = 1 ./ (abs.(Z .- Y) .+ ϵ)
 
     IRLS!(model, X, Y, reweight; kwargs...)
+end
+
+function α_divergence_fit!(model::PSDModel{T},
+        α::T,
+        X::PSDDataVector{T},
+        Y::AbstractVector{T};
+        data_normalization=true,
+        SDP_library=:JuMP,
+        kwargs...
+    ) where {T<:Number}
+    if data_normalization
+        Y = Y ./ sum(Y)
+    end
+    
+    if SDP_library == :JuMP
+        return _α_divergence_JuMP!(model, α, X, Y; kwargs...)
+    else
+        throw(ArgumentError("Only JuMP is supported for now."))
+    end
 end
 
 

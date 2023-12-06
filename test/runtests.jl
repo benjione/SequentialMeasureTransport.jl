@@ -28,6 +28,10 @@ end
     include("PSDPolynomial_test.jl")
 end
 
+@testset "Statistics test" begin
+    include("Statistics_test.jl")
+end
+
 @testset "Sampler test" begin
     include("Sampler/Sampler_test.jl")
 end

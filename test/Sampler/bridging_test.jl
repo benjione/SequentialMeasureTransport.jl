@@ -12,7 +12,7 @@ using PSDModels.BridgingDensities
         sra = SelfReinforcedSampler(
             bridging,
             model,
-            5, :Chi2U,
+            5, :Chi2,
             ref_map;
             N_sample=500,
             trace=false,
@@ -35,7 +35,7 @@ using PSDModels.BridgingDensities
         sra = SelfReinforcedSampler(
             bridging,
             model,
-            5, :Chi2U,
+            5, :Chi2,
             ref_map;
             N_sample=500,
             trace=false,
