@@ -437,8 +437,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
 
     m = length(X)
     JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
-    
-    Y_α = Y.^(-α)
+
     JuMP.@variable(model, t)
     JuMP.@variable(model, r[1:m])
     if 0 < α < 1
@@ -446,7 +445,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     elseif α > 1
         JuMP.@constraint(model, [i=1:m], [r[i]; ex[i]; Y[i]] in JuMP.MOI.PowerCone(1/α))
     else
-        JuMP.@constraint(model, [i=1:m], [r[i]; Y_α[i]; ex[i]] in JuMP.MOI.PowerCone(1/(1-α)))
+        JuMP.@constraint(model, [i=1:m], [r[i]; Y[i].^(-1); ex[i]] in JuMP.MOI.PowerCone(1/(1-α)))
     end
     JuMP.@constraint(model, t == sum(r))
 
