@@ -5,6 +5,18 @@ pushforward(sampler::Mapping, u::PSDdata) = throw(NotImplementedError())
 pullback(sampler::Mapping, x::PSDdata) = throw(NotImplementedError())
 Jacobian(sampler::Mapping, x::PSDdata) = throw(NotImplementedError())
 inverse_Jacobian(sampler::Mapping, u::PSDdata) = throw(NotImplementedError())
+function pushforward(sampler::Mapping{d, T}, π::Function) where {d, T}
+    π_pushed = let sampler=sampler, π=π
+        (x) -> π(pullback(sampler, x)) * inverse_Jacobian(sampler, x)
+    end
+    return π_pushed
+end
+function pullback(sampler::Mapping{d, T}, π::Function) where {d, T}
+    π_pulled = let sampler=sampler, π=π
+        (u) -> π(pushforward(sampler, u)) * Jacobian(sampler, u)
+    end
+    return π_pulled
+end
 
 # include reference maps
 include("reference_maps/reference_maps.jl")
@@ -65,18 +77,6 @@ function sample(sampler::AbstractSampler{d, T}, amount::Int; threading=true) whe
         res[i] = sample(sampler)
     end
     return res
-end
-function pushforward(sampler::AbstractSampler{d, T}, π::Function) where {d, T}
-    π_pushed = let sampler=sampler, π=π
-        (x) -> π(pullback(sampler, x)) * inverse_Jacobian(sampler, x)
-    end
-    return π_pushed
-end
-function pullback(sampler::AbstractSampler{d, T}, π::Function) where {d, T}
-    π_pulled = let sampler=sampler, π=π
-        (u) -> π(pushforward(sampler, u)) * Jacobian(sampler, u)
-    end
-    return π_pulled
 end
 
 ## methods for ConditionalSampler

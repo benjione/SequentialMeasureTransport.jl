@@ -62,19 +62,6 @@ struct SubsetSampler{d, d_sub, T<:Number,
         @assert size(P_tilde, 2) == d
         new{d, d2, T, R, R2, dC, d_sub_cond, typeof(sampler)}(sampler, X, P, P_tilde, R_map, R_map_sub)
     end
-    # function SubsetSampler{d, dC}(sampler::Sampler{d2, T}, 
-    #                         X::AbstractMatrix{T},
-    #                         R_map::R,
-    #                         R_map_sub::R2,
-    #                         d_sub_cond::Int
-    #         ) where {d, d2, T<:Number, R, R2}
-    #     @assert d2 < d
-    #     @assert size(X, 1) == d
-    #     @assert size(X, 2) == d2
-    #     P_tilde = inv(X' * X) * X'
-    #     P = X'
-    #     SubsetSampler{d, dC}(sampler, X, P, P_tilde, R_map, R_map_sub, d_sub_cond)
-    # end
 end
 
 """

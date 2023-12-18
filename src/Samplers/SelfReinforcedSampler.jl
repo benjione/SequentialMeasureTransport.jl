@@ -323,8 +323,8 @@ function SelfReinforcedSampler(
             (x, k) -> π_tar(pullback.(Ref(reference_map), x), k) .* inverse_Jacobian.(Ref(reference_map), x)
         end
     else
-        let π_tar=bridging_π, reference_map=reference_map
-            (x, k) -> π_tar(pullback(reference_map, x), k) * inverse_Jacobian(reference_map, x)
+        let π_tar=bridging_π
+            (x, k) -> pushforward(reference_map, x->π_tar(x, k))(x)
         end
     end
 
