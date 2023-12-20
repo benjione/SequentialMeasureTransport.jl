@@ -1,17 +1,46 @@
-abstract type Mapping{d, T} end
+
+"""
+A mapping is a function from a domain to a codomain.
+"""
+abstract type ConditionalMapping{d, dC, T} end
+const Mapping{d, T} = ConditionalMapping{d, 0, T}
+
+"""
+A mapping acting on a subset of the domain d of dimension dC.
+"""
+abstract type SubsetMapping{d, dC, T, dsub, dCsub} <: ConditionalMapping{d, dC, T} end
+
+"""
+A Sampler is a mapping from a reference distribution to a target distribution,
+while a mapping does not have any definition of a reference or target by itself.
+    T = R_1 ∘ Q_1 ∘ Q_2 ∘ ... ∘ Q_n ∘ R_2^{-1}
+where R_1 is a map to a reference distribution and Q_i are maps on the hypercube [0,1]^d.
+R_2 is a map from the domain of a distribution to the hypercube [0,1]^d.
+
+Can be conditionally, so that p(x, y) is estimated and sampling of p(y | x) is possible.
+"""
+abstract type AbstractCondSampler{d, dC, T, R1, R2} <: ConditionalMapping{d, dC, T} end
+const AbstractSampler{d, T, R1, R2} = AbstractCondSampler{d, 0, T, R1, R2} # A sampler is also a Mapping
+
+is_conditional(::Type{<:ConditionalMapping}) = true
+is_conditional(::Type{<:Mapping}) = false
+
+"""
+Definition of interfaces.
+"""
 
 ### methods interface for Mapping
-pushforward(sampler::Mapping, u::PSDdata) = throw(NotImplementedError())
-pullback(sampler::Mapping, x::PSDdata) = throw(NotImplementedError())
-Jacobian(sampler::Mapping, x::PSDdata) = throw(NotImplementedError())
-inverse_Jacobian(sampler::Mapping, u::PSDdata) = throw(NotImplementedError())
-function pushforward(sampler::Mapping{d, T}, π::Function) where {d, T}
+pushforward(sampler::ConditionalMapping, u::PSDdata) = throw(NotImplementedError())
+pullback(sampler::ConditionalMapping, x::PSDdata) = throw(NotImplementedError())
+Jacobian(sampler::ConditionalMapping, x::PSDdata) = throw(NotImplementedError())
+inverse_Jacobian(sampler::ConditionalMapping, u::PSDdata) = throw(NotImplementedError())
+function pushforward(sampler::ConditionalMapping{d, <:Any, T}, π::Function) where {d, T}
     π_pushed = let sampler=sampler, π=π
         (x) -> π(pullback(sampler, x)) * inverse_Jacobian(sampler, x)
     end
     return π_pushed
 end
-function pullback(sampler::Mapping{d, T}, π::Function) where {d, T}
+function pullback(sampler::ConditionalMapping{d, <:Any, T}, π::Function) where {d, T}
     π_pulled = let sampler=sampler, π=π
         (u) -> π(pushforward(sampler, u)) * Jacobian(sampler, u)
     end
@@ -26,35 +55,19 @@ using .ReferenceMaps
 include("bridging/bridging_densities.jl")
 using .BridgingDensities
 
-"""
-A Sampler is a mapping from a reference distribution to a target distribution,
-while a mapping does not have any definition of a reference or target by itself.
-"""
-abstract type AbstractSampler{d, T, R} <: Mapping{d, T} end
-
-"""
-A Sampler of p(x, y) which can in addition conditionally sample
-p(y|x), where y are the last dC variables.
-"""
-abstract type ConditionalSampler{d, T, R, dC} <: AbstractSampler{d, T, R} end
-
-# a ConditionalSampler without conditional variables is a Sampler
-const Sampler{d, T, R} = ConditionalSampler{d, T, R, 0}
-is_conditional_sampler(::Type{<:ConditionalSampler}) = true
-is_conditional_sampler(::Type{<:Sampler}) = false
 
 Sampler(model::PSDModel) = @error "not implemented for this type of PSDModel"
 ConditionalSampler(model::PSDModel, amount_cond_variable::Int) = @error "not implemented for this type of PSDModel"
 
-function Base.show(io::IO, sampler::Sampler{d, T, R}) where {d, T, R}
-    println(io, "Sampler{d=$d, T=$T, R=$R}")
+function Base.show(io::IO, sampler::AbstractCondSampler{d, dC, T, R1, R2}) where {d, dC, T, R1, R2}
+    println(io, "Sampler{d=$d, dC=$dC, T=$T, R1=$R1, R2=$R2}")
 end
 
 import Serialization as ser
 """
 For now, naive implementation of saving and loading samplers.
 """
-function save_sampler(sampler::AbstractSampler, filename::String)
+function save_sampler(sampler::AbstractCondSampler, filename::String)
     ser.serialize(filename, sampler)
 end
 function load_sampler(filename::String)
@@ -62,16 +75,16 @@ function load_sampler(filename::String)
 end
 
 ## Interface for Sampler
-Distributions.pdf(sampler::AbstractSampler, x::PSDdata) = throw(NotImplementedError())
+Distributions.pdf(sampler::AbstractCondSampler, x::PSDdata) = throw(NotImplementedError())
 
 ## methods not necessarily implemented by concrete implementations of Sampler:
-Base.rand(sampler::AbstractSampler{d, T}) where {d, T} = sample(sampler)
-Base.rand(sampler::AbstractSampler{d, T}, amount::Int) where {d, T} = sample(sampler, amount)
-Base.rand(sampler::AbstractSampler{d, T}, dims::Int...) where {d, T} = reshape(sample(sampler, prod(dims)), dims)
-function sample(sampler::AbstractSampler{d, T}) where {d, T<:Number}
+Base.rand(sampler::AbstractCondSampler) = sample(sampler)
+Base.rand(sampler::AbstractCondSampler{d, <:Any, T}, amount::Int) where {d, T} = sample(sampler, amount)
+Base.rand(sampler::AbstractCondSampler{d, <:Any, T}, dims::Int...) where {d, T} = reshape(sample(sampler, prod(dims)), dims)
+function sample(sampler::AbstractCondSampler{d, <:Any, T}) where {d, T<:Number}
     return pushforward(sampler, sample_reference(sampler))
 end
-function sample(sampler::AbstractSampler{d, T}, amount::Int; threading=true) where {d, T}
+function sample(sampler::AbstractCondSampler{d, <:Any, T}, amount::Int; threading=true) where {d, T}
     res = Vector{PSDdata{T}}(undef, amount)
     @_condusethreads threading for i=1:amount
         res[i] = sample(sampler)
@@ -84,32 +97,49 @@ end
 # Helper functions already implemented
 # marginal dimension
 @inline _d_marg(
-            _::ConditionalSampler{d, <:Any, <:Any, dC}
+            _::ConditionalMapping{d, dC}
         ) where {d, dC} = d - dC
 
 ## interface for ConditionalSampler
 """
 Distribution p(x) = ∫ p(x, y) d y
 """
-marg_pdf(sampler::ConditionalSampler, x::PSDdata) = throw(NotImplementedError())
+marg_pdf(sampler::AbstractCondSampler, x::PSDdata) = throw(NotImplementedError())
 """
 pushforward of T(u) = y with u ∼ ρ and y ∼ p(y|x)
 """
-cond_pushforward(sampler::ConditionalSampler, u::PSDdata, x::PSDdata) = throw(NotImplementedError())
-cond_pullback(sampler::ConditionalSampler, y::PSDdata, x::PSDdata) = throw(NotImplementedError())
+cond_pushforward(sampler::ConditionalMapping, u::PSDdata, x::PSDdata) = throw(NotImplementedError())
+cond_pullback(sampler::ConditionalMapping, y::PSDdata, x::PSDdata) = throw(NotImplementedError())
 
-marg_pushforward(sampler::ConditionalSampler, u::PSDdata) = throw(NotImplementedError())
-marg_pullback(sampler::ConditionalSampler, x::PSDdata) = throw(NotImplementedError())
+marg_pushforward(sampler::ConditionalMapping, u::PSDdata) = throw(NotImplementedError())
+marg_pullback(sampler::ConditionalMapping, x::PSDdata) = throw(NotImplementedError())
 
+function marg_pullback(sampler::ConditionalMapping{d, dC, T}, π::Function) where {d, dC, T}
+    π_pb = let sampler=sampler, π=π
+        (x) -> begin
+            x2 = marg_pushforward(sampler, x)
+            π(x2) * (1/marg_pdf(sampler, x2))
+        end
+    end
+    return π_pb
+end
+function marg_pushforward(sampler::ConditionalMapping{d, dC, T}, π::Function) where {d, dC, T}
+    π_pf = let sampler=sampler, π=π
+        (u) -> begin
+            π(marg_pullback(sampler, u)) * marg_pdf(sampler, u)
+        end
+    end
+    return π_pf
+end
 # already implemented for ConditionalSampler with naive implementation
 """
 PDF p(y|x)
 """
-function cond_pdf(sampler::ConditionalSampler{d, T}, y::PSDdata{T}, x::PSDdata{T}) where {d, T}
+function cond_pdf(sampler::AbstractCondSampler{d, <:Any, T}, y::PSDdata{T}, x::PSDdata{T}) where {d, T}
     return Distributions.pdf(sampler, [x;y]) / marg_pdf(sampler, x)
 end
 
-function cond_pushforward(sampler::ConditionalSampler{d, T, <:Any, dC}, 
+function cond_pushforward(sampler::AbstractCondSampler{d, dC, T}, 
             u::PSDdata{T}, 
             x::PSDdata{T}
         ) where {d, T, dC}
@@ -118,7 +148,7 @@ function cond_pushforward(sampler::ConditionalSampler{d, T, <:Any, dC},
     return xu[_d_marg(sampler)+1:d]
 end
 
-function cond_pullback(sra::ConditionalSampler{d, T, <:Any, dC}, 
+function cond_pullback(sra::AbstractCondSampler{d, dC, T}, 
                 y::PSDdata{T}, 
                 x::PSDdata{T}
             ) where {d, T<:Number, dC}
@@ -126,7 +156,7 @@ function cond_pullback(sra::ConditionalSampler{d, T, <:Any, dC},
     return yx[_d_marg(sampler)+1:end]
 end
 
-function cond_sample(sampler::ConditionalSampler{d, T}, 
+function cond_sample(sampler::AbstractCondSampler{d, <:Any, T}, 
                 X::PSDDataVector{T};
                 threading=true
             ) where {d, T<:Number}
@@ -140,24 +170,24 @@ function cond_sample(sampler::ConditionalSampler{d, T},
         return res
     end
 end
-function cond_sample(sampler::ConditionalSampler{d, T, R, dC}, x::PSDdata{T}) where {d, T<:Number, R, dC}
+function cond_sample(sampler::AbstractCondSampler{d, dC, T, R}, x::PSDdata{T}) where {d, dC, T<:Number, R}
     dx = _d_marg(sampler)
     return cond_pushforward(sampler, sample_reference(sampler)[dx+1:d], x)
 end
 
 ## methods for Reference distribution
-@inline _ref_pushforward(sampler::AbstractSampler{<:Any, T}, x::PSDdata{T}) where {T} = pushforward(sampler.R_map, x)
-@inline _ref_pullback(sampler::AbstractSampler{<:Any, T}, u::PSDdata{T}) where {T} = pullback(sampler.R_map, u)
-@inline _ref_Jacobian(sampler::AbstractSampler{<:Any, T}, x::PSDdata{T}) where {T} = Jacobian(sampler.R_map, x)
-@inline _ref_inv_Jacobian(sampler::AbstractSampler{<:Any, T}, u::PSDdata{T}) where {T} = inverse_Jacobian(sampler.R_map, u)
+@inline _ref_pushforward(sampler::AbstractCondSampler{<:Any,<:Any, T}, x::PSDdata{T}) where {T} = pushforward(sampler.R1_map, x)
+@inline _ref_pullback(sampler::AbstractCondSampler{<:Any,<:Any, T}, u::PSDdata{T}) where {T} = pullback(sampler.R1_map, u)
+@inline _ref_Jacobian(sampler::AbstractCondSampler{<:Any,<:Any, T}, x::PSDdata{T}) where {T} = Jacobian(sampler.R1_map, x)
+@inline _ref_inv_Jacobian(sampler::AbstractCondSampler{<:Any,<:Any, T}, u::PSDdata{T}) where {T} = inverse_Jacobian(sampler.R1_map, u)
 
-@inline sample_reference(sampler::AbstractSampler{d, T, R}) where {d, T, R<:ReferenceMap} = ReferenceMaps.sample_reference(sampler.R_map)
-@inline sample_reference(_::AbstractSampler{d, T, Nothing}) where {d, T} = rand(T, d)
-@inline sample_reference(sampler::AbstractSampler{d, T, R}, n::Int) where {d, T, R<:ReferenceMap} = ReferenceMaps.sample_reference(sampler.R_map, n)
-@inline sample_reference(_::AbstractSampler{d, T, Nothing}, n::Int) where {d, T} = rand(T, d, n)
+@inline sample_reference(sampler::AbstractCondSampler{d, <:Any, T, R}) where {d, T, R<:ReferenceMap} = ReferenceMaps.sample_reference(sampler.R1_map)
+@inline sample_reference(_::AbstractCondSampler{d, <:Any, T, Nothing}) where {d, T} = rand(T, d)
+@inline sample_reference(sampler::AbstractCondSampler{d, <:Any, T, R}, n::Int) where {d, T, R<:ReferenceMap} = ReferenceMaps.sample_reference(sampler.R1_map, n)
+@inline sample_reference(_::AbstractCondSampler{d, <:Any, T, Nothing}, n::Int) where {d, T} = rand(T, d, n)
 
-@inline reference_pdf(sampler::AbstractSampler{d, T, R}, x) where {d, T, R<:ReferenceMap} = _ref_Jacobian(sampler, x)
-@inline reference_pdf(_::AbstractSampler{d, T, Nothing}, x) where {d, T} = all(1.0 .> x .> 0) ? 1.0 : 0.0
+@inline reference_pdf(sampler::AbstractCondSampler{d, <:Any, T, R}, x) where {d, T, R<:ReferenceMap} = _ref_Jacobian(sampler, x)
+@inline reference_pdf(_::AbstractCondSampler{d, <:Any, T, Nothing}, x) where {d, T} = all(1.0 .> x .> 0) ? 1.0 : 0.0
 
 
 include("PSDModelSampler.jl")

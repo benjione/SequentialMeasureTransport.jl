@@ -191,11 +191,6 @@ end
     end
 end
 
-# @testset "SubsetSampler" begin
-#     @testset "simple training from samples"
-
-#     end
-# end
 
 @testset "SRA ML estimation" begin
     include("SR_ML_test.jl")

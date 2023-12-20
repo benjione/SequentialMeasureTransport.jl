@@ -51,13 +51,13 @@ include("optimization/optimization.jl")
 # Samplers for PSD models
 include("Samplers/sampler.jl")
 
+# include GraphicalModel, for optimized inference on graphs
+include("graphical_models/graphical_models.jl")
+using .GraphicalModels
+
 # tailored statistics for PSD models and samplers
 include("statistics.jl")
 using .Statistics
-
-# for "using PSDModels.Plotting" for nice plots
-include("plotting/plotting.jl")
-using .Plotting
 
 # for AbstractMCMC interface
 include("MCMC/mcmc.jl")

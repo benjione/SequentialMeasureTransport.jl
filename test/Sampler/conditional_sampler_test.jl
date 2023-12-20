@@ -35,7 +35,7 @@ end
             ref_map;
             # optimizer=Hypatia.Optimizer,
             trace=false,
-            amount_cond_variable=1,
+            dC=1,
         )
         # test densities are close
         for x in range(-5.0, 5.0, length=20)
