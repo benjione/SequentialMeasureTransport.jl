@@ -177,7 +177,7 @@ end
 Distribution p(x) = ∫ p(x, y) d y
 """
 function marg_pdf(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
-            x::PSDdata{T}) where {d, dC, T, dsub, dCsub, ST, R1, R2}
+            x::PSDdata{T}) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
     xs = pullback(sampler.R_map, x) # from [0,1]^dx to R^dx
     sub_x = _marg_P_tilde(sampler) * xs # from R^dx to R^d_sub_marg
     sub_x_maped = pushforward(sampler.R_map_sub, sub_x) # from R^d_sub_marg to [0,1]^d_sub_marg
@@ -193,7 +193,7 @@ end
 
 function marg_pushforward(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
                 u::PSDdata{T}
-            ) where {d, dC, T, dsub, dCsub, ST, R1, R2}
+            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
     us = pullback(sampler.R_map, u)
     sub_u = _marg_P_tilde(sampler) * us
     sub_x = marg_pushforward(sampler.sampler, pushforward(sampler.R_map_sub, sub_u))
@@ -204,7 +204,7 @@ end
 
 function marg_pullback(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2},
                 x::PSDdata{T}
-            ) where {d, dC, T, dsub, dCsub, ST, R1, R2}
+            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
     xs = pullback(sampler.R_map, x)
     sub_x = _marg_P_tilde(sampler) * xs
     sub_u = marg_pullback(sampler.sampler, pushforward(sampler.R_map_sub, sub_x))
