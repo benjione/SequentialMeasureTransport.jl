@@ -191,6 +191,18 @@ function marg_pdf(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2},
     return inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * Jacobian(sampler.R_map, us)
 end
 
+function marg_inverse_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
+                x::PSDdata{T}
+            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
+    return marg_pdf(sampler, x)
+end
+
+function marg_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
+                x::PSDdata{T}
+            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
+    return 1.0/marg_inverse_Jacobian(sampler, pushforward(sampler, x))
+end
+
 function marg_pushforward(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
                 u::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}

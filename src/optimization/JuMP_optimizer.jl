@@ -445,11 +445,13 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     elseif α > 1
         JuMP.@constraint(model, [i=1:m], [r[i]; ex[i]; Y[i]] in JuMP.MOI.PowerCone(1/α))
     else
-        JuMP.@constraint(model, [i=1:m], [r[i]; Y[i].^(-1); ex[i]] in JuMP.MOI.PowerCone(1/(1-α)))
+        JuMP.@constraint(model, [i=1:m], [r[i]; one(T); Y[i]^(α/(1-α)) * ex[i]] in JuMP.MOI.PowerCone(1/(1-α)))
     end
-    JuMP.@constraint(model, t == sum(r))
+    JuMP.@constraint(model, t == (1/m) * sum(r))
 
-    JuMP.@expression(model, min_func, (1/(α*(α-1))) * t + (1/α)* tr(B))
+    JuMP.@expression(model, min_func, (one(T)/(α*(α-one(T)))) * t + (1/α)* tr(B))
+    ## use discrete approximation of the integral
+    # JuMP.@expression(model, min_func, (one(T)/(α*(α-one(T)))) * t + (1/α)* sum(ex[i] for i=1:m))
     if λ_2 > 0.0
         JuMP.add_to_expression!(min_func, λ_2 * opnorm(B, 2)^2)
     end

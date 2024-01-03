@@ -123,9 +123,15 @@ end
 ## Methods for satisfying ConditionalSampler interface
 
 function marg_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
-    dx = d-dC
-    @assert length(x) == dx
-    return sampler.margins[dx](x)
+    return sampler.margins[d-dC](x)
+end
+
+function marg_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return 1/marg_inverse_Jacobian(sampler, marg_pushforward(sampler, x))
+end
+
+function marg_inverse_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return marg_pdf(sampler, x)
 end
 
 @inline marg_pushforward(sampler::PSDModelSampler{d, dC, T, S}, 
