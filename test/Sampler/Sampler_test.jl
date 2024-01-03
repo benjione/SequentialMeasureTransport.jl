@@ -204,3 +204,7 @@ end
 @testset "Conditional Sampler" begin
     include("conditional_sampler_test.jl")
 end
+
+@testset "Sampling graphical model" begin
+    include("graphical_model_test.jl")
+end
