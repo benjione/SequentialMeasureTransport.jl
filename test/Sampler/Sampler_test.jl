@@ -11,8 +11,8 @@ using Distributions
             X = [rand(d) * 2 .- 1 for _=1:500]
             Y = f.(X)
             fit!(model, X, Y, trace=false)
-            sampler = Sampler(model)
-            x = PSDModels.sample(sampler)
+            smp = Sampler(model)
+            x = PSDModels.sample(smp)
             @test all([-1≤xi≤1 for xi in x])
         end
     end

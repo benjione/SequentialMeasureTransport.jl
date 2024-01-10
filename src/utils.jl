@@ -26,7 +26,12 @@ end
 
 
 ## threaded map
-function map_threaded(f, A::AbstractArray{T}) where {T}
+@inline function map_threaded(f::Function, A::AbstractArray{T}) where {T<:Number}
+    return map_threaded(T, f, A)
+end
+
+## threaded map
+function map_threaded(T, f::Function, A::AbstractArray)
     res = Array{T}(undef, size(A))
     Threads.@threads for i=1:length(A)
         res[i] = f(A[i])

@@ -29,6 +29,10 @@ ConditionalSampler(model::PSDModelOrthonormal{d},
                     amount_cond_variable::Int) where {d} = 
                         PSDModelSampler(model, [Random.shuffle!(collect(1:(d-amount_cond_variable))); 
                                 Random.shuffle!(collect((d-amount_cond_variable+1):d))], amount_cond_variable)
+ConditionalSampler(model::PSDModelOrthonormal{d}, 
+                    amount_cond_variable::Int,
+                    variable_ordering::Vector{Int}) where {d} = 
+                        PSDModelSampler(model, variable_ordering, amount_cond_variable)
 
 ## Pretty printing
 function Base.show(io::IO, sampler::PSDModelSampler{d, T, S, R}) where {d, T, S, R}

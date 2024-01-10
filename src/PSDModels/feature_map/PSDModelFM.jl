@@ -29,3 +29,6 @@ Returns the feature map of the PSD model at x.
     return a.Φ(x)
 end
 
+@inline function Φ(a::AbsPSD, x::PSDdata{T}) where {T<:Number, AbsPSD<:AbstractPSDModelFM{<:Number}}
+    return a.Φ(x)
+end

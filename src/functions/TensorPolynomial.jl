@@ -122,6 +122,15 @@ function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T}) where {d, T}
     map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
 
+function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T2}) where {d, T<:Number, T2<:Number}
+    @assert length(x) == d
+    A = zeros(T2, p.highest_order+1, d)
+    poly(k,i) = ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], x[i])
+    map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
+
+    @inline Ψ(k) = mapreduce(j->A[k[j], j], *, 1:d)
+    map(i -> Ψ(σ_inv(p, i)), 1:p.N)
+end
 
 _eval(p::FMTensorPolynomial{d, T}, x::T, ignore_dim::Vector{Int}) where {d, T} = _eval(p, T[x], ignore_dim)
 function _eval(p::FMTensorPolynomial{d, T, S, tsp}, 

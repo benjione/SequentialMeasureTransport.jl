@@ -73,7 +73,7 @@ function marg_pullback(sampler::ConditionalMapping{d,dC,T}, π::Function) where 
     π_pb = let sampler = sampler, π = π
         (x) -> begin
             x2 = marg_pushforward(sampler, x)
-            π(x2) * (1 / marg_pdf(sampler, x2))
+            π(x2) * marg_Jacobian(sampler, x)
         end
     end
     return π_pb
@@ -81,7 +81,7 @@ end
 function marg_pushforward(sampler::ConditionalMapping{d,dC,T}, π::Function) where {d,dC,T}
     π_pf = let sampler = sampler, π = π
         (u) -> begin
-            π(marg_pullback(sampler, u)) * marg_pdf(sampler, u)
+            π(marg_pullback(sampler, u)) * marg_inverse_Jacobian(sampler, u)
         end
     end
     return π_pf
@@ -126,7 +126,7 @@ function sample(sampler::AbstractCondSampler{d,<:Any,T}) where {d,T<:Number}
     return pushforward(sampler, sample_reference(sampler))
 end
 function sample(sampler::AbstractCondSampler{d,<:Any,T}, amount::Int; threading=true) where {d,T}
-    res = Vector{PSDdata{T}}(undef, amount)
+    res = Vector{Vector{T}}(undef, amount)
     @_condusethreads threading for i = 1:amount
         res[i] = sample(sampler)
     end
@@ -146,7 +146,16 @@ end
 Distribution p(x) = ∫ p(x, y) d y
 """
 marg_pdf(sampler::AbstractCondSampler, x::PSDdata) = throw(NotImplementedError())
-
+function marg_sample(sampler::AbstractCondSampler{d, dC, T}) where {d, dC, T<:Number}
+    return marg_pushforward(sampler, sample_reference(sampler)[1:_d_marg(sampler)])
+end
+function marg_sample(sampler::AbstractCondSampler{<:Any,<:Any,T}, amount::Int; threading=true) where {T}
+    res = Vector{Vector{T}}(undef, amount)
+    @_condusethreads threading for i = 1:amount
+        res[i] = marg_sample(sampler)
+    end
+    return res
+end
 # already implemented for ConditionalSampler with naive implementation
 """
 PDF p(y|x)
