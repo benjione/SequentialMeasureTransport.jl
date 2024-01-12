@@ -112,7 +112,7 @@ function add_order(p::FMTensorPolynomial{d, T}, dim::Int) where {d, T<:Number}
 end
 
 (p::FMTensorPolynomial{d, T})(x::T) where {d, T} = p(T[x])
-function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T}) where {d, T}
+function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T}) where {d, T<:Number}
     @assert length(x) == d
     A = zeros(T, p.highest_order+1, d)
     poly(k,i) = Fun(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]])(x[i])
@@ -125,7 +125,11 @@ end
 function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T2}) where {d, T<:Number, T2<:Number}
     @assert length(x) == d
     A = zeros(T2, p.highest_order+1, d)
-    poly(k,i) = ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], x[i])
+    poly(k,i) = begin
+        l = ApproxFun.leftendpoint(p.space.spaces[i].domain)
+        r = ApproxFun.rightendpoint(p.space.spaces[i].domain)
+        ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], (x[i]-l)/(r-l) * 2.0 - 1.0)
+    end
     map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
 
     @inline Ψ(k) = mapreduce(j->A[k[j], j], *, 1:d)

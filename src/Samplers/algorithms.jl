@@ -253,13 +253,13 @@ function SelfReinforced_ML_estimation(
         ## pullback and mapping to reference space
         X_evolved_pb = if length(sra.samplers)>0
             if threading
-                map_threaded(x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
+                map_threaded(typeof(X_evolved[1]), x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
             else
                 map(x->_ref_pushforward(sra, pullback(sra, x)), X_evolved)
             end
         else
             if threading
-                map_threaded(x->_ref_pushforward(sra, x), X_evolved)
+                map_threaded(typeof(X_evolved[1]), x->_ref_pushforward(sra, x), X_evolved)
             else
                 map(x->_ref_pushforward(sra, x), X_evolved)
             end
