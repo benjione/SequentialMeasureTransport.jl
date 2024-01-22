@@ -1,3 +1,6 @@
+import Symbolics as Sym
+import SymbolicNumericIntegration as SNI
+
 """
 A PSD model where the feature map is made out of orthonormal 
 polynomial functions such as Chebyshev polynomials. There is an own 
@@ -168,6 +171,15 @@ function integrate(a::PSDModelPolynomial, dim::Int, p::Function, domain::Domain)
     marginalize(a, dim, p, domain=domain)
 end
 
+function compile(a::PSDModelPolynomial{d, T, S}) where {d, T<:Number, S}
+    Sym.@variables x[1:d]
+    poly = a(x)
+    # return eval(Sym.build_function(poly, x))
+    ret_f = Sym.build_function(poly, x, expression=Val{false})
+    Base.remove_linenums!(ret_f)
+    return ret_f
+end
+
 
 """
     function integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing)
@@ -185,6 +197,22 @@ function integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d,
     end
     M = SquaredPolynomialMatrix(a.Φ, Int[dim]; C=C)
     return PolynomialTraceModel(a.B, M, a.mapping)
+end
+
+function compiled_integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d, T<:Number, S}
+    @assert 1 ≤ dim ≤ d
+    if C === nothing
+        # use the left endpoint of the original domain,
+        # even if there is a mapping.
+        C = leftendpoint(a.Φ.space.spaces[dim].domain)
+    end
+    Sym.@variables x[1:d]
+    poly = a(x)
+    int_poly = SNI.integrate(poly, x[dim]; symbolic=true, detailed=false)
+    int_poly = int_poly - Sym.substitute(int_poly, Dict([x[dim] => C]))
+    comp_int_poly = Sym.build_function(int_poly, x, expression=Val{false})
+    Base.remove_linenums!(comp_int_poly)
+    return comp_int_poly
 end
 
 import LinearAlgebra: normalize, normalize!

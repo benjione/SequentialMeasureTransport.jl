@@ -1,23 +1,25 @@
 using Roots: find_zero
 
-struct PSDModelSampler{d, T<:Number, S, R, dC} <: ConditionalSampler{d, T, R, dC}
+struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Nothing, Nothing}
     model::PSDModelOrthonormal{d, T, S}                 # model to sample from
-    margins::Vector{<:PSDModelOrthonormal{<:Any, T, S}} # start with x_{≤1}, then x_{≤2}, ...
-    integrals::Vector{<:OrthonormalTraceModel{T, S}}    # integrals of marginals
+    # margins::Vector{<:PSDModelOrthonormal{<:Any, T, S}} # start with x_{≤1}, then x_{≤2}, ...
+    margins::Vector{Function}                           # start with x_{≤1}, then x_{≤2}, ...
+    # integrals::Vector{<:OrthonormalTraceModel{T, S}}    # integrals of marginals
+    integrals::Vector{Function}                         # integrals of marginals
     variable_ordering::Vector{Int}                      # variable ordering for the model
-    R_map::R                                            # reference map from reference distribution to uniform
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
                              variable_ordering::Vector{Int},
-                             amount_cond_variable::Int) where {d, T<:Number, S}
-        @assert amount_cond_variable < d
-        # check that the last {amount_cond_variable} variables are the last ones in the ordering
-        @assert issetequal(variable_ordering[(d-amount_cond_variable+1):d], (d-amount_cond_variable+1):d)
+                             dC::Int) where {d, T<:Number, S}
+        @assert dC < d
+        # check that the last {dC} variables are the last ones in the ordering
+        @assert issetequal(variable_ordering[(d-dC+1):d], (d-dC+1):d)
         model = normalize(model) # create normalized copy
         perm_model = permute_indices(model, variable_ordering) # permute dimensions
         margins = PSDModelOrthonormal{<:Any, T, S}[marginalize(perm_model, collect(k:d)) for k in 2:d]
         margins = [margins; perm_model] # add the full model at last
-        integrals = map((x,k)->integral(x, k), margins, 1:d)
-        new{d, T, S, Nothing, amount_cond_variable}(model, margins, integrals, variable_ordering, nothing)
+        integrals = map((x,k)->compiled_integral(x, k), margins, 1:d)
+        margins = map(x->compile(x), margins)
+        new{d, dC, T, S}(model, margins, integrals, variable_ordering)
     end
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
                              variable_ordering::Vector{Int}) where {d, T<:Number, S}
@@ -30,6 +32,10 @@ ConditionalSampler(model::PSDModelOrthonormal{d},
                     amount_cond_variable::Int) where {d} = 
                         PSDModelSampler(model, [Random.shuffle!(collect(1:(d-amount_cond_variable))); 
                                 Random.shuffle!(collect((d-amount_cond_variable+1):d))], amount_cond_variable)
+ConditionalSampler(model::PSDModelOrthonormal{d}, 
+                    amount_cond_variable::Int,
+                    variable_ordering::Vector{Int}) where {d} = 
+                        PSDModelSampler(model, variable_ordering, amount_cond_variable)
 
 ## Pretty printing
 function Base.show(io::IO, sampler::PSDModelSampler{d, T, S, R}) where {d, T, S, R}
@@ -41,7 +47,7 @@ end
 ## Methods of PSDModelSampler itself
 
 
-function _pushforward_first_n(sampler::PSDModelSampler{d, T, S}, 
+function _pushforward_first_n(sampler::PSDModelSampler{d, <:Any, T, S}, 
                      u::PSDdata{T}, n::Int) where {d, T<:Number, S}
     x = zeros(T, n)
     u = @view u[sampler.variable_ordering[1:n]]
@@ -68,7 +74,7 @@ function _pushforward_first_n(sampler::PSDModelSampler{d, T, S},
 end
 
 
-function _pullback_first_n(sampler::PSDModelSampler{d, T}, 
+function _pullback_first_n(sampler::PSDModelSampler{d, <:Any, T}, 
                         x::PSDdata{T},
                         n::Int) where {d, T<:Number}
     x = @view x[sampler.variable_ordering[1:n]]
@@ -101,42 +107,48 @@ end
 ## Methods for satisfying Sampler interface
 
 function Distributions.pdf(
-        sar::PSDModelSampler{d, T},
+        sar::PSDModelSampler{d, <:Any, T},
         x::PSDdata{T}
     ) where {d, T<:Number}
     return sar.model(x)::T
 end
 
-@inline pushforward(sampler::PSDModelSampler{d, T, S}, 
+@inline pushforward(sampler::PSDModelSampler{d, <:Any, T, S}, 
                     u::PSDdata{T}) where {d, T<:Number, S} = return _pushforward_first_n(sampler, u, d)
 
-@inline pullback(sampler::PSDModelSampler{d, T}, 
+@inline pullback(sampler::PSDModelSampler{d, <:Any, T}, 
                  x::PSDdata{T}) where {d, T<:Number} = return _pullback_first_n(sampler, x, d)
 
-@inline Jacobian(sampler::PSDModelSampler{d, T, <:Any, Nothing}, 
+@inline Jacobian(sampler::PSDModelSampler{d, <:Any, T}, 
                  x::PSDdata{T}
         ) where {d, T<:Number} = 1/inverse_Jacobian(sampler, pushforward(sampler, x))
-@inline inverse_Jacobian(sampler::PSDModelSampler{d, T, <:Any, Nothing}, 
+@inline inverse_Jacobian(sampler::PSDModelSampler{d, <:Any, T}, 
                         x::PSDdata{T}
         ) where {d, T<:Number} = Distributions.pdf(sampler, x)
 
 
 ## Methods for satisfying ConditionalSampler interface
 
-function marg_pdf(sampler::PSDModelSampler{d, T, S, R, dC}, x::PSDdata{T}) where {d, T<:Number, S, R, dC}
-    dx = d-dC
-    @assert length(x) == dx
-    return sampler.margins[dx](x)
+function marg_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return sampler.margins[d-dC](x)
 end
 
-@inline marg_pushforward(sampler::PSDModelSampler{d, T, S, R, dC}, 
-                         u::PSDdata{T}) where {d, T<:Number, S, R, dC} = 
+function marg_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return 1/marg_inverse_Jacobian(sampler, marg_pushforward(sampler, x))
+end
+
+function marg_inverse_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return marg_pdf(sampler, x)
+end
+
+@inline marg_pushforward(sampler::PSDModelSampler{d, dC, T, S}, 
+                         u::PSDdata{T}) where {d, T<:Number, S, dC} = 
                             return _pushforward_first_n(sampler, u, d-dC)
-@inline marg_pullback(sampler::PSDModelSampler{d, T, S, R, dC}, 
-                      x::PSDdata{T}) where {d, T<:Number, S, R, dC} = 
+@inline marg_pullback(sampler::PSDModelSampler{d, dC, T, S}, 
+                      x::PSDdata{T}) where {d, T<:Number, S, dC} = 
                             return _pullback_first_n(sampler, x, d-dC)
 
-function cond_pushforward(sampler::PSDModelSampler{d, T, S, R, dC}, u::PSDdata{T}, x::PSDdata{T}) where {d, T<:Number, S, R, dC}
+function cond_pushforward(sampler::PSDModelSampler{d, dC, T, S}, u::PSDdata{T}, x::PSDdata{T}) where {d, T<:Number, S, dC}
     dx = d-dC
     # @assert length(u) == dC
     # @assert length(x) == dx
@@ -160,9 +172,9 @@ function cond_pushforward(sampler::PSDModelSampler{d, T, S, R, dC}, u::PSDdata{T
 end
 
 
-function cond_pullback(sampler::PSDModelSampler{d, T, S, R, dC}, 
+function cond_pullback(sampler::PSDModelSampler{d, dC, T, S}, 
                         y::PSDdata{T},
-                        x::PSDdata{T}) where {d, T<:Number, S, R, dC}
+                        x::PSDdata{T}) where {d, T<:Number, S, dC}
     dx = d-dC
     x = @view x[sampler.variable_ordering]
     f(k) = begin

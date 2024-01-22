@@ -184,3 +184,64 @@ end
         end
     end
 end
+
+@testset "Compile SoS polynomial to polynomial" begin
+    @testset "standard compile" begin
+        f(x) = 2*(x[2]-0.5)^2 * (x[2]+0.5)^2 + 2*(x[1]-0.5)^2 * (x[1]+0.5)^2
+        model = PSDModel(Legendre(-15..15)^2, :downward_closed, 5)
+        # generate some data
+        X = [(rand(2) * 2 .- 1) for i in 1:200]
+        Y = f.(X)
+
+        fit!(model, X, Y, maxit=2000)
+        model_poly = PSDModels.compile(model)
+        for i=1:100
+            x = (rand(2) .- 0.5) * 30.0
+            @test model_poly(x) ≈ model(x)
+        end
+    end
+
+    @testset "integral compile" begin
+        f(x) = x[1]^2 + x[2]^2
+        f_int(x) = (1/3) * x[1]^3 + x[2]^2 * x[1]
+        f_int2(x) = x[1]^2 * x[2] + (1/3) * x[2]^3
+        model = PSDModel(Legendre()^2, :downward_closed, 2)
+        
+        X = [[x,y] for x=collect(range(-1, 1, length=20)), y=collect(range(-1, 1, length=20))]
+        X = reshape(X, length(X))
+        Y = f.(X)
+        fit!(model, X, Y)
+
+        int_model = integral(model, 1; C=0.0)
+        int_model_compiled = PSDModels.compiled_integral(model, 1; C=0.0)
+        @test all(int_model.(X) .≈ int_model_compiled.(X))
+
+        int_model2 = integral(model, 2; C=0.0)
+        int_model_compiled2 = PSDModels.compiled_integral(model, 2; C=0.0)
+        @test all(int_model2.(X) .≈ int_model_compiled2.(X))
+    end
+
+    @testset "integral compile no C" begin
+        f(x) = x[1]^2 + x[2]^2
+        f_int(x) = (1/3) * x[1]^3 + x[2]^2 * x[1]
+        f_int2(x) = x[1]^2 * x[2] + (1/3) * x[2]^3
+        model = PSDModel(Legendre()^2, :downward_closed, 2)
+        
+        X = [[x,y] for x=collect(range(-1, 1, length=20)), y=collect(range(-1, 1, length=20))]
+        X = reshape(X, length(X))
+        Y = f.(X)
+        fit!(model, X, Y)
+
+        int_model = integral(model, 1)
+        int_model_compiled = PSDModels.compiled_integral(model, 1)
+        for x in X
+            @test isapprox(int_model(x), int_model_compiled(x), atol=1e-10)
+        end
+
+        int_model2 = integral(model, 2)
+        int_model_compiled2 = PSDModels.compiled_integral(model, 2)
+        for x in X
+            @test isapprox(int_model2(x), int_model_compiled2(x), atol=1e-10)
+        end
+    end
+end

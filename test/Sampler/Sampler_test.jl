@@ -11,8 +11,8 @@ using Distributions
             X = [rand(d) * 2 .- 1 for _=1:500]
             Y = f.(X)
             fit!(model, X, Y, trace=false)
-            sampler = Sampler(model)
-            x = PSDModels.sample(sampler)
+            smp = Sampler(model)
+            x = PSDModels.sample(smp)
             @test all([-1≤xi≤1 for xi in x])
         end
     end
@@ -191,11 +191,6 @@ end
     end
 end
 
-# @testset "SubsetSampler" begin
-#     @testset "simple training from samples"
-
-#     end
-# end
 
 @testset "SRA ML estimation" begin
     include("SR_ML_test.jl")
@@ -209,3 +204,7 @@ end
 @testset "Conditional Sampler" begin
     include("conditional_sampler_test.jl")
 end
+
+# @testset "Sampling graphical model" begin
+#     include("graphical_model_test.jl")
+# end

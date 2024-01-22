@@ -66,8 +66,8 @@ end
                     model, bridge, ref_map;
                     subspace_reference_map=subspace_ref_map,
                     to_subspace_reference_map=to_subspace_ref_map,
-                    amount_cond_variable=1,
-                    amount_reduced_cond_variables=1,
+                    dC=1,
+                    dCsub=1,
                     trace=false)
 
     X_sample = PSDModels.sample(sra_sub, 100)

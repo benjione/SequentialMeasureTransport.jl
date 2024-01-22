@@ -5,14 +5,14 @@ sampler from `Sampler` in this package.
 """
 
 using ..PSDModels
-using ..PSDModels: ConditionalSampler
+using ..PSDModels: AbstractSampler
 import AbstractMCMC
 import MCMCChains
 using Distributions
 using Random
 using LinearAlgebra
 
-mutable struct MCMCSampler{T, S<:ConditionalSampler{<:Any, T}} <: AbstractMCMC.AbstractSampler
+mutable struct MCMCSampler{T, S<:AbstractSampler{<:Any, <:Any, T}} <: AbstractMCMC.AbstractSampler
     current_state::Vector{T}
     sampler::S
 end
@@ -27,7 +27,7 @@ function (a::MCMCModel{F})(x::Vector{T}) where {F, T<:Number}
     return a.model(x)
 end
 function (a::MCMCModel{F})(x::Vector{T}, 
-                sampler::ConditionalSampler{<:Any, T}
+                sampler::AbstractSampler{<:Any, <:Any, T}
             ) where {F, T<:Number}
     return PSDModels.pullback(sampler, x->a.model(x))(x)
 end

@@ -1,5 +1,5 @@
 using PSDModels: FMTensorPolynomial, reduce_dim, trivial_TensorPolynomial, dimensions
-using FastGaussQuadrature: gausslegendre, gausschebyshev, gausshermite
+using FastGaussQuadrature: gausslegendre, gausschebyshevt, gausshermite
 using ApproxFun
 
 const default_T = Float64
@@ -10,7 +10,7 @@ const default_T = Float64
 
         # test dimensions
         @test dimensions(poly) == 1
-        x, w = gausschebyshev(20)
+        x, w = gausschebyshevt(20)
 
         # normality check
         for i=1:10
@@ -86,7 +86,7 @@ end
 
         # test dimensions
         @test dimensions(poly) == 1
-        x, w = gausschebyshev(20)
+        x, w = gausschebyshevt(20)
         x .*= ((r - l)/2)
         x .+= ((r + l)/2)
         scale = ((r - l)/2)

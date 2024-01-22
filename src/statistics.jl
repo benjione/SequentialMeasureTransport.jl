@@ -3,7 +3,7 @@ module Statistics
 using ..PSDModels
 using ..PSDModels: PSDDataVector
 using ..PSDModels: PSDModelOrthonormal
-using ..PSDModels: SelfReinforcedSampler
+using ..PSDModels: CondSampler
 using ..PSDModels: domain_interval_left, domain_interval_right
 using ..PSDModels: greedy_IRLS
 using ..PSDModels: _ML_JuMP!
@@ -255,7 +255,7 @@ end
 
 ## statistic functions for samplers
 
-function expectation(sar::SelfReinforcedSampler{d, T}; N_order=50) where {d, T<:Number}
+function expectation(sar::CondSampler{d, <:Any, T}; N_order=50) where {d, T<:Number}
     pdf_func = x->pdf(sar, x)
     x_gl, w_gl = gausslegendre(N_order)
     L = domain_interval_left(sar.models[1])
@@ -272,7 +272,7 @@ function expectation(sar::SelfReinforcedSampler{d, T}; N_order=50) where {d, T<:
 end
 
 
-function covariance(sar::SelfReinforcedSampler{d, T},
+function covariance(sar::CondSampler{d, <:Any, T},
                 dim1::Int, dim2::Int; N_order=50) where {d, T<:Number}
     E = expectation(sar)
     E_1 = E[dim1]
@@ -296,7 +296,7 @@ function covariance(sar::SelfReinforcedSampler{d, T},
 end
 
 
-function covariance(sar::SelfReinforcedSampler{d, T}; N_order=50) where {d, T<:Number}
+function covariance(sar::CondSampler{d, <:Any, T}; N_order=50) where {d, T<:Number}
     E_X = expectation(sar)
 
     pdf_func = x->pdf(sar, x)
