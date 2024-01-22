@@ -51,10 +51,6 @@ include("optimization/optimization.jl")
 # Samplers for PSD models
 include("Samplers/sampler.jl")
 
-# include GraphicalModel, for optimized inference on graphs
-include("graphical_models/graphical_models.jl")
-using .GraphicalModels
-
 # tailored statistics for PSD models and samplers
 include("statistics.jl")
 using .Statistics
