@@ -199,7 +199,7 @@ function add_layer!(
     return nothing
 end
 
-function add_layer!{dC2}(
+function add_layer!(
         sra::CondSampler{d, dC, T},
         pdf_tar::Function,
         model::PSDModelOrthonormal{d2, T},
@@ -209,8 +209,9 @@ function add_layer!{dC2}(
         broadcasted_tar_pdf=false,
         threading=true,
         variable_ordering=nothing,
+        dC2 = 0,
         kwargs...
-    ) where {d, d2, T<:Number, dC, dC2}
+    ) where {d, d2, T<:Number, dC}
     @assert d2 < d
     @assert length(subvariables) == d2
     @assert dC2 ≤ dC
