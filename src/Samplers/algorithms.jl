@@ -216,7 +216,7 @@ function add_layer!(
     @assert length(subvariables) == d2
     @assert dC2 ≤ dC
     # sample from reference map
-    X = eachcol(rand(T, d, N_sample))
+    X = rand(T, d, N_sample)
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sra, pdf_tar)        
     else 
@@ -232,11 +232,12 @@ function add_layer!(
         end
     end
     Y = if broadcasted_tar_pdf
-        pdf_tar_pullbacked_sample(X)
+        pdf_tar_pullbacked_sample(eachcol(X))
     else
         _Y = zeros(T, N_sample)
+        _X = eachcol(X)
         @_condusethreads threading for i in 1:N_sample
-            _Y[i] = pdf_tar_pullbacked_sample(X[i])
+            _Y[i] = pdf_tar_pullbacked_sample(_X[i])
         end
         _Y
     end
@@ -245,7 +246,7 @@ function add_layer!(
         throw(error("NaN in target!"))
     end
 
-    fit_method!(model, collect(X), Y)
+    fit_method!(model, collect(eachcol(X[subvariables, :])), Y)
     normalize!(model)
     sampler = if dC2 == 0
         if variable_ordering === nothing

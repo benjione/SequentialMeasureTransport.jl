@@ -93,3 +93,65 @@ end
     c_vec = rng .|> (x)->f_cond(x[1:2], x[3:3])
     @test (1/N^3)*norm(model_c_vec - c_vec, 2) < 0.1
 end
+
+@testset "add layer marginal mapping" begin
+    
+    f1(x, y) = pdf(MvNormal([0.0, 0.0], [1.0 0.8; 0.8 1.0]), [x, y])
+    f2(y, z) = pdf(MvNormal([0.0, 0.0], [1.0 -0.8; -0.8 1.0]), [y, z])
+    f(x, y, z) = f1(x, y) * f2(y, z)
+
+    f1(x) = f1(x[1], x[2])
+    f2(x) = f2(x[1], x[2])
+    f(x) = f(x[1], x[2], x[3])
+
+    ref_map = PSDModels.ReferenceMaps.AlgebraicReference{3, Float64}()
+    model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 3)
+
+    fit_method(m, x, y; kwargs...) = PSDModels.α_divergence_fit!(m, 2.0, x, y; kwargs...)
+
+    # create empty SelfReinforcedSampler
+    sample = PSDModels.CondSampler{3, 0, Float64}(ref_map, ref_map)
+
+    ### first f1 than f2
+    # initialize β
+    β = (1/16, 1/16)
+
+    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
+                    fit_method, [1, 2]; variable_ordering=[2, 1])
+
+    β = (1/8, 1/16)
+    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
+                    fit_method, [1, 2]; variable_ordering=[2, 1])
+
+    β = (1/4, 1/16)
+    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
+                    fit_method, [1, 2]; variable_ordering=[2, 1])
+
+    β = (1/2, 1/16)
+    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
+                    fit_method, [1, 2]; variable_ordering=[2, 1])
+
+    β = (1, 1/16)
+    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
+                    fit_method, [1, 2]; variable_ordering=[2, 1])
+
+    β = (1, 1/16)
+    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
+                    fit_method, [2, 3]; variable_ordering=[1, 2])
+
+    β = (1, 1/8)
+    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
+                    fit_method, [2, 3]; variable_ordering=[1, 2])
+
+    β = (1, 1/4)
+    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
+                    fit_method, [2, 3]; variable_ordering=[1, 2])
+
+    β = (1, 1/2)
+    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
+                    fit_method, [2, 3]; variable_ordering=[1, 2])
+
+    β = (1, 1)
+    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
+                    fit_method, [2, 3]; variable_ordering=[1, 2])
+end
