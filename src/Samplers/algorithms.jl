@@ -148,6 +148,7 @@ function add_layer!(
         N_sample=1000,
         broadcasted_tar_pdf=false,
         threading=true,
+        variable_ordering=nothing,
         kwargs...
     ) where {d, T<:Number, dC}
     # sample from reference map
@@ -183,9 +184,17 @@ function add_layer!(
     fit_method!(model, collect(X), Y)
     normalize!(model)
     if dC == 0
-        push!(sra.samplers, Sampler(model))
+        if variable_ordering === nothing
+            push!(sra.samplers, Sampler(model))
+        else
+            push!(sra.samplers, Sampler(model, variable_ordering))
+        end
     else
-        push!(sra.samplers, ConditionalSampler(model, dC))
+        if variable_ordering === nothing
+            push!(sra.samplers, ConditionalSampler(model, dC))
+        else
+            push!(sra.samplers, ConditionalSampler(model, dC, variable_ordering))
+        end
     end
     return nothing
 end

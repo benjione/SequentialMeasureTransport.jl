@@ -28,6 +28,7 @@ struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Not
 end
 
 Sampler(model::PSDModelOrthonormal{d}) where {d} = PSDModelSampler(model, Random.shuffle!(collect(1:d)))
+Sampler(model::PSDModelOrthonormal{d}, variable_ordering::Vector{Int}) where {d} = PSDModelSampler(model, variable_ordering)
 ConditionalSampler(model::PSDModelOrthonormal{d}, 
                     amount_cond_variable::Int) where {d} = 
                         PSDModelSampler(model, [Random.shuffle!(collect(1:(d-amount_cond_variable))); 
