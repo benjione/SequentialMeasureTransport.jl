@@ -260,7 +260,7 @@ function add_layer!(
             ConditionalSampler(model, dC2, variable_ordering)
         end
     end
-    push!(sra.samplers, MarginalMapping{d, dC}(sampler, projection))
+    push!(sra.samplers, MarginalMapping{d, dC}(sampler, subvariables))
     return nothing
 end
 
