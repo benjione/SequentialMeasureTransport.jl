@@ -216,11 +216,11 @@ function add_layer!(
     @assert length(subvariables) == d2
     @assert dC2 ≤ dC
     # sample from reference map
-    X = eachcol(rand(T, d2, N_sample))
+    X = eachcol(rand(T, d, N_sample))
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sra, pdf_tar)        
     else 
-        pullback_pdf_function(sra, pdf_tar)
+        pullback_pdf_function(sra, (x)->pdf_tar(x[subvariables]))
     end
     pdf_tar_pullbacked_sample = if broadcasted_tar_pdf
         let π_tar=pdf_tar_pullbacked, sra=sra
