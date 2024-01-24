@@ -199,6 +199,70 @@ function add_layer!(
     return nothing
 end
 
+function add_layer!{dC2}(
+        sra::CondSampler{d, dC, T},
+        pdf_tar::Function,
+        model::PSDModelOrthonormal{d2, T},
+        fit_method!::Function,
+        subvariables::AbstractVector{Int};
+        N_sample=1000,
+        broadcasted_tar_pdf=false,
+        threading=true,
+        variable_ordering=nothing,
+        kwargs...
+    ) where {d, d2, T<:Number, dC, dC2}
+    @assert d2 < d
+    @assert length(subvariables) == d2
+    @assert dC2 ≤ dC
+    # sample from reference map
+    X = eachcol(rand(T, d2, N_sample))
+    pdf_tar_pullbacked = if broadcasted_tar_pdf
+        _broadcasted_pullback_pdf_function(sra, pdf_tar)        
+    else 
+        pullback_pdf_function(sra, pdf_tar)
+    end
+    pdf_tar_pullbacked_sample = if broadcasted_tar_pdf
+        let π_tar=pdf_tar_pullbacked, sra=sra
+            (x) -> π_tar(_ref_pullback.(Ref(sra), x)) .* _ref_inv_Jacobian.(Ref(sra), x)
+        end
+    else
+        let π_tar=pdf_tar_pullbacked, sra=sra
+            (x) -> π_tar(_ref_pullback(sra, x)) * _ref_inv_Jacobian(sra, x)
+        end
+    end
+    Y = if broadcasted_tar_pdf
+        pdf_tar_pullbacked_sample(X)
+    else
+        _Y = zeros(T, N_sample)
+        @_condusethreads threading for i in 1:N_sample
+            _Y[i] = pdf_tar_pullbacked_sample(X[i])
+        end
+        _Y
+    end
+
+    if any(isnan, Y)
+        throw(error("NaN in target!"))
+    end
+
+    fit_method!(model, collect(X), Y)
+    normalize!(model)
+    sampler = if dC2 == 0
+        if variable_ordering === nothing
+            Sampler(model)
+        else
+            Sampler(model, variable_ordering)
+        end
+    else
+        if variable_ordering === nothing
+            ConditionalSampler(model, dC2)
+        else
+            ConditionalSampler(model, dC2, variable_ordering)
+        end
+    end
+    push!(sra.samplers, MarginalMapping{d, dC}(sampler, projection))
+    return nothing
+end
+
 
 function SelfReinforced_ML_estimation(
         X::PSDDataVector{T},
