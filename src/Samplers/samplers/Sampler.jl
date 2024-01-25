@@ -69,7 +69,10 @@ function Distributions.pdf(
     return pdf_func(x)
 end
 
-function pullback_pdf_function(
+pullback_pdf_function(sra::CondSampler, pdf_tar::Function; layers=nothing) = begin
+    return pullback(sra, pdf_tar; layers=layers)
+end
+function pullback(
         sra::CondSampler{d, <:Any, T},
         pdf_tar::Function; # defined on [a, b]^d
         layers=nothing
