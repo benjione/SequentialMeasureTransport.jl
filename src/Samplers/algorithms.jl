@@ -53,6 +53,7 @@ function SelfReinforcedSampler(
                 ### others
                 broadcasted_tar_pdf=false,
                 threading=true,
+                variable_ordering=nothing,
                 dC=0,
                 kwargs...) where {d, T<:Number, S}
 
@@ -115,9 +116,17 @@ function SelfReinforcedSampler(
 
     normalize!(model)
     samplers = if dC==0
-        [Sampler(model)]
+        if variable_ordering === nothing
+            [Sampler(model)]
+        else
+            [Sampler(model, variable_ordering)]
+        end
     else
-        [ConditionalSampler(model, dC)]
+        if variable_ordering === nothing
+            [ConditionalSampler(model, dC)]
+        else
+            [ConditionalSampler(model, dC, variable_ordering)]
+        end
     end
 
     sra = if dC==0
@@ -133,7 +142,7 @@ function SelfReinforcedSampler(
         add_layer!(sra, layer_method, deepcopy(model), fit_method!; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf,
-                threading=threading,
+                threading=threading, variable_ordering=variable_ordering,
                 kwargs...)
     end
     
