@@ -190,7 +190,7 @@ function inverse_Jacobian(sra::CondSampler{d, <:Any, T},
     pushforward(sra, x->one(T))(x)
 end
 @inline Jacobian(sra::CondSampler{d, <:Any, T},
-            x::PSDdata{T}) where {d, T<:Number} = 1/inverse_Jacobian(sra, pushforward(sra, x))
+            x::PSDdata{T}) where {d, T<:Number} = pullback(sra, x->one(T))(x)
 
 ## Interface of ConditionalSampler
 

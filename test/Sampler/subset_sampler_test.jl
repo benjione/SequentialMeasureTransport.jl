@@ -94,64 +94,55 @@ end
     @test (1/N^3)*norm(model_c_vec - c_vec, 2) < 0.1
 end
 
-@testset "add layer marginal mapping" begin
+
+@testset "Marginal mapping with unused dimension" begin
+    @testset "Simple" begin
+        f(x) = pdf(Normal(0.0, 1.0), x)
+        model = PSDModel(Legendre(-5.0..5.0), :downward_closed, 4)
+        X = rand(1, 1000)
+        Y = map(x->f(x)[1], eachcol(X))
+        PSDModels.Chi2_fit!(model, eachcol(X), Y, trace=false)
+        normalize!(model)
+        smp = Sampler(model)
+
+        smp_marg = PSDModels.MarginalMapping{2, 0}(smp, [1])
+
+        # compare pdfs
+        f_app = PSDModels.pushforward(smp, x->1.0)
+        f_app_marg = PSDModels.pushforward(smp_marg, x->1.0)
+
+        rng = range(-5, 5, length=100)
+        for x in rng
+            @test isapprox(f_app([x]), f_app_marg([x, 0.0]), atol=1e-9)
+        end
+    end
+    @testset "self reinforced" begin
+        f1(x, y) = pdf(MvNormal([0.0, 0.0], [1.0 0.8; 0.8 1.0]), [x, y])
+        f(x, y, z) = f1(x, y) * f2(y, z)
     
-    f1(x, y) = pdf(MvNormal([0.0, 0.0], [1.0 0.8; 0.8 1.0]), [x, y])
-    f2(y, z) = pdf(MvNormal([0.0, 0.0], [1.0 -0.8; -0.8 1.0]), [y, z])
-    f(x, y, z) = f1(x, y) * f2(y, z)
-
-    f1(x) = f1(x[1], x[2])
-    f2(x) = f2(x[1], x[2])
-    f(x) = f(x[1], x[2], x[3])
-
-    ref_map = PSDModels.ReferenceMaps.AlgebraicReference{3, Float64}()
-    model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 3)
-
-    fit_method(m, x, y; kwargs...) = PSDModels.α_divergence_fit!(m, 2.0, x, y; kwargs...)
-
-    # create empty SelfReinforcedSampler
-    sample = PSDModels.CondSampler{3, 0, Float64}(ref_map, ref_map)
-
-    ### first f1 than f2
-    # initialize β
-    β = (1/16, 1/16)
-
-    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
-                    fit_method, [1, 2]; variable_ordering=[2, 1])
-
-    β = (1/8, 1/16)
-    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
-                    fit_method, [1, 2]; variable_ordering=[2, 1])
-
-    β = (1/4, 1/16)
-    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
-                    fit_method, [1, 2]; variable_ordering=[2, 1])
-
-    β = (1/2, 1/16)
-    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
-                    fit_method, [1, 2]; variable_ordering=[2, 1])
-
-    β = (1, 1/16)
-    PSDModels.add_layer!(sample, (x)->f1(x)^β[1], model, 
-                    fit_method, [1, 2]; variable_ordering=[2, 1])
-
-    β = (1, 1/16)
-    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
-                    fit_method, [2, 3]; variable_ordering=[1, 2])
-
-    β = (1, 1/8)
-    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
-                    fit_method, [2, 3]; variable_ordering=[1, 2])
-
-    β = (1, 1/4)
-    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
-                    fit_method, [2, 3]; variable_ordering=[1, 2])
-
-    β = (1, 1/2)
-    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
-                    fit_method, [2, 3]; variable_ordering=[1, 2])
-
-    β = (1, 1)
-    PSDModels.add_layer!(sample, (x)->f2(x)^β[2], model, 
-                    fit_method, [2, 3]; variable_ordering=[1, 2])
+        f1(x) = f1(x[1], x[2])
+        f2(x) = f2(x[1], x[2])
+        f(x) = f(x[1], x[2], x[3])
+    
+        ref_map = PSDModels.ReferenceMaps.ScalingReference(-10.0*ones(2), 10.0*ones(2))
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 3)
+    
+        fit_method(m, x, y; kwargs...) = PSDModels.α_divergence_fit!(m, 2.0, x, y; kwargs...)
+    
+        sra = SelfReinforcedSampler(f1, model, 3, :Chi2,
+                            ref_map; trace=false,
+                            ϵ=1e-6, λ_2=0.0, λ_1=0.0,
+                            algebraic_base=2.0,
+                            N_sample=1000,
+                            # optimizer=Hypatia.Optimizer
+                )
+        sra_marg = PSDModels.MarginalMapping{3, 0}(sra, [1,2])
+        pdf_func = PSDModels.pushforward(sra_marg, x->1.0)
+        pdf_func_orig = PSDModels.pushforward(sra, x->1.0)
+        rng = [[x...] for x in Iterators.product(range(-5, 5, length=25), range(-5, 5, length=25))]
+        rng = reshape(rng, length(rng))
+        for x in rng
+            @test isapprox(pdf_func([x; [0.0]]), pdf_func_orig(x), atol=1e-9)
+        end 
+    end
 end

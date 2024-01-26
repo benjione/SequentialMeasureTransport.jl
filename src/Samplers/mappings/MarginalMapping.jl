@@ -22,14 +22,16 @@ Interface of Conditional Mapping
 
 function pushforward(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
         u::PSDdata{T}) where {d,dC,T<:Number,dsub,dCsub,Mtype<:ConditionalMapping{dsub,dCsub,T}}
-    u[m.subvariables] = pushforward(m.map, u[m.subvariables])
-    return u
+    _u = copy(u)
+    _u[m.subvariables] = pushforward(m.map, u[m.subvariables])
+    return _u
 end
 
 function pullback(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
         u::PSDdata{T}) where {d,dC,T<:Number,dsub,dCsub,Mtype<:ConditionalMapping{dsub,dCsub,T}}
-    u[m.subvariables] = pullback(m.map, u[m.subvariables])
-    return u
+    _u = copy(u)
+    _u[m.subvariables] = pullback(m.map, u[m.subvariables])
+    return _u
 end
 
 function Jacobian(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
