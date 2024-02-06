@@ -30,6 +30,10 @@ end
     return map_threaded(T, f, A)
 end
 
+@inline function map_threaded(f::Function, A::AbstractArray{<:Vector{T}}) where {T<:Number}
+    return map_threaded(Vector{T}, f, A)
+end
+
 ## threaded map
 function map_threaded(T, f::Function, A::AbstractArray)
     res = Array{T}(undef, size(A))
