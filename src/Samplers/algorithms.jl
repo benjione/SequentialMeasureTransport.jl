@@ -407,11 +407,11 @@ function Adaptive_Self_reinforced_ML_estimation(
     @assert dsub ≤ d
     @assert _d == d
 
-    bridge = BridgingDensities.DiffusionBrigdingDensity{d2, T}()
+    bridge = BridgingDensities.DiffusionBrigdingDensity{dsub, T}()
 
-    if d2 < d
+    if dsub < d
         @assert subspace_reference_map !== nothing
-        @assert typeof(subspace_reference_map) <: ReferenceMap{d2, T}
+        @assert typeof(subspace_reference_map) <: ReferenceMap{dsub, T}
         if to_subspace_reference_map === nothing
             to_subspace_reference_map = reference_map
         end

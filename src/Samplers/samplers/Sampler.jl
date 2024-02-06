@@ -46,6 +46,11 @@ function Sampler(
     return CondSampler(mappings, R_map)
 end
 
+function concatenate(sra::CondSampler{d, dC, T, R1, R2}, srb::CondSampler{d, dC, T, R1, R2}) where {d, dC, T<:Number, R1, R2}
+    samplers = vcat(sra.samplers, srb.samplers)
+    return CondSampler(samplers, sra.R1_map, sra.R2_map)
+end
+
 ## Pretty printing
 function Base.show(io::IO, sra::CondSampler{d, <:Any, T}) where {d, T<:Number}
     println(io, "SelfReinforcedSampler{d=$d, T=$T}")
