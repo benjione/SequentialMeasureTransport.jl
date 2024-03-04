@@ -1,4 +1,4 @@
-using PSDModels
+using SequentialTransportMaps
 using LinearAlgebra
 using ApproxFun
 using Distributions

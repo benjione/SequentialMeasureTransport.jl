@@ -1,7 +1,7 @@
 module ReferenceMaps
 
-import ..PSDModels
-using ..PSDModels: PSDModelOrthonormal, domain_interval_left, domain_interval_right,
+import ..SequentialTransportMaps
+using ..SequentialTransportMaps: PSDModelOrthonormal, domain_interval_left, domain_interval_right,
                    PSDdata, Mapping, pullback, pushforward, Jacobian, inverse_Jacobian
 
 using SpecialFunctions: erf, erfcinv
@@ -44,7 +44,7 @@ end
 
 Pushes forward a vector of a reference distribution to the uniform distribution.
 """
-function PSDModels.pushforward(
+function SequentialTransportMaps.pushforward(
         mapping::ReferenceMap{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -56,7 +56,7 @@ end
 
 Pulls back a vector of the uniform distribution to the reference distribution.
 """
-function PSDModels.pullback(
+function SequentialTransportMaps.pullback(
         mapping::ReferenceMap{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}
@@ -68,7 +68,7 @@ end
 
 Computes the Jacobian of the mapping at the point u.
 """
-function PSDModels.Jacobian(
+function SequentialTransportMaps.Jacobian(
         mapping::ReferenceMap{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -80,7 +80,7 @@ inverse_Jacobian(mapping, u)
 
 Computes the inverse Jacobian of the mapping at the point x.
 """
-function PSDModels.inverse_Jacobian(
+function SequentialTransportMaps.inverse_Jacobian(
         mapping::ReferenceMap{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

@@ -25,7 +25,7 @@ function sample_reference(map::GaussianReference{d, T}, n::Int) where {d, T<:Num
     eachcol(randn(T, d, n) * map.σ)
 end
 
-function PSDModels.pushforward(
+function SequentialTransportMaps.pushforward(
         m::GaussianReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -33,7 +33,7 @@ function PSDModels.pushforward(
 end
 
 
-function PSDModels.pullback(
+function SequentialTransportMaps.pullback(
         m::GaussianReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}
@@ -41,7 +41,7 @@ function PSDModels.pullback(
 end
 
 
-function PSDModels.Jacobian(
+function SequentialTransportMaps.Jacobian(
         m::GaussianReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -49,7 +49,7 @@ function PSDModels.Jacobian(
 end
 
 
-function PSDModels.inverse_Jacobian(
+function SequentialTransportMaps.inverse_Jacobian(
         mapping::GaussianReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

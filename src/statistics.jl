@@ -1,14 +1,14 @@
 module Statistics
 
-using ..PSDModels
-using ..PSDModels: PSDDataVector
-using ..PSDModels: PSDModelOrthonormal
-using ..PSDModels: CondSampler
-using ..PSDModels: domain_interval_left, domain_interval_right
-using ..PSDModels: greedy_IRLS
-using ..PSDModels: _ML_JuMP!
-using ..PSDModels: _KL_JuMP!
-using ..PSDModels: _α_divergence_JuMP!
+using ..SequentialTransportMaps
+using ..SequentialTransportMaps: PSDDataVector
+using ..SequentialTransportMaps: PSDModelOrthonormal
+using ..SequentialTransportMaps: CondSampler
+using ..SequentialTransportMaps: domain_interval_left, domain_interval_right
+using ..SequentialTransportMaps: greedy_IRLS
+using ..SequentialTransportMaps: _ML_JuMP!
+using ..SequentialTransportMaps: _KL_JuMP!
+using ..SequentialTransportMaps: _α_divergence_JuMP!
 using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf

@@ -1,6 +1,6 @@
-import PSDModels.Hermitian_to_low_vec
-import PSDModels.low_vec_to_Symmetric
-import PSDModels.view_mat_for_to_symmetric
+import SequentialTransportMaps.Hermitian_to_low_vec
+import SequentialTransportMaps.low_vec_to_Symmetric
+import SequentialTransportMaps.view_mat_for_to_symmetric
 
 
 @testset "specific test" begin

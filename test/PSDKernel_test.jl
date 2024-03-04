@@ -160,7 +160,7 @@ end
     model = PSDModel(X, Y, k; solver=:gradient_descent)
 
     @inline interval(x) = 0..x[1]
-    int_vec = PSDModels.integrate.(Ref(model), interval.(X))
+    int_vec = SequentialTransportMaps.integrate.(Ref(model), interval.(X))
     @test norm(int_vec - f_int.(X)) < 1e-1
 end
 
@@ -195,7 +195,7 @@ end
 
     X2 = Float64[4, 5, 6]
     X2 = [[x] for x in X2]
-    model2 = PSDModels.add_support(model, X2)
+    model2 = SequentialTransportMaps.add_support(model, X2)
 
     for i in rand(20) * 4
         @test model(i) ≈ model2(i)

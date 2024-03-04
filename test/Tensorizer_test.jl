@@ -1,4 +1,4 @@
-using PSDModels: DownwardClosedTensorizer, 
+using SequentialTransportMaps: DownwardClosedTensorizer, 
             Tensorizer, next_index_proposals, add_index!
 
 

@@ -9,7 +9,7 @@ struct AlgebraicReference{d, T} <: ReferenceMap{d, T}
 end
 
 
-function PSDModels.pushforward(
+function SequentialTransportMaps.pushforward(
         m::AlgebraicReference{<:Any, T}, 
         x::PSDdata{T}
     ) where {T<:Number}
@@ -17,7 +17,7 @@ function PSDModels.pushforward(
 end
 
 
-function PSDModels.pullback(
+function SequentialTransportMaps.pullback(
         m::AlgebraicReference{<:Any, T}, 
         u::PSDdata{T}
     ) where {T<:Number}
@@ -26,7 +26,7 @@ function PSDModels.pullback(
 end
 
 
-function PSDModels.Jacobian(
+function SequentialTransportMaps.Jacobian(
         m::AlgebraicReference{<:Any, T}, 
         x::PSDdata{T}
     ) where {T<:Number}
@@ -34,7 +34,7 @@ function PSDModels.Jacobian(
 end
 
 
-function PSDModels.inverse_Jacobian(
+function SequentialTransportMaps.inverse_Jacobian(
         mapping::AlgebraicReference{<:Any, T}, 
         u::PSDdata{T}
     ) where {T<:Number}

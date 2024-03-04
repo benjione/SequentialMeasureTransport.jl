@@ -1,4 +1,4 @@
-name = "PSDModels"
+name = "SequentialTransportMaps"
 uuid = "880b6c9a-c7f7-4f83-b244-c5d4e47b6fa9"
 authors = ["Benjamin Zanger <benjamin.zanger@inria.fr>"]
 version = "0.1.0"

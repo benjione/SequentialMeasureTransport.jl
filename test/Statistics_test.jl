@@ -1,4 +1,4 @@
-using PSDModels.Statistics
+using SequentialTransportMaps.Statistics
 using Distributions
 
 
