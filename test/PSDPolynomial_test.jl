@@ -146,7 +146,7 @@ end
         normalize_orth_measure!(model)
         @test tr(model.B) ≈ 1.0
 
-        SequentialTransportMaps.normalize!(model)
+        SequentialMeasureTransport.normalize!(model)
         @test tr(model.B) ≈ 1.0
     end
 
@@ -162,7 +162,7 @@ end
             normalize_orth_measure!(model)
             @test tr(model.B) ≈ 1.0
 
-            SequentialTransportMaps.normalize!(model)
+            SequentialMeasureTransport.normalize!(model)
             @test tr(model.B) ≈ 1.0
         end
     end
@@ -177,7 +177,7 @@ end
         Y = f.(X)
 
         fit!(model, X, Y, maxit=2000)
-        model_perm = SequentialTransportMaps.permute_indices(model, [2,1])
+        model_perm = SequentialMeasureTransport.permute_indices(model, [2,1])
         for i=1:100
             x = (rand(2) .- 0.5) * 30.0
             @test model_perm(x) == model([x[2], x[1]])
@@ -194,7 +194,7 @@ end
         Y = f.(X)
 
         fit!(model, X, Y, maxit=2000)
-        model_poly = SequentialTransportMaps.compile(model)
+        model_poly = SequentialMeasureTransport.compile(model)
         for i=1:100
             x = (rand(2) .- 0.5) * 30.0
             @test model_poly(x) ≈ model(x)
@@ -213,11 +213,11 @@ end
         fit!(model, X, Y)
 
         int_model = integral(model, 1; C=0.0)
-        int_model_compiled = SequentialTransportMaps.compiled_integral(model, 1; C=0.0)
+        int_model_compiled = SequentialMeasureTransport.compiled_integral(model, 1; C=0.0)
         @test all(int_model.(X) .≈ int_model_compiled.(X))
 
         int_model2 = integral(model, 2; C=0.0)
-        int_model_compiled2 = SequentialTransportMaps.compiled_integral(model, 2; C=0.0)
+        int_model_compiled2 = SequentialMeasureTransport.compiled_integral(model, 2; C=0.0)
         @test all(int_model2.(X) .≈ int_model_compiled2.(X))
     end
 
@@ -233,13 +233,13 @@ end
         fit!(model, X, Y)
 
         int_model = integral(model, 1)
-        int_model_compiled = SequentialTransportMaps.compiled_integral(model, 1)
+        int_model_compiled = SequentialMeasureTransport.compiled_integral(model, 1)
         for x in X
             @test isapprox(int_model(x), int_model_compiled(x), atol=1e-10)
         end
 
         int_model2 = integral(model, 2)
-        int_model_compiled2 = SequentialTransportMaps.compiled_integral(model, 2)
+        int_model_compiled2 = SequentialMeasureTransport.compiled_integral(model, 2)
         for x in X
             @test isapprox(int_model2(x), int_model_compiled2(x), atol=1e-10)
         end

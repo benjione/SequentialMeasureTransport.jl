@@ -1,4 +1,4 @@
-using SequentialTransportMaps
+using SequentialMeasureTransport
 using LinearAlgebra
 using ApproxFun
 using Distributions

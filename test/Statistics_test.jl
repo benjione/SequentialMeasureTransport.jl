@@ -1,4 +1,4 @@
-using SequentialTransportMaps.Statistics
+using SequentialMeasureTransport.Statistics
 using Distributions
 
 

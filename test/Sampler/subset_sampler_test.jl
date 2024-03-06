@@ -14,19 +14,19 @@
     X = hcat(X1, X2)
     T = Float64
     bridge = DiffusionBrigdingDensity{1}(f, T[1.5, 1.3, 1.0, 0.8, 0.75, 0.5, 0.3, 0.25, 0.18, 0.13, 0.1, 0.07, 0.02, 0.01, 0.005, 0.0], T(2.0))
-    ref_map = SequentialTransportMaps.ReferenceMaps.GaussianReference{2, T}(T(2.0))
-    to_subspace_ref_map = SequentialTransportMaps.ReferenceMaps.GaussianReference{2, T}(T(2.0))
-    subspace_ref_map = SequentialTransportMaps.ReferenceMaps.GaussianReference{1, T}(T(2.0))
+    ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{2, T}(T(2.0))
+    to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{2, T}(T(2.0))
+    subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{1, T}(T(2.0))
 
     model = PSDModel{T}(Legendre(T(0)..T(1)), :downward_closed, 5)
 
-    sra_sub = SequentialTransportMaps.SelfReinforced_ML_estimation(eachcol(T.(X)), 
+    sra_sub = SequentialMeasureTransport.SelfReinforced_ML_estimation(eachcol(T.(X)), 
                     model, bridge, ref_map;
                     subspace_reference_map=subspace_ref_map,
                     to_subspace_reference_map=to_subspace_ref_map, 
                     trace=false)
 
-    X_sample = SequentialTransportMaps.sample(sra_sub, 100)
+    X_sample = SequentialMeasureTransport.sample(sra_sub, 100)
     @test all([length(x) == 2 for x in X_sample])
     # test pdf
     rng = [[x...] for x in Iterators.product(range(-5, 5, length=50), range(-5, 5, length=50))]
@@ -54,15 +54,15 @@ end
     bridge = DiffusionBrigdingDensity{2}(f, T[1.5, 1.3, 1.0, 0.8, 0.75, 
                                             0.5, 0.3, 0.25, 0.18, 0.13, 
                                             0.1, 0.07, 0.02, 0.01, 0.005, 0.0], T(2.0))
-    ref_map = SequentialTransportMaps.ReferenceMaps.GaussianReference{3, T}(T(2.5))
-    to_subspace_ref_map = SequentialTransportMaps.ReferenceMaps.GaussianReference{3, T}(T(3.0))
-    subspace_ref_map = SequentialTransportMaps.ReferenceMaps.GaussianReference{2, T}(T(3.0))
-    # to_subspace_ref_map = SequentialTransportMaps.ReferenceMaps.AlgebraicReference{3, T}()
-    # subspace_ref_map = SequentialTransportMaps.ReferenceMaps.AlgebraicReference{2, T}()
+    ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{3, T}(T(2.5))
+    to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{3, T}(T(3.0))
+    subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{2, T}(T(3.0))
+    # to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{3, T}()
+    # subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{2, T}()
 
     model = PSDModel{T}(Legendre(T(0)..T(1))^2, :downward_closed, 3)
 
-    sra_sub = SequentialTransportMaps.SelfReinforced_ML_estimation(eachcol(T.(X)), 
+    sra_sub = SequentialMeasureTransport.SelfReinforced_ML_estimation(eachcol(T.(X)), 
                     model, bridge, ref_map;
                     subspace_reference_map=subspace_ref_map,
                     to_subspace_reference_map=to_subspace_ref_map,
@@ -70,7 +70,7 @@ end
                     dCsub=1,
                     trace=false)
 
-    X_sample = SequentialTransportMaps.sample(sra_sub, 100)
+    X_sample = SequentialMeasureTransport.sample(sra_sub, 100)
     @test all([length(x) == 3 for x in X_sample])
     # test pdf
     N = 20
@@ -88,8 +88,8 @@ end
     rng = reshape(rng, length(rng))
     rng_marg = reshape(rng_marg, length(rng_marg))
     @test norm(pdf.(Ref(sra_sub), rng) - f.(rng), Inf) < 0.4
-    @test norm(SequentialTransportMaps.marg_pdf.(Ref(sra_sub), rng_marg) - f_marg.(rng_marg), Inf) < 0.4
-    model_c_vec = rng .|> (x)->SequentialTransportMaps.cond_pdf(sra_sub, x[3:3], x[1:2])
+    @test norm(SequentialMeasureTransport.marg_pdf.(Ref(sra_sub), rng_marg) - f_marg.(rng_marg), Inf) < 0.4
+    model_c_vec = rng .|> (x)->SequentialMeasureTransport.cond_pdf(sra_sub, x[3:3], x[1:2])
     c_vec = rng .|> (x)->f_cond(x[1:2], x[3:3])
     @test (1/N^3)*norm(model_c_vec - c_vec, 2) < 0.1
 end
@@ -101,15 +101,15 @@ end
         model = PSDModel(Legendre(-5.0..5.0), :downward_closed, 4)
         X = rand(1, 1000)
         Y = map(x->f(x)[1], eachcol(X))
-        SequentialTransportMaps.Chi2_fit!(model, eachcol(X), Y, trace=false)
+        SequentialMeasureTransport.Chi2_fit!(model, eachcol(X), Y, trace=false)
         normalize!(model)
         smp = Sampler(model)
 
-        smp_marg = SequentialTransportMaps.MarginalMapping{2, 0}(smp, [1])
+        smp_marg = SequentialMeasureTransport.MarginalMapping{2, 0}(smp, [1])
 
         # compare pdfs
-        f_app = SequentialTransportMaps.pushforward(smp, x->1.0)
-        f_app_marg = SequentialTransportMaps.pushforward(smp_marg, x->1.0)
+        f_app = SequentialMeasureTransport.pushforward(smp, x->1.0)
+        f_app_marg = SequentialMeasureTransport.pushforward(smp_marg, x->1.0)
 
         rng = range(-5, 5, length=100)
         for x in rng
@@ -124,10 +124,10 @@ end
         f2(x) = f2(x[1], x[2])
         f(x) = f(x[1], x[2], x[3])
     
-        ref_map = SequentialTransportMaps.ReferenceMaps.ScalingReference(-10.0*ones(2), 10.0*ones(2))
+        ref_map = SequentialMeasureTransport.ReferenceMaps.ScalingReference(-10.0*ones(2), 10.0*ones(2))
         model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 3)
     
-        fit_method(m, x, y; kwargs...) = SequentialTransportMaps.α_divergence_fit!(m, 2.0, x, y; kwargs...)
+        fit_method(m, x, y; kwargs...) = SequentialMeasureTransport.α_divergence_fit!(m, 2.0, x, y; kwargs...)
     
         sra = SelfReinforcedSampler(f1, model, 3, :Chi2,
                             ref_map; trace=false,
@@ -136,9 +136,9 @@ end
                             N_sample=1000,
                             # optimizer=Hypatia.Optimizer
                 )
-        sra_marg = SequentialTransportMaps.MarginalMapping{3, 0}(sra, [1,2])
-        pdf_func = SequentialTransportMaps.pushforward(sra_marg, x->1.0)
-        pdf_func_orig = SequentialTransportMaps.pushforward(sra, x->1.0)
+        sra_marg = SequentialMeasureTransport.MarginalMapping{3, 0}(sra, [1,2])
+        pdf_func = SequentialMeasureTransport.pushforward(sra_marg, x->1.0)
+        pdf_func_orig = SequentialMeasureTransport.pushforward(sra, x->1.0)
         rng = [[x...] for x in Iterators.product(range(-5, 5, length=25), range(-5, 5, length=25))]
         rng = reshape(rng, length(rng))
         for x in rng

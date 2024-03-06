@@ -1,4 +1,4 @@
-using SequentialTransportMaps: DownwardClosedTensorizer, 
+using SequentialMeasureTransport: DownwardClosedTensorizer, 
             Tensorizer, next_index_proposals, add_index!
 
 

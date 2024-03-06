@@ -1,5 +1,5 @@
-using SequentialTransportMaps.ReferenceMaps
-using SequentialTransportMaps.BridgingDensities
+using SequentialMeasureTransport.ReferenceMaps
+using SequentialMeasureTransport.BridgingDensities
 using ApproxFun
 using Distributions
 
@@ -12,7 +12,7 @@ using Distributions
             Y = f.(X)
             fit!(model, X, Y, trace=false)
             smp = Sampler(model)
-            x = SequentialTransportMaps.sample(smp)
+            x = SequentialMeasureTransport.sample(smp)
             @test all([-1≤xi≤1 for xi in x])
         end
     end
@@ -35,11 +35,11 @@ end
             f,
             model,
             2, :Chi2,
-            SequentialTransportMaps.ScalingReference{2}(-ones(2), ones(2));
+            SequentialMeasureTransport.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
         )
         for _=1:10
-            x = SequentialTransportMaps.sample(sra)
+            x = SequentialMeasureTransport.sample(sra)
             @test all([-1≤xi≤1 for xi in x])
         end 
     end
@@ -52,11 +52,11 @@ end
             f,
             model,
             2, :Chi2,
-            SequentialTransportMaps.GaussianReference{2, Float64}(2.0);
+            SequentialMeasureTransport.GaussianReference{2, Float64}(2.0);
             relaxation_method=:algebraic,
             N_sample=1000
         )
-        x = SequentialTransportMaps.sample(sra)
+        x = SequentialMeasureTransport.sample(sra)
     end
 
     @testset "broadcasted target" begin
@@ -66,13 +66,13 @@ end
             f,
             model,
             2, :Chi2,
-            SequentialTransportMaps.ScalingReference{2}(-ones(2), ones(2));
+            SequentialMeasureTransport.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
         )
         for _=1:10
-            x = SequentialTransportMaps.sample(sra)
+            x = SequentialMeasureTransport.sample(sra)
             @test all([-1≤xi≤1 for xi in x])
         end 
     end
@@ -84,12 +84,12 @@ end
             f,
             model,
             2, :Chi2,
-            SequentialTransportMaps.GaussianReference{2, Float64}(2.0);
+            SequentialMeasureTransport.GaussianReference{2, Float64}(2.0);
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
         )
-        x = SequentialTransportMaps.sample(sra)
+        x = SequentialMeasureTransport.sample(sra)
     end
 
     @testset "Sampling irregular domain" begin
@@ -100,13 +100,13 @@ end
             f,
             model,
             1, :Chi2,
-            SequentialTransportMaps.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
+            SequentialMeasureTransport.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
             relaxation_method=:algebraic,
             N_sample=1000,
             trace=false,
             λ_1=1e-3
         )
-        x = SequentialTransportMaps.sample(sra)
+        x = SequentialMeasureTransport.sample(sra)
     end
 
     @testset "broadcasted irregular domain" begin
@@ -116,12 +116,12 @@ end
             f,
             model,
             2, :Chi2,
-            SequentialTransportMaps.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
+            SequentialMeasureTransport.ScalingReference{2}([-1.0, 1.0], [0.0, 2.0]);
             N_sample=500,
             broadcasted_tar_pdf=true,
             trace=false,
         )
-        x = SequentialTransportMaps.sample(sra)
+        x = SequentialMeasureTransport.sample(sra)
     end
 end
 
@@ -133,11 +133,11 @@ end
             f,
             model,
             2, :Chi2,
-            SequentialTransportMaps.ScalingReference{2}(-ones(2), ones(2));
+            SequentialMeasureTransport.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
         )
         for _=1:10
-            x = SequentialTransportMaps.sample(sra)
+            x = SequentialMeasureTransport.sample(sra)
             @test all([-1≤xi≤1 for xi in x])
         end 
     end
@@ -149,11 +149,11 @@ end
             f,
             model,
             2, :KL,
-            SequentialTransportMaps.ScalingReference{2}(-ones(2), ones(2));
+            SequentialMeasureTransport.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
         )
         for _=1:10
-            x = SequentialTransportMaps.sample(sra)
+            x = SequentialMeasureTransport.sample(sra)
             @test all([-1≤xi≤1 for xi in x])
         end 
     end
@@ -165,11 +165,11 @@ end
             f,
             model,
             2, :Hellinger,
-            SequentialTransportMaps.ScalingReference{2}(-ones(2), ones(2));
+            SequentialMeasureTransport.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
         )
         for _=1:10
-            x = SequentialTransportMaps.sample(sra)
+            x = SequentialMeasureTransport.sample(sra)
             @test all([-1≤xi≤1 for xi in x])
         end 
     end
@@ -181,11 +181,11 @@ end
             f,
             model,
             2, :TV,
-            SequentialTransportMaps.ScalingReference{2}(-ones(2), ones(2));
+            SequentialMeasureTransport.ScalingReference{2}(-ones(2), ones(2));
             N_sample=500,
         )
         for _=1:10
-            x = SequentialTransportMaps.sample(sra)
+            x = SequentialMeasureTransport.sample(sra)
             @test all([-1≤xi≤1 for xi in x])
         end 
     end

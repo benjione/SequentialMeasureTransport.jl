@@ -1,5 +1,5 @@
-using SequentialTransportMaps.ReferenceMaps
-using SequentialTransportMaps.BridgingDensities
+using SequentialMeasureTransport.ReferenceMaps
+using SequentialMeasureTransport.BridgingDensities
 
 @testset "Alpha-geodesic bridging test" begin
     @testset "KL alpha, α=1" begin
@@ -18,7 +18,7 @@ using SequentialTransportMaps.BridgingDensities
             trace=false,
         )
         N = 1000
-        X = SequentialTransportMaps.sample(sra, N)
+        X = SequentialMeasureTransport.sample(sra, N)
         @test length(X) == N
         @test length(X[1]) == 2
         # Check that the mean is close to 2
@@ -41,7 +41,7 @@ using SequentialTransportMaps.BridgingDensities
             trace=false,
         )
         N = 1000
-        X = SequentialTransportMaps.sample(sra, N)
+        X = SequentialMeasureTransport.sample(sra, N)
         @test length(X) == N
         @test length(X[1]) == 2
         # Check that the mean is close to 2

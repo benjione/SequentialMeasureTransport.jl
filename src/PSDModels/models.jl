@@ -1,7 +1,7 @@
 include("kernel/PSDModelKernel.jl")
 include("feature_map/PSDModelFM.jl")
 
-# optimization algorithms acting on SequentialTransportMaps
+# optimization algorithms acting on SequentialMeasureTransport
 include("optimization.jl")
 
 function PSDModel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
