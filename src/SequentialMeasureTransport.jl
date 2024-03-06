@@ -1,4 +1,4 @@
-module PSDModels
+module SequentialMeasureTransport
 
 using LinearAlgebra, SparseArrays
 using KernelFunctions: Kernel, kernelmatrix

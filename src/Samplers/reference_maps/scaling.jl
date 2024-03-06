@@ -27,7 +27,7 @@ end
 
 ## Interface implementation
 
-function PSDModels.pushforward(
+function SequentialMeasureTransport.pushforward(
         m::ScalingReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -36,7 +36,7 @@ function PSDModels.pushforward(
 end
 
 
-function PSDModels.pullback(
+function SequentialMeasureTransport.pullback(
         m::ScalingReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}
@@ -45,7 +45,7 @@ function PSDModels.pullback(
 end
 
 
-function PSDModels.Jacobian(
+function SequentialMeasureTransport.Jacobian(
         mapping::ScalingReference{d, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
@@ -57,7 +57,7 @@ function PSDModels.Jacobian(
 end
 
 
-function PSDModels.inverse_Jacobian(
+function SequentialMeasureTransport.inverse_Jacobian(
         mapping::ScalingReference{d, T}, 
         u::PSDdata{T}
     ) where {d, T<:Number}

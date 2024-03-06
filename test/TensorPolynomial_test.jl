@@ -1,4 +1,4 @@
-using PSDModels: FMTensorPolynomial, reduce_dim, trivial_TensorPolynomial, dimensions
+using SequentialMeasureTransport: FMTensorPolynomial, reduce_dim, trivial_TensorPolynomial, dimensions
 using FastGaussQuadrature: gausslegendre, gausschebyshevt, gausshermite
 using ApproxFun
 

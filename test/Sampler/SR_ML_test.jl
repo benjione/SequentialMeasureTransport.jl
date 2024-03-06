@@ -11,8 +11,8 @@
         samples = [[x] for x in samples]
         model = PSDModel(Legendre(0.0..1.0), :downward_closed, 3)
         bridge = DiffusionBrigdingDensity{1}(x->1.0, [1.0, 0.5, 0.25, 0.1, 0.05, 0.0], 2.0)
-        ref_map = PSDModels.ReferenceMaps.GaussianReference{1, Float64}(2.0)
-        sra = PSDModels.SelfReinforced_ML_estimation(
+        ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{1, Float64}(2.0)
+        sra = SequentialMeasureTransport.SelfReinforced_ML_estimation(
             samples,
             model,
             bridge,
@@ -38,8 +38,8 @@ end
         X_train = [[x] for x in X_train]
         X_val = [[x] for x in X_val]
         model = PSDModel(Legendre(0.0..1.0), :downward_closed, 5)
-        ref_map = PSDModels.ReferenceMaps.AlgebraicReference{1, Float64}()
-        sra = PSDModels.Adaptive_Self_reinforced_ML_estimation(
+        ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{1, Float64}()
+        sra = SequentialMeasureTransport.Adaptive_Self_reinforced_ML_estimation(
             X_train,
             X_val,
             model,

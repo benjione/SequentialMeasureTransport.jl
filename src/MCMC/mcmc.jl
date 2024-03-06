@@ -4,8 +4,8 @@ Implements MCMC based on the `AbstractMCMC` interface using the
 sampler from `Sampler` in this package.
 """
 
-using ..PSDModels
-using ..PSDModels: AbstractSampler
+using ..SequentialMeasureTransport
+using ..SequentialMeasureTransport: AbstractSampler
 import AbstractMCMC
 import MCMCChains
 using Distributions
@@ -29,7 +29,7 @@ end
 function (a::MCMCModel{F})(x::Vector{T}, 
                 sampler::AbstractSampler{<:Any, <:Any, T}
             ) where {F, T<:Number}
-    return PSDModels.pullback(sampler, x->a.model(x))(x)
+    return SequentialMeasureTransport.pullback(sampler, x->a.model(x))(x)
 end
 
 function proposal(sampler::MCMCSampler{T}, x::Vector{T}) where {T}
@@ -42,7 +42,7 @@ function AbstractMCMC.step(rng::Random.AbstractRNG,
         model::MCMCModel,
         samp::MCMCSampler{T};
         kwargs...) where {T <: Number}
-    next_θ = PSDModels.sample(samp.sampler)
+    next_θ = SequentialMeasureTransport.sample(samp.sampler)
     return next_θ, next_θ
 end
 function AbstractMCMC.step(rng::Random.AbstractRNG,
