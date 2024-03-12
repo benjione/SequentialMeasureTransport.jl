@@ -1,5 +1,4 @@
 import Symbolics as Sym
-import SymbolicNumericIntegration as SNI
 
 """
 A PSD model where the feature map is made out of orthonormal 
@@ -201,16 +200,10 @@ end
 
 function compiled_integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d, T<:Number, S}
     @assert 1 ≤ dim ≤ d
-    if C === nothing
-        # use the left endpoint of the original domain,
-        # even if there is a mapping.
-        C = leftendpoint(a.Φ.space.spaces[dim].domain)
-    end
+    M = integral(a, dim; C = C)
     Sym.@variables x[1:d]
-    poly = a(x)
-    int_poly = SNI.integrate(poly, x[dim]; symbolic=true, detailed=false)
-    int_poly = int_poly - Sym.substitute(int_poly, Dict([x[dim] => C]))
-    comp_int_poly = Sym.build_function(int_poly, x, expression=Val{false})
+    poly = M(x)
+    comp_int_poly = Sym.build_function(poly, x, expression=Val{false})
     Base.remove_linenums!(comp_int_poly)
     return comp_int_poly
 end
