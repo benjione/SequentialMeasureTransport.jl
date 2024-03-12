@@ -149,7 +149,21 @@ function _eval(p::FMTensorPolynomial{d, T, S, tsp},
     return map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
 
-
+function _eval(p::FMTensorPolynomial{d, T, S, tsp}, 
+               x::AbstractVector{T2},
+               ignore_dim::Vector{Int}) where {d, T<:Number, T2<:Number, S, tsp<:TensorSpace}
+    @assert length(x) == d
+    iter_dim = setdiff(1:d, ignore_dim)
+    A = zeros(T2, p.highest_order+1, d)
+    poly(k,i) = begin
+        l = ApproxFun.leftendpoint(p.space.spaces[i].domain)
+        r = ApproxFun.rightendpoint(p.space.spaces[i].domain)
+        ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], (x[i]-l)/(r-l) * 2.0 - 1.0)
+    end
+    map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
+    @inline Ψ(k) = mapreduce(j->A[k[j], j], *, iter_dim, init=one(T))
+    return map(i -> Ψ(σ_inv(p, i)), 1:p.N)
+end
 
 
 """
@@ -194,10 +208,10 @@ function calculate_M_quadrature(p::FMTensorPolynomial{d, T},
     A = T[Fun(p.space.spaces[dim], [zeros(T, k);p.normal_factor[dim][k+1]])(x_i) for k=0:p.highest_order, x_i in x]
     meas_vec = measure.(x)
 
-    integrate(i,j) = corr * dot(w, meas_vec.*A[i,:].*A[j,:])
+    _integrate(i,j) = corr * dot(w, meas_vec.*A[i,:].*A[j,:])
     for i=1:p.N
         for j=i:p.N
-            M[i,j] = integrate(σ_inv(p, i)[dim],σ_inv(p, j)[dim])
+            M[i,j] = _integrate(σ_inv(p, i)[dim],σ_inv(p, j)[dim])
         end
     end
     return Symmetric(M)

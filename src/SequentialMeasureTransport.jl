@@ -21,7 +21,7 @@ export PSDModel
 export fit!, minimize!, IRLS!
 
 ## export differentiation and integration
-export gradient, integrate
+export gradient
 export integral
 export normalize!, normalize_orth_measure!
 export marginalize_orth_measure, marginalize

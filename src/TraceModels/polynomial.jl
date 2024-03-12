@@ -6,6 +6,10 @@ function ΦΦT(a::OT, x::PSDdata{T}) where {T<:Number, OT<:OrthonormalTraceModel
     return a.ΦΦT(x)
 end
 
+function ΦΦT(a::OT, x::PSDdata{T}) where {T<:Number, OT<:OrthonormalTraceModel{<:Number, Nothing}}
+    return a.ΦΦT(x)
+end
+
 function ΦΦT(a::OrthonormalTraceModel{T, <:OMF}, x::PSDdata{T}) where {T<:Number}
     return a.ΦΦT(ξ(a.mapping, x)) * (1/x_deriv_prod(a.mapping, ξ(a.mapping, x), a.ΦΦT.int_dim))
 end

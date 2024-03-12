@@ -61,3 +61,43 @@ function (a::SquaredPolynomialMatrix{d, T, S, FunType})(x::PSDdata{T}) where {d,
     return Symmetric(M)
 end
 
+
+function (a::SquaredPolynomialMatrix{d, T, S, FunType})(x::PSDdata{T2}) where {d, T<:Number, T2<:Number, S, FunType}
+    _clenshaw(p, x) = begin
+        l = ApproxFun.leftendpoint(p.space.domain)
+        r = ApproxFun.rightendpoint(p.space.domain)
+        ApproxFun.clenshaw(p.space, p.coefficients, (x-l)/(r-l) * 2.0 - 1.0)
+    end
+
+    vec = _eval(a.Φ, x, a.int_dim)
+    M = T2.(vec * vec')
+    eval_Fun = Vector{Symmetric{T2, Matrix{T2}}}(undef, length(a.int_dim))
+    for k_index=1:length(a.int_dim)
+        k = a.int_dim[k_index]
+        tmp_mat = zeros(T2, size(a.int_Fun[k_index]))
+        for i=1:size(a.int_Fun[k_index], 1), j=i:size(a.int_Fun[k_index], 2)
+            # tmp_mat[i, j] = a.int_Fun[k_index][i, j](x[k])
+            tmp_mat[i, j] = _clenshaw(a.int_Fun[k_index][i, j], x[k])
+        end
+        # no need to save as symmetric, since read in this order as well.
+        eval_Fun[k_index] = Symmetric(tmp_mat)
+    end
+    # eval_Fun = map((M, xk)->map(f->f(xk), M), a.int_Fun, x[a.int_dim])
+
+    ind_j_list = NTuple{d, Int}[σ_inv(a.Φ, j) for j=1:size(M, 2)]
+    for i = 1:size(M, 1)
+        ind_i = σ_inv(a.Φ, i)
+        for j = i:size(M, 2)
+            # ind_j = σ_inv(a.Φ, j)
+            ind_j = ind_j_list[j]
+            @inbounds for k_index=1:length(a.int_dim)
+                k = a.int_dim[k_index]
+                i1 = ind_i[k]::Int
+                i2 = ind_j[k]::Int
+                M[i, j] *= eval_Fun[k_index][i1, i2]
+            end
+        end
+    end
+    return Symmetric(M)
+end
+
