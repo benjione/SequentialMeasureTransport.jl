@@ -32,7 +32,6 @@ export mul!
 # export sampler
 export Sampler, ConditionalSampler
 export SelfReinforcedSampler
-export sample
 
 # for working with 1D and nD data
 const PSDdata{T} = AbstractVector{T} where {T<:Number}
