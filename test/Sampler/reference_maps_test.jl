@@ -1,62 +1,80 @@
-@testset "Scaling Reference" begin
-    f(x) = sum(x.^2)
-    model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
-    sra = SelfReinforcedSampler(
-        f,
-        model,
-        1, :Chi2,
-        SequentialMeasureTransport.ScalingReference{2}([-5.0, 3.0], [-3.0, 10.0]);
-        N_sample=500,
-    )
-    x = SequentialMeasureTransport.sample_reference(sra)
-    @test -5.0 ≤ x[1] ≤ -3.0
-    @test 3.0 ≤ x[2] ≤ 10.0
+import SequentialMeasureTransport as SMT
 
-    N = 20
-    X = SequentialMeasureTransport.sample_reference(sra, N)
-    @test length(X) == N
-    @test length(X[1]) == 2
-    for X_i in X
-        @test -5.0 ≤ X_i[1] ≤ -3.0
-        @test 3.0 ≤ X_i[2] ≤ 10.0
+@testset "Scaling Reference" begin
+    @testset "T^{-1}(T(x)) = x" begin
+        for d=1:5
+            L = rand(d)
+            R = L + 2.0 * rand(d) .+ 0.1
+            ref_map = SMT.ScalingReference{d}(L, R)
+
+            for i=1:100
+                x = rand(d)
+                @test SMT.pullback(ref_map, SMT.pushforward(ref_map, x)) ≈ x
+            end
+        end
+    end
+    @testset "T^♯ T_♯ f = f" begin
+        for d=1:5
+            L = rand(d)
+            R = L + 2.0 * rand(d) .+ 0.1
+            ref_map = SMT.ScalingReference{d}(L, R)
+            f_app = SMT.pullback(ref_map, x->1.0)
+            f_app_2 = SMT.pushforward(ref_map, f_app)
+
+            for i=1:100
+                x = rand(d)
+                @test f_app_2(x) ≈ 1.0
+            end
+        end
     end
 end
 
 @testset "Gaussian Reference" begin
-    f(x) = exp(-sum(x.^2))
-    model = PSDModel(Legendre(0.0..1.0)^2, 
-                    :downward_closed, 1)
-    sra = SelfReinforcedSampler(
-        f,
-        model,
-        1, :Chi2,
-        SequentialMeasureTransport.GaussianReference{2, Float64}(1.0);
-        N_sample=500,
-    )
+    @testset "T^{-1}(T(x)) = x" begin
+        for d=1:5
+            ref_map = SMT.GaussianReference{d, Float64}()
 
-    N = 100
-    X = SequentialMeasureTransport.sample_reference(sra, N)
-    @test length(X) == N
-    @test length(X[1]) == 2
-    @test abs.((1/N) * sum(X)) ≤ [0.5, 0.5] # Check that the mean is close to zero  
+            for i=1:100
+                x = rand(d)
+                @test SMT.pullback(ref_map, SMT.pushforward(ref_map, x)) ≈ x
+            end
+        end
+    end
+    @testset "T^♯ T_♯ f = f" begin
+        for d=1:5
+            ref_map = SMT.GaussianReference{d, Float64}()
+            f_app = SMT.pullback(ref_map, x->1.0)
+            f_app_2 = SMT.pushforward(ref_map, f_app)
+    
+            for i=1:100
+                x = rand(d)
+                @test f_app_2(x) ≈ 1.0
+            end
+        end
+    end
 end
 
 @testset "Algebraic Reference" begin
-    f(x) = exp(-sum(x.^2))
-    model = PSDModel(Legendre(0.0..1.0)^2, 
-                    :downward_closed, 3)
-    sra = SelfReinforcedSampler(
-        f,
-        model,
-        1, :Chi2,
-        SequentialMeasureTransport.AlgebraicReference{2, Float64}();
-        N_sample=1000,
-        maxit=6000,trace=false
-    )
+    @testset "T^{-1}(T(x)) = x" begin
+        for d=1:5
+            ref_map = SMT.AlgebraicReference{d, Float64}()
 
-    N = 1000
-    X = SequentialMeasureTransport.sample_reference(sra, N)
-    @test length(X) == N
-    @test length(X[1]) == 2
-    @test abs.(sum(X))/N ≤ [0.5, 0.5] # Check that the mean is close to zero  
+            for i=1:100
+                x = rand(d)
+                @test SMT.pullback(ref_map, SMT.pushforward(ref_map, x)) ≈ x
+            end
+        end
+    end
+    @testset "T^♯ T_♯ f = f" begin
+        for d=1:5
+            ref_map = SMT.AlgebraicReference{d, Float64}()
+            f_app = SMT.pullback(ref_map, x->1.0)
+            f_app_2 = SMT.pushforward(ref_map, f_app)
+    
+            for i=1:100
+                x = rand(d)
+                @test f_app_2(x) ≈ 1.0
+            end
+        end
+    end
 end

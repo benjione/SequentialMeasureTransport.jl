@@ -30,7 +30,7 @@ function SequentialMeasureTransport.Jacobian(
         m::AlgebraicReference{<:Any, T}, 
         x::PSDdata{T}
     ) where {T<:Number}
-    return mapreduce(xi->0.5/(1+xi^2)^(3/2), *, x)
+    return mapreduce(xi->0.5/(1+(xi)^2)^(3/2), *, x)
 end
 
 
@@ -39,5 +39,5 @@ function SequentialMeasureTransport.inverse_Jacobian(
         u::PSDdata{T}
     ) where {T<:Number}
     # inverse function theorem
-    return mapreduce(ui->2.0/(1-ui^2)^(3/2), *, u)
+    return mapreduce(ui->2.0/(1-((2*ui - 1.0)^2))^(3/2), *, u)
 end

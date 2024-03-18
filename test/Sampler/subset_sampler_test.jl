@@ -18,6 +18,10 @@
     to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{2, T}(T(2.0))
     subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{1, T}(T(2.0))
 
+    # ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{2, T}()
+    # to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{2, T}()
+    # subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{1, T}()
+
     model = PSDModel{T}(Legendre(T(0)..T(1)), :downward_closed, 5)
 
     sra_sub = SequentialMeasureTransport.SelfReinforced_ML_estimation(eachcol(T.(X)), 

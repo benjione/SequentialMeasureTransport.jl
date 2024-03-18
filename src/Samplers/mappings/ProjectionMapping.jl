@@ -1,4 +1,6 @@
-
+"""
+The projection mapping is always defined on the uniform distribution on [0,1]^d.
+"""
 struct ProjectionMapping{d, dC, T<:Number,
             dsub, dCsub,
             Mtype<:ConditionalMapping{dsub, dCsub, T},
