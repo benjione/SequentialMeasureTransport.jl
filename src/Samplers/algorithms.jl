@@ -53,6 +53,7 @@ function SelfReinforcedSampler(
                 ### others
                 broadcasted_tar_pdf=false,
                 threading=true,
+                pdf_threading=true,     # turn off threading for pdf computation while keeping threading in general
                 variable_ordering=nothing,
                 dC=0,
                 kwargs...) where {d, T<:Number, S}
@@ -98,7 +99,7 @@ function SelfReinforcedSampler(
         π_tar_samp(X, 1)
     else
         _Y = zeros(T, N_sample)
-        @_condusethreads threading for i in 1:N_sample
+        @_condusethreads threading&&pdf_threading for i in 1:N_sample
             _Y[i] = π_tar_samp(X[i], 1)
         end
         _Y
@@ -157,6 +158,7 @@ function add_layer!(
         N_sample=1000,
         broadcasted_tar_pdf=false,
         threading=true,
+        pdf_threading=true,     # turn off threading for pdf computation while keeping threading in general
         variable_ordering=nothing,
         kwargs...
     ) where {d, T<:Number, dC}
@@ -180,7 +182,7 @@ function add_layer!(
         pdf_tar_pullbacked_sample(X)
     else
         _Y = zeros(T, N_sample)
-        @_condusethreads threading for i in 1:N_sample
+        @_condusethreads threading && pdf_threading for i in 1:N_sample
             _Y[i] = pdf_tar_pullbacked_sample(X[i])
         end
         _Y
@@ -217,6 +219,7 @@ function add_layer!(
         N_sample=1000,
         broadcasted_tar_pdf=false,
         threading=true,
+        pdf_threading=true,     # turn off threading for pdf computation while keeping threading in general
         variable_ordering=nothing,
         dC2 = 0,
         kwargs...
@@ -245,7 +248,7 @@ function add_layer!(
     else
         _Y = zeros(T, N_sample)
         _X = eachcol(X)
-        @_condusethreads threading for i in 1:N_sample
+        @_condusethreads threading && pdf_threading for i in 1:N_sample
             _Y[i] = pdf_tar_pullbacked_sample(_X[i])
         end
         _Y
