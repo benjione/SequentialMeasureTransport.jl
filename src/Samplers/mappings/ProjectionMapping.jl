@@ -15,12 +15,16 @@ struct ProjectionMapping{d, dC, T<:Number,
     function ProjectionMapping{d, dC}(mapping::ConditionalMapping{dsub, dCsub, T}, 
             map_variables::AbstractVector{Int},
             R_map::R1, R_map_sub::R2) where {d, dC, dsub, dCsub, T<:Number, R1, R2}
-        @assert d2 < d
+        @assert dsub < d
         @assert all(1<=k<=d for k in map_variables)
         @assert dCsub ≤ dC
-        X = sparse(map_variables, 
-                   1:length(map_variables), 
-                   ones(T, length(map_variables)))
+        if dC > 0
+            @assert dCsub > 0
+        end
+        X = spzeros(T, d, dsub)
+        for (i, j) in enumerate(map_variables)
+            X[j, i] = 1
+        end
         P_tilde = X'
         P = X * P_tilde
         new{d, dC, T, dsub, dCsub, typeof(mapping), R1, R2}(
@@ -32,7 +36,7 @@ struct ProjectionMapping{d, dC, T<:Number,
     function ProjectionMapping{d}(mapping::Mapping{dsub, T}, 
             sampler_variables::AbstractVector{Int},
             R_map::R, R_map_sub::R2) where {d, dsub, T<:Number, R, R2}
-            ProjectionMapping{d, 0}(mapping, sampler_variables, R_map, R_map_sub, 0)
+            ProjectionMapping{d, 0}(mapping, sampler_variables, R_map, R_map_sub)
     end
     function ProjectionMapping{d}(sampler::Mapping{dsub, T}, 
                             X::AbstractMatrix{T},
@@ -202,7 +206,7 @@ end
 function marg_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
                 x::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    return 1.0/marg_inverse_Jacobian(sampler, pushforward(sampler, x))
+    return 1.0/marg_inverse_Jacobian(sampler, marg_pushforward(sampler, x))
 end
 
 function marg_pushforward(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 

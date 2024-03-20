@@ -167,7 +167,7 @@ function add_layer!(
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sra, pdf_tar)        
     else 
-        pullback_pdf_function(sra, pdf_tar)
+        pullback(sra, pdf_tar)
     end
     pdf_tar_pullbacked_sample = if broadcasted_tar_pdf
         let π_tar=pdf_tar_pullbacked, sra=sra
@@ -232,7 +232,7 @@ function add_layer!(
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sra, pdf_tar)        
     else 
-        pullback_pdf_function(sra, (x)->pdf_tar(x[subvariables]))
+        pullback(sra, (x)->pdf_tar(x[subvariables]))
     end
     pdf_tar_pullbacked_sample = if broadcasted_tar_pdf
         let π_tar=pdf_tar_pullbacked, sra=sra

@@ -2,8 +2,8 @@ using Roots: find_zero
 
 struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Nothing, Nothing}
     model::PSDModelOrthonormal{d, T, S}                 # model to sample from
-    # margins::Vector{<:PSDModelOrthonormal{<:Any, T, S}} # start with x_{≤1}, then x_{≤2}, ...
-    margins::Vector{Function}                           # start with x_{≤1}, then x_{≤2}, ...
+    margins::Vector{<:PSDModelOrthonormal{<:Any, T, S}} # start with x_{≤1}, then x_{≤2}, ...
+    # margins::Vector{Function}                           # start with x_{≤1}, then x_{≤2}, ...
     # integrals::Vector{<:OrthonormalTraceModel{T, S}}    # integrals of marginals
     integrals::Vector{Function}                         # integrals of marginals
     variable_ordering::Vector{Int}                      # variable ordering for the model
@@ -18,7 +18,7 @@ struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Not
         margins = PSDModelOrthonormal{<:Any, T, S}[marginalize(perm_model, collect(k:d)) for k in 2:d]
         margins = [margins; perm_model] # add the full model at last
         integrals = map((x,k)->compiled_integral(x, k), margins, 1:d)
-        margins = map(x->compile(x), margins)
+        # margins = map(x->compile(x), margins)
         new{d, dC, T, S}(model, margins, integrals, variable_ordering)
     end
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
