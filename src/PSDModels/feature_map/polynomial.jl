@@ -203,7 +203,9 @@ function compiled_integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) 
     M = integral(a, dim; C = C)
     Sym.@variables x[1:d]
     poly = M(x)
-    comp_int_poly = Sym.build_function(poly, x, expression=Val{false})
+    comp_int_poly = Sym.build_function(poly, x, expression=Val{false}, 
+                                linenumbers=false, skipzeros=true
+                                )
     Base.remove_linenums!(comp_int_poly)
     return comp_int_poly
 end

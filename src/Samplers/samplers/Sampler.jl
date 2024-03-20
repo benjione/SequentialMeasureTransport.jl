@@ -70,13 +70,10 @@ function Distributions.pdf(
         sar::CondSampler{d, <:Any, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
-    pdf_func = pushforward_pdf_function(sar)
+    pdf_func = pushforward(sar, x->reference_pdf(sar, x))
     return pdf_func(x)
 end
 
-pullback_pdf_function(sra::CondSampler, pdf_tar::Function; layers=nothing) = begin
-    return pullback(sra, pdf_tar; layers=layers)
-end
 function pullback(
         sra::CondSampler{d, <:Any, T},
         pdf_tar::Function; # defined on [a, b]^d
@@ -98,7 +95,7 @@ function _broadcasted_pullback_pdf_function(
         broad_pdf_tar::Function; # defined on [a, b]^d
         layers=nothing
     ) where {d, T<:Number}
-    pdf_func = let broad_pdf_tar=broad_pdf_tar, jac_func=pullback_pdf_function(sra, x->one(T); layers)
+    pdf_func = let broad_pdf_tar=broad_pdf_tar, jac_func=pullback(sra, x->one(T); layers)
         X->begin
             X_forwarded = pushforward.(Ref(sra), X)
             X_Jac = jac_func.(X)
@@ -109,9 +106,6 @@ function _broadcasted_pullback_pdf_function(
     return pdf_func
 end
 
-pushforward_pdf_function(sra::CondSampler; layers=nothing) = begin
-    return pushforward(sra, x->reference_pdf(sra, x); layers=layers)
-end
 function pushforward(
         sra::CondSampler{d, <:Any, T},
         pdf_ref::Function;
@@ -128,9 +122,6 @@ function pushforward(
 end
 
 
-marg_pushforward_pdf_function(sra::CondSampler; layers=nothing) = begin
-    return marg_pushforward(sra, x->reference_pdf(sra, x); layers=layers)
-end
 function marg_pushforward(
         sra::CondSampler{d, <:Any, T},
         pdf_ref::Function;
@@ -144,6 +135,22 @@ function marg_pushforward(
         pdf_func = marg_pushforward(sampler, pdf_func)
     end
     pdf_func = pullback(sra.R1_map, pdf_func)
+    return pdf_func
+end
+
+function marg_pullback(
+        sra::CondSampler{d, <:Any, T},
+        pdf_ref::Function;
+        layers=nothing
+    ) where {d, T<:Number}
+    # from last to first
+    _layers = layers === nothing ? (1:length(sra.samplers)) : layers
+    pdf_func = pushforward(sra.R1_map, pdf_ref)
+    for sampler in sra.samplers[_layers]
+        # apply map T_i
+        pdf_func = marg_pullback(sampler, pdf_func)
+    end
+    pdf_func = pullback(sra.R2_map, pdf_func)
     return pdf_func
 end
 
@@ -201,8 +208,17 @@ end
 
 function marg_pdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
     @assert length(x) == _d_marg(sra)
-    pdf_func = marg_pushforward_pdf_function(sra)
+    # reference Jacobian flexible for dimension
+    pdf_func = marg_pushforward(sra, x->reference_pdf(sra, x))
     return pdf_func(x)
+end
+
+function marg_inverse_Jacobian(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
+    return marg_pdf(sra, x)
+end
+
+function marg_Jacobian(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
+    return 1/marg_inverse_Jacobian(sra, marg_pushforward(sra, x))
 end
 
 function marg_pushforward(sra::CondSampler{d, <:Any, T}, u::PSDdata{T};

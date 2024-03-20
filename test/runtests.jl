@@ -1,4 +1,5 @@
 using SequentialMeasureTransport
+import SequentialMeasureTransport as SMT
 using LinearAlgebra
 using ApproxFun
 using Distributions
