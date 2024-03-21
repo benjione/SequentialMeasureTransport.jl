@@ -53,6 +53,18 @@ marg_pushforward(sampler::ConditionalMapping, u::PSDdata) = throw("Not Implement
 marg_pullback(sampler::ConditionalMapping, x::PSDdata) = throw("Not Implemented")
 marg_Jacobian(mapping::ConditionalMapping, u::PSDdata) = throw("Not Implemented")
 marg_inverse_Jacobian(mapping::ConditionalMapping, x::PSDdata) = throw("Not Implemented")
+function cond_Jacobian(sampler::ConditionalMapping{<:Any, <:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
+    x = marg_pullback(sampler, x)
+    return Jacobian(sampler, [x; y]) / marg_Jacobian(sampler, x)
+end
+function cond_inverse_Jacobian(sampler::ConditionalMapping{<:Any, <:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
+    return inverse_Jacobian(sampler, [x; y]) / marg_inverse_Jacobian(sampler, x)
+end
+
+"""
+Pullback of a conditional mapping.
+x is from x ∼ π_x
+"""
 function cond_pushforward(sampler::ConditionalMapping{d,dC,T},
     u::PSDdata{T},
     x::PSDdata{T}
@@ -61,19 +73,21 @@ function cond_pushforward(sampler::ConditionalMapping{d,dC,T},
     xu = pushforward(sampler, [x; u])
     return xu[_d_marg(sampler)+1:d]
 end
-
+"""
+Pullback of a conditional mapping.
+x is from x ∼ π_x
+"""
 function cond_pullback(sra::ConditionalMapping{d,dC,T},
     y::PSDdata{T},
     x::PSDdata{T}
 ) where {d,T<:Number,dC}
     yx = pullback(sra, [x; y])
-    return yx[_d_marg(sampler)+1:end]
+    return yx[_d_marg(sra)+1:end]
 end
 function marg_pullback(sampler::ConditionalMapping{d,dC,T}, π::Function) where {d,dC,T}
     π_pb = let sampler = sampler, π = π
         (x) -> begin
-            x2 = marg_pushforward(sampler, x)
-            π(x2) * marg_Jacobian(sampler, x)
+            π(marg_pushforward(sampler, x)) * marg_Jacobian(sampler, x)
         end
     end
     return π_pb
@@ -85,6 +99,29 @@ function marg_pushforward(sampler::ConditionalMapping{d,dC,T}, π::Function) whe
         end
     end
     return π_pf
+end
+function cond_pushforward(sampler::ConditionalMapping{d,dC,T},
+    π::Function,
+    x::PSDdata{T}
+) where {d,T<:Number,dC}
+    π_pf = let sampler = sampler, π = π, x = x
+        (y::PSDdata{T}) -> begin
+            π(cond_pullback(sampler, y, x)) * cond_inverse_Jacobian(sampler, y, x)
+        end
+    end
+    return π_pf
+end
+
+function cond_pullback(sampler::ConditionalMapping{d,dC,T},
+    π::Function,
+    x::PSDdata{T}
+) where {d,T<:Number,dC}
+    π_pb = let sampler = sampler, π = π, x = x
+        (y::PSDdata{T}) -> begin
+            π(cond_pushforward(sampler, y, x)) * cond_Jacobian(sampler, y, x)
+        end
+    end
+    return π_pb
 end
 
 
@@ -158,7 +195,7 @@ function marg_sample(sampler::AbstractCondSampler{<:Any,<:Any,T}, amount::Int; t
 end
 # already implemented for ConditionalSampler with naive implementation
 """
-PDF p(y|x)
+PDF p(y|x) = p(x, y) / p(x)
 """
 function cond_pdf(sampler::AbstractCondSampler{d,<:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {d,T}
     return Distributions.pdf(sampler, [x; y]) / marg_pdf(sampler, x)
@@ -197,6 +234,8 @@ end
 @inline reference_pdf(sampler::AbstractCondSampler{d,<:Any,T,R}, x) where {d,T,R<:ReferenceMap} = _ref_Jacobian(sampler, x)
 @inline reference_pdf(_::AbstractCondSampler{d,<:Any,T,Nothing}, x) where {d,T} = all(1.0 .> x .> 0) ? 1.0 : 0.0
 
+@inline marg_reference_pdf(sampler::AbstractCondSampler{d,<:Any,T,R}, x) where {d,T,R<:ReferenceMap} = marg_Jacobian(sampler.R1_map, x)
+@inline marg_reference_pdf(_::AbstractCondSampler{d,<:Any,T,Nothing}, x) where {d,T} = all(1.0 .> x .> 0) ? 1.0 : 0.0
 
 include("mappings/ProjectionMapping.jl")
 include("mappings/MarginalMapping.jl")

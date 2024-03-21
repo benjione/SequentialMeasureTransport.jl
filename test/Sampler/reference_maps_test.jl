@@ -42,13 +42,16 @@ end
     end
     @testset "T^♯ T_♯ f = f" begin
         for d=1:5
-            ref_map = SMT.GaussianReference{d, Float64}()
-            f_app = SMT.pullback(ref_map, x->1.0)
-            f_app_2 = SMT.pushforward(ref_map, f_app)
-    
-            for i=1:100
-                x = rand(d)
-                @test f_app_2(x) ≈ 1.0
+            for _=1:5
+                s = rand() * 10.0
+                ref_map = SMT.GaussianReference{d, Float64}(s)
+                f_app = SMT.pullback(ref_map, x->1.0)
+                f_app_2 = SMT.pushforward(ref_map, f_app)
+        
+                for i=1:100
+                    x = rand(d)
+                    @test f_app_2(x) ≈ 1.0
+                end
             end
         end
     end

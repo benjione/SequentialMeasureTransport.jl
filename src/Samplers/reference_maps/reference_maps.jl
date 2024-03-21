@@ -1,15 +1,15 @@
 module ReferenceMaps
 
-import ..SequentialMeasureTransport
+import ..SequentialMeasureTransport as SMT
 using ..SequentialMeasureTransport: PSDModelOrthonormal, domain_interval_left, domain_interval_right,
-                   PSDdata, Mapping, pullback, pushforward, Jacobian, inverse_Jacobian
+                   PSDdata, ConditionalMapping, pullback, pushforward, Jacobian, inverse_Jacobian
 
 using SpecialFunctions: erf, erfcinv
 using Distributions
 
 # Maps to transform from U([0,1])^d to a domain of choice
 # defined by R_# ρ = u where ρ is the reference distribution.
-abstract type ReferenceMap{d, T} <: Mapping{d, T} end
+abstract type ReferenceMap{d, dC, T} <: ConditionalMapping{d, dC, T} end
 
 include("scaling.jl")
 include("gaussian.jl")
@@ -25,17 +25,17 @@ Using any of the functions with dim(x) < d will take a marginal distribution and
 """
 
 ### Interface for ReferenceMaps
-@inline function Distributions.pdf(Rmap::ReferenceMap{d, T}, 
+@inline function Distributions.pdf(Rmap::ReferenceMap{<:Any, <:Any, T}, 
                         x::PSDdata{T}
-                    ) where {d, T<:Number}
+                    ) where {T<:Number}
     Jacobian(Rmap, x)
 end
 
-function sample_reference(Rmap::ReferenceMap{d, T}) where {d, T<:Number}
+function sample_reference(Rmap::ReferenceMap{d, <:Any, T}) where {d, T<:Number}
     pullback(Rmap, rand(T, d))
 end
 
-function sample_reference(Rmap::ReferenceMap{d, T}, n::Int) where {d, T<:Number}
+function sample_reference(Rmap::ReferenceMap{d, <:Any, T}, n::Int) where {d, T<:Number}
     map(z->pullback(Rmap, z), eachcol(rand(T, d, n)))
 end
 
@@ -44,10 +44,10 @@ end
 
 Pushes forward a vector of a reference distribution to the uniform distribution.
 """
-function SequentialMeasureTransport.pushforward(
-        mapping::ReferenceMap{d, T}, 
+function SMT.pushforward(
+        mapping::ReferenceMap{d, dC, T}, 
         x::PSDdata{T}
-    ) where {d, T<:Number}
+    ) where {d, dC, T<:Number}
     throw(error("Not implemented"))
 end
 
@@ -56,10 +56,10 @@ end
 
 Pulls back a vector of the uniform distribution to the reference distribution.
 """
-function SequentialMeasureTransport.pullback(
-        mapping::ReferenceMap{d, T}, 
+function SMT.pullback(
+        mapping::ReferenceMap{d, dC, T}, 
         u::PSDdata{T}
-    ) where {d, T<:Number}
+    ) where {d, dC, T<:Number}
     throw(error("Not implemented"))
 end
 
@@ -68,10 +68,10 @@ end
 
 Computes the Jacobian of the mapping at the point u.
 """
-function SequentialMeasureTransport.Jacobian(
-        mapping::ReferenceMap{d, T}, 
+function SMT.Jacobian(
+        mapping::ReferenceMap{d, dC, T}, 
         x::PSDdata{T}
-    ) where {d, T<:Number}
+    ) where {d, dC, T<:Number}
     throw(error("Not implemented"))
 end
 
@@ -80,10 +80,38 @@ inverse_Jacobian(mapping, u)
 
 Computes the inverse Jacobian of the mapping at the point x.
 """
-function SequentialMeasureTransport.inverse_Jacobian(
-        mapping::ReferenceMap{d, T}, 
+function SMT.inverse_Jacobian(
+        mapping::ReferenceMap{d, dC, T}, 
         u::PSDdata{T}
-    ) where {d, T<:Number}
+    ) where {d, dC, T<:Number}
+    throw(error("Not implemented"))
+end
+
+function SMT.marg_pushforward(
+        mapping::ReferenceMap{d, dC, T}, 
+        x::PSDdata{T}
+    ) where{d, dC, T<:Number}
+    throw(error("Not implemented"))
+end
+
+function SMT.marg_pullback(
+        mapping::ReferenceMap{d, dC, T}, 
+        u::PSDdata{T}
+    ) where {d, dC, T<:Number}
+    throw(error("Not implemented"))
+end
+
+function SMT.marg_Jacobian(
+        mapping::ReferenceMap{d, dC, T}, 
+        x::PSDdata{T}
+    ) where {d, dC, T<:Number}
+    throw(error("Not implemented"))
+end
+
+function SMT.marg_inverse_Jacobian(
+        mapping::ReferenceMap{d, dC, T}, 
+        u::PSDdata{T}
+    ) where {d, dC, T<:Number}
     throw(error("Not implemented"))
 end
 

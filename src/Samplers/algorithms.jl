@@ -7,7 +7,7 @@ function SelfReinforcedSampler(
             model::PSDModelOrthonormal{d, T, S},
             amount_layers::Int,
             approx_method::Symbol,
-            reference_map::ReferenceMap{d, T};
+            reference_map::ReferenceMap{d, <:Any, T};
             relaxation_method=:algebraic,
             ### for bridging densities
             N_sample=1000,
@@ -46,7 +46,7 @@ function SelfReinforcedSampler(
                 model::PSDModelOrthonormal{d, T, S},
                 amount_layers::Int,
                 approx_method::Symbol,
-                reference_map::ReferenceMap{d, T};
+                reference_map::ReferenceMap{d, <:Any, T};
                 ### for bridging densities
                 N_sample=1000,
                 custom_fit=nothing, # Function with arguments (model, X, Y) modifying model, can be created using minimize!
@@ -78,6 +78,7 @@ function SelfReinforcedSampler(
     R = domain_interval_right(model)
     @assert all(L .== 0.0)
     @assert all(R .== 1.0)
+    @assert typeof(reference_map) <: ReferenceMap{d, dC, T}
     if S<:OMF
         throw(error("Do not use OMF models for self reinforced sampler, use a Gaussian reference map instead!"))
     end
@@ -282,7 +283,7 @@ function SelfReinforced_ML_estimation(
         X::PSDDataVector{T},
         model::PSDModelOrthonormal{dsub, T, S},
         bridge::BridgingDensity{dsub, T},
-        reference_map::ReferenceMap{d, T};
+        reference_map::ReferenceMap{d, <:Any, T};
         subsample_data=false,
         subsample_size=2000,
         subspace_reference_map=nothing,
@@ -295,10 +296,11 @@ function SelfReinforced_ML_estimation(
     _d = length(X[1]) # data dimension
     @assert dsub ≤ d
     @assert _d == d
+    @assert typeof(reference_map) <: ReferenceMap{d, dC, T}
 
     if dsub < d
         @assert subspace_reference_map !== nothing
-        @assert typeof(subspace_reference_map) <: ReferenceMap{dsub, T}
+        @assert typeof(subspace_reference_map) <: ReferenceMap{dsub, dCsub, T}
         if to_subspace_reference_map === nothing
             to_subspace_reference_map = reference_map
         end
@@ -395,7 +397,7 @@ function Adaptive_Self_reinforced_ML_estimation(
     X_val::PSDDataVector{T},
     model::PSDModelOrthonormal{dsub, T, S},
     β::T,
-    reference_map::ReferenceMap{d, T};
+    reference_map::ReferenceMap{d, <:Any, T};
     ϵ=1e-3,
     subsample_data=false,
     subsample_size=2000,
@@ -409,12 +411,13 @@ function Adaptive_Self_reinforced_ML_estimation(
     _d = length(X_train[1]) # data dimension
     @assert dsub ≤ d
     @assert _d == d
+    @assert typeof(reference_map) <: ReferenceMap{d, dC, T}
 
     bridge = BridgingDensities.DiffusionBrigdingDensity{dsub, T}()
 
     if dsub < d
         @assert subspace_reference_map !== nothing
-        @assert typeof(subspace_reference_map) <: ReferenceMap{dsub, T}
+        @assert typeof(subspace_reference_map) <: ReferenceMap{dsub, dCsub, T}
         if to_subspace_reference_map === nothing
             to_subspace_reference_map = reference_map
         end

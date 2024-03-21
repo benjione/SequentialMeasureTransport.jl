@@ -46,8 +46,8 @@ end
     Y = map(x->f_marg(x), eachcol(X))
     SMT.Chi2_fit!(model, eachcol(X), Y, trace=false)
     smp = ConditionalSampler(model, 1)
-    map1 = SMT.ReferenceMaps.GaussianReference{3, Float64}(2.0)
-    map2 = SMT.ReferenceMaps.GaussianReference{2, Float64}(2.0)
+    map1 = SMT.ReferenceMaps.GaussianReference{3, 1, Float64}(2.0)
+    map2 = SMT.ReferenceMaps.GaussianReference{2, 1, Float64}(2.0)
     # map1 = SMT.ReferenceMaps.AlgebraicReference{3, Float64}()
     # map2 = SMT.ReferenceMaps.AlgebraicReference{2, Float64}()
     proj_map = SMT.ProjectionMapping{3, 1}(smp, [1, 3], map1, map2)
@@ -93,7 +93,7 @@ end
     @test norm(vec1 - f_margin_single.(rng), 2)/norm(f_margin_single.(rng), 2) < 0.2
 end
 
-@testset "Simple ML" begin
+@testset "Simple from data" begin
     distr1 = MvNormal([2.,2.], diagm([0.1, 0.5]))
     distr2 = MvNormal([-2.,-2.], diagm([0.5, 0.1]))
     f1(x) = pdf(distr1, x)
@@ -143,7 +143,7 @@ end
     end
 end
 
-@testset "Conditional" begin
+@testset "Conditional from data" begin
     distr1 = MvNormal([1.,1.,1.], diagm([0.2, 0.5, 0.5]))
     distr2 = MvNormal([-1.,-1.,-1.], diagm([0.5, 0.2, 0.5]))
     f1(x) = pdf(distr1, x)
@@ -166,9 +166,9 @@ end
     # ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{3, T}(T(2.5))
     # to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{3, T}(T(3.0))
     # subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{2, T}(T(3.0))
-    ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{3, T}()
-    to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{3, T}()
-    subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{2, T}()
+    ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{3, 1, T}()
+    to_subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{3, 1, T}()
+    subspace_ref_map = SequentialMeasureTransport.ReferenceMaps.AlgebraicReference{2, 1, T}()
 
     model = PSDModel{T}(Legendre(T(0)..T(1))^2, :downward_closed, 3)
 
@@ -200,6 +200,16 @@ end
     @test norm(pdf.(Ref(sra_sub), rng) - f.(rng), 2)/norm(f.(rng), 2) < 0.4
     @test norm(SMT.marg_pdf.(Ref(sra_sub), rng_marg) - f_marg.(rng_marg), 2)/norm(f_marg.(rng_marg), 2) < 0.4
     
+
+    ## check that conditional is normalized
+    rng = range(-6, 6, 2000)
+    Δrng = 12/2000
+    for _=1:10
+        x = 3*randn(2)
+        int_cond = Δrng*sum(SMT.cond_pdf(sra_sub, [y], x) for y in rng)
+        @test isapprox(int_cond, 1.0, atol=0.05)
+    end
+
     # comparison of conditional difficult, use conditional negative log likelihood
     # model_c_vec = rng .|> (x)->SMT.cond_pdf(sra_sub, x[3:3], x[1:2])
     # c_vec = rng .|> (x)->f_cond(x[1:2], x[3:3])
@@ -229,6 +239,21 @@ end
         @test isapprox(pb_pf_func(x), 1.0, atol=1e-9)
     end
 
+    ## test that conditional pushforward is pullback
+    for k=1:10
+        x = rand(2)
+        for i=1:100
+            y = rand(1)
+            y_pf = SMT.cond_pushforward(sra_sub, y, x)
+            @test isapprox(y, SMT.cond_pullback(sra_sub, y_pf, x), atol=1e-9)
+        end
+
+        pb_pf_func = SMT.cond_pullback(sra_sub, SMT.cond_pushforward(sra_sub, x->1.0, x), x)
+        for i=1:100
+            y = rand()
+            @test isapprox(pb_pf_func([y]), 1.0, atol=1e-9)
+        end
+    end
 end
 
 

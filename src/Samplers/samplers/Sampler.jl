@@ -9,11 +9,10 @@ struct CondSampler{d, dC, T, R1, R2} <: AbstractCondSampler{d, dC, T, R1, R2}
     R2_map::R2   # distribution from domain of pi to [0, 1]^d
     function CondSampler(
         samplers::Vector{<:ConditionalMapping{d, dC, T}},
-        R1_map::R1,
-        R2_map::R2
-    ) where {d, T<:Number, R1<:Union{<:ReferenceMap, Nothing}, 
-            R2<:Union{<:ReferenceMap, Nothing}, dC}
-        new{d, dC, T, R1, R2}(samplers, R1_map, R2_map)
+        R1_map::Union{<:ReferenceMap{d, dC, T}, Nothing},
+        R2_map::Union{<:ReferenceMap{d, dC, T}, Nothing}
+    ) where {d, T<:Number, dC}
+        new{d, dC, T, typeof(R1_map), typeof(R2_map)}(samplers, R1_map, R2_map)
     end
     function CondSampler(
         samplers::Vector{<:ConditionalMapping},
@@ -22,11 +21,9 @@ struct CondSampler{d, dC, T, R1, R2} <: AbstractCondSampler{d, dC, T, R1, R2}
         CondSampler(samplers, R_map, R_map)
     end
     function CondSampler{d, dC, T}(
-        R1_map::R1,
-        R2_map::R2
-    ) where {d, dC, T<:Number, 
-            R1<:Union{<:ReferenceMap, Nothing}, 
-            R2<:Union{<:ReferenceMap, Nothing}}
+        R1_map::Union{<:ReferenceMap, Nothing},
+        R2_map::Union{<:ReferenceMap, Nothing}
+    ) where {d, dC, T<:Number}
         CondSampler(ConditionalMapping{d, dC, T}[], R1_map, R2_map)
     end
 end
@@ -54,14 +51,7 @@ end
 ## Pretty printing
 function Base.show(io::IO, sra::CondSampler{d, <:Any, T}) where {d, T<:Number}
     println(io, "SelfReinforcedSampler{d=$d, T=$T}")
-    println(io, "  samplers:")
-    for (i, sampler) in enumerate(sra.samplers)
-        if i>3
-            println(io, "...")
-            break
-        end
-        println(io, "    $i: $sampler")
-    end
+    println(io, "$(length(sra.samplers)) layers")
     println(io, "  reference map: $(sra.R1_map), $(sra.R2_map)")
 end
 
@@ -129,12 +119,12 @@ function marg_pushforward(
     ) where {d, T<:Number}
     # from last to first
     _layers = layers === nothing ? (1:length(sra.samplers)) : layers
-    pdf_func = pushforward(sra.R2_map, pdf_ref)
+    pdf_func = marg_pushforward(sra.R2_map, pdf_ref)
     for sampler in reverse(sra.samplers[_layers])
         # apply map T_i
         pdf_func = marg_pushforward(sampler, pdf_func)
     end
-    pdf_func = pullback(sra.R1_map, pdf_func)
+    pdf_func = marg_pullback(sra.R1_map, pdf_func)
     return pdf_func
 end
 
@@ -145,12 +135,12 @@ function marg_pullback(
     ) where {d, T<:Number}
     # from last to first
     _layers = layers === nothing ? (1:length(sra.samplers)) : layers
-    pdf_func = pushforward(sra.R1_map, pdf_ref)
+    pdf_func = marg_pushforward(sra.R1_map, pdf_ref)
     for sampler in sra.samplers[_layers]
         # apply map T_i
         pdf_func = marg_pullback(sampler, pdf_func)
     end
-    pdf_func = pullback(sra.R2_map, pdf_func)
+    pdf_func = marg_pullback(sra.R2_map, pdf_func)
     return pdf_func
 end
 
@@ -209,7 +199,7 @@ end
 function marg_pdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
     @assert length(x) == _d_marg(sra)
     # reference Jacobian flexible for dimension
-    pdf_func = marg_pushforward(sra, x->reference_pdf(sra, x))
+    pdf_func = marg_pushforward(sra, x->marg_reference_pdf(sra, x))
     return pdf_func(x)
 end
 
@@ -224,22 +214,22 @@ end
 function marg_pushforward(sra::CondSampler{d, <:Any, T}, u::PSDdata{T};
                         layers=nothing) where {d, T<:Number}
     _layers = layers === nothing ? (1:length(sra.samplers)) : layers
-    u = pushforward(sra.R2_map, u)
+    u = marg_pushforward(sra.R2_map, u)
     for j=reverse(_layers) # reverse order
         u = marg_pushforward(sra.samplers[j], u)
     end
-    u = pullback(sra.R1_map, u)
+    u = marg_pullback(sra.R1_map, u)
     return u
 end
 
 function marg_pullback(sra::CondSampler{d, <:Any, T}, x::PSDdata{T};
                         layers=nothing) where {d, T<:Number}
     _layers = layers === nothing ? (1:length(sra.samplers)) : layers
-    x = pushforward(sra.R1_map, x)
+    x = marg_pushforward(sra.R1_map, x)
     for j=_layers
         x = marg_pullback(sra.samplers[j], x)
     end
-    x = pullback(sra.R2_map, x)
+    x = marg_pullback(sra.R2_map, x)
     return x
 end
 

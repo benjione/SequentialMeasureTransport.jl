@@ -4,7 +4,7 @@ The projection mapping is always defined on the uniform distribution on [0,1]^d.
 struct ProjectionMapping{d, dC, T<:Number,
             dsub, dCsub,
             Mtype<:ConditionalMapping{dsub, dCsub, T},
-            R, R2
+            R<:ReferenceMap{d, dC, T}, R2<:ReferenceMap{dsub, dCsub, T}
         } <: SubsetMapping{d, dC, T, dsub, dCsub}
     sampler::Mtype
     X::AbstractMatrix{T}            # bases X of subspace, X ∈ R^{d x d2}
@@ -143,8 +143,8 @@ function RandomConditionalSubsetProjection(T::Type{<:Number},
 end
 
 function project_to_subset(P_tilde::AbstractMatrix{T}, 
-                R::ReferenceMap{d, T}, 
-                R_sub::ReferenceMap{dsub, T},
+                R::ReferenceMap{d, <:Any, T}, 
+                R_sub::ReferenceMap{dsub, <:Any, T},
                 x::PSDdata{T}) where {d, dsub, T<:Number}
     us = pullback(R, x)
     sub_u = P_tilde * us
@@ -184,17 +184,17 @@ Distribution p(x) = ∫ p(x, y) d y
 """
 function marg_pdf(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
             x::PSDdata{T}) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    xs = pullback(sampler.R_map, x) # from [0,1]^dx to R^dx
+    xs = marg_pullback(sampler.R_map, x) # from [0,1]^dx to R^dx
     sub_x = _marg_P_tilde(sampler) * xs # from R^dx to R^d_sub_marg
-    sub_x_maped = pushforward(sampler.R_map_sub, sub_x) # from R^d_sub_marg to [0,1]^d_sub_marg
+    sub_x_maped = marg_pushforward(sampler.R_map_sub, sub_x) # from R^d_sub_marg to [0,1]^d_sub_marg
     sub_u = marg_pullback(sampler.sampler, sub_x_maped) # still in [0,1]^d_sub_marg
-    us = _marg_X(sampler) * pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
+    us = _marg_X(sampler) * marg_pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
     # u = pushforward(sampler.R_map, us)
     T_inv_jac_det = marg_pdf(sampler.sampler, sub_x_maped) * 
-                    inverse_Jacobian(sampler.R_map_sub, sub_u) * 
-                    Jacobian(sampler.R_map_sub, sub_x)
+                    marg_inverse_Jacobian(sampler.R_map_sub, sub_u) * 
+                    marg_Jacobian(sampler.R_map_sub, sub_x)
 
-    return inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * Jacobian(sampler.R_map, us)
+    return marg_inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * marg_Jacobian(sampler.R_map, us)
 end
 
 function marg_inverse_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
@@ -212,21 +212,21 @@ end
 function marg_pushforward(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
                 u::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    us = pullback(sampler.R_map, u)
+    us = marg_pullback(sampler.R_map, u)
     sub_u = _marg_P_tilde(sampler) * us
-    sub_x = marg_pushforward(sampler.sampler, pushforward(sampler.R_map_sub, sub_u))
-    xs = _marg_X(sampler) * pullback(sampler.R_map_sub, sub_x) + (I - _marg_P(sampler)) * us
-    x = pushforward(sampler.R_map, xs)
+    sub_x = marg_pushforward(sampler.sampler, marg_pushforward(sampler.R_map_sub, sub_u))
+    xs = _marg_X(sampler) * marg_pullback(sampler.R_map_sub, sub_x) + (I - _marg_P(sampler)) * us
+    x = marg_pushforward(sampler.R_map, xs)
     return x
 end
 
 function marg_pullback(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2},
                 x::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    xs = pullback(sampler.R_map, x)
+    xs = marg_pullback(sampler.R_map, x)
     sub_x = _marg_P_tilde(sampler) * xs
-    sub_u = marg_pullback(sampler.sampler, pushforward(sampler.R_map_sub, sub_x))
-    us = _marg_X(sampler) * pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
-    u = pushforward(sampler.R_map, us)
+    sub_u = marg_pullback(sampler.sampler, marg_pushforward(sampler.R_map_sub, sub_x))
+    us = _marg_X(sampler) * marg_pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
+    u = marg_pushforward(sampler.R_map, us)
     return u
 end
