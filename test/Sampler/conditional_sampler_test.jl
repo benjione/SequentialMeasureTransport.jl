@@ -83,9 +83,12 @@ end
         f_cond_pdf(y, x) = f_pdf([x; y]) / f_marg_pdf(x)[1]
         for _=1:10
             x = [rand() * 2 - 1]
+            cond_pdf2 = SMT.cond_pushforward(sra, y->SMT.marg_Jacobian(SMT.GaussianReference{2, 1, Float64}(2.0), y), x)
             vec1 = Y .|> y -> f_cond_pdf(y, x)
             vec2 = Y .|> y -> SMT.cond_pdf(sra, y, x)
+            vec3 = Y .|> y -> cond_pdf2(y)
             @test norm(vec1 - vec2, 2)/norm(vec1, 2) < 0.1
+            @test norm(vec1 - vec3, 2)/norm(vec1, 2) < 0.1
         end
     end
 
@@ -112,9 +115,12 @@ end
         f_cond_pdf(y, x) = f_pdf([x; y]) / f_marg_pdf(x)[1]
         for _=1:10
             x = [rand() * 2 - 1]
+            cond_pdf2 = SMT.cond_pushforward(sra, y->SMT.marg_Jacobian(SMT.AlgebraicReference{2, 1, Float64}(), y), x)
             vec1 = Y .|> y -> f_cond_pdf(y, x)
             vec2 = Y .|> y -> SMT.cond_pdf(sra, y, x)
+            vec3 = Y .|> y -> cond_pdf2(y)
             @test norm(vec1 - vec2, 2)/norm(vec1, 2) < 0.1
+            @test norm(vec1 - vec3, 2)/norm(vec1, 2) < 0.1
         end
     end
 end

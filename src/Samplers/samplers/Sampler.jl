@@ -204,11 +204,11 @@ function marg_pdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, d
 end
 
 function marg_inverse_Jacobian(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
-    return marg_pdf(sra, x)
+    return marg_pushforward(sra, x->one(T))(x)
 end
 
 function marg_Jacobian(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
-    return 1/marg_inverse_Jacobian(sra, marg_pushforward(sra, x))
+    return marg_pullback(sra, x->one(T))(x)
 end
 
 function marg_pushforward(sra::CondSampler{d, <:Any, T}, u::PSDdata{T};
@@ -232,4 +232,3 @@ function marg_pullback(sra::CondSampler{d, <:Any, T}, x::PSDdata{T};
     x = marg_pullback(sra.R2_map, x)
     return x
 end
-
