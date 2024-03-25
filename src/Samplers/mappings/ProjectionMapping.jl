@@ -74,26 +74,22 @@ Hence, det(∂v (P * T(v) + (1-P) v)) = det(∂v T(v)) * det(∂v v)
 Total expression of forward is with T being the sampler:
 R^{-1}(y) = X * R_sub^{-1}(T(R_sub(X' R^{-1}(x)))) + (I - P) * R^{-1}(x)
 """
-function Distributions.pdf(sampler::ProjectionMapping{<:Any, <:Any, T, <:Any, <:Any, samplerType, R, R_sub}, 
-                        x::PSDdata{T}
-                    ) where {T<:Number, R, R_sub, samplerType}
+
+
+function inverse_Jacobian(sampler::ProjectionMapping{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}, 
+                x::PSDdata{T}
+            ) where {T<:Number, R, R_sub, ST}
     xs = pullback(sampler.R_map, x) # from [0,1]^d to R^d
     sub_x = sampler.P_tilde * xs # from R^d to R^d2
     sub_x_maped = pushforward(sampler.R_map_sub, sub_x) # from R^d2 to [0,1]^d2
     sub_u = pullback(sampler.sampler, sub_x_maped) # still in [0,1]^d2
     us = sampler.X * pullback(sampler.R_map_sub, sub_u) + (I - sampler.P) * xs
     # u = pushforward(sampler.R_map, us)
-    T_inv_jac_det = Distributions.pdf(sampler.sampler, sub_x_maped) * 
+    T_inv_jac_det = inverse_Jacobian(sampler.sampler, sub_x_maped) * 
                     inverse_Jacobian(sampler.R_map_sub, sub_u) * 
                     Jacobian(sampler.R_map_sub, sub_x)
 
     return inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * Jacobian(sampler.R_map, us)
-end
-
-function inverse_Jacobian(sampler::ProjectionMapping{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}, 
-                x::PSDdata{T}
-            ) where {T<:Number, R, R_sub, ST}
-    return Distributions.pdf(sampler, x)
 end
 Jacobian(sampler::ProjectionMapping{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}, 
                 x::PSDdata{T}
@@ -179,54 +175,46 @@ end
 # ConditionalSampler
 ########################
 
-"""
-Distribution p(x) = ∫ p(x, y) d y
-"""
-function marg_pdf(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
-            x::PSDdata{T}) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    xs = marg_pullback(sampler.R_map, x) # from [0,1]^dx to R^dx
+function marginal_inverse_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
+                x::PSDdata{T}
+            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
+    xs = marginal_pullback(sampler.R_map, x) # from [0,1]^dx to R^dx
     sub_x = _marg_P_tilde(sampler) * xs # from R^dx to R^d_sub_marg
-    sub_x_maped = marg_pushforward(sampler.R_map_sub, sub_x) # from R^d_sub_marg to [0,1]^d_sub_marg
-    sub_u = marg_pullback(sampler.sampler, sub_x_maped) # still in [0,1]^d_sub_marg
-    us = _marg_X(sampler) * marg_pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
+    sub_x_maped = marginal_pushforward(sampler.R_map_sub, sub_x) # from R^d_sub_marg to [0,1]^d_sub_marg
+    sub_u = marginal_pullback(sampler.sampler, sub_x_maped) # still in [0,1]^d_sub_marg
+    us = _marg_X(sampler) * marginal_pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
     # u = pushforward(sampler.R_map, us)
-    T_inv_jac_det = marg_pdf(sampler.sampler, sub_x_maped) * 
-                    marg_inverse_Jacobian(sampler.R_map_sub, sub_u) * 
-                    marg_Jacobian(sampler.R_map_sub, sub_x)
+    T_inv_jac_det = marginal_inverse_Jacobian(sampler.sampler, sub_x_maped) * 
+                    marginal_inverse_Jacobian(sampler.R_map_sub, sub_u) * 
+                    marginal_Jacobian(sampler.R_map_sub, sub_x)
 
-    return marg_inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * marg_Jacobian(sampler.R_map, us)
+    return marginal_inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * marginal_Jacobian(sampler.R_map, us)
 end
 
-function marg_inverse_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
+function marginal_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
                 x::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    return marg_pdf(sampler, x)
+    return 1.0/marginal_inverse_Jacobian(sampler, marginal_pushforward(sampler, x))
 end
 
-function marg_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
-                x::PSDdata{T}
-            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    return 1.0/marg_inverse_Jacobian(sampler, marg_pushforward(sampler, x))
-end
-
-function marg_pushforward(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
+function marginal_pushforward(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
                 u::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    us = marg_pullback(sampler.R_map, u)
+    us = marginal_pullback(sampler.R_map, u)
     sub_u = _marg_P_tilde(sampler) * us
-    sub_x = marg_pushforward(sampler.sampler, marg_pushforward(sampler.R_map_sub, sub_u))
-    xs = _marg_X(sampler) * marg_pullback(sampler.R_map_sub, sub_x) + (I - _marg_P(sampler)) * us
-    x = marg_pushforward(sampler.R_map, xs)
+    sub_x = marginal_pushforward(sampler.sampler, marginal_pushforward(sampler.R_map_sub, sub_u))
+    xs = _marg_X(sampler) * marginal_pullback(sampler.R_map_sub, sub_x) + (I - _marg_P(sampler)) * us
+    x = marginal_pushforward(sampler.R_map, xs)
     return x
 end
 
-function marg_pullback(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2},
+function marginal_pullback(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2},
                 x::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
-    xs = marg_pullback(sampler.R_map, x)
+    xs = marginal_pullback(sampler.R_map, x)
     sub_x = _marg_P_tilde(sampler) * xs
-    sub_u = marg_pullback(sampler.sampler, marg_pushforward(sampler.R_map_sub, sub_x))
-    us = _marg_X(sampler) * marg_pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
-    u = marg_pushforward(sampler.R_map, us)
+    sub_u = marginal_pullback(sampler.sampler, marginal_pushforward(sampler.R_map_sub, sub_x))
+    us = _marg_X(sampler) * marginal_pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
+    u = marginal_pushforward(sampler.R_map, us)
     return u
 end

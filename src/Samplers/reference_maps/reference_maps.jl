@@ -87,28 +87,28 @@ function SMT.inverse_Jacobian(
     throw(error("Not implemented"))
 end
 
-function SMT.marg_pushforward(
+function SMT.marginal_pushforward(
         mapping::ReferenceMap{d, dC, T}, 
         x::PSDdata{T}
     ) where{d, dC, T<:Number}
     throw(error("Not implemented"))
 end
 
-function SMT.marg_pullback(
+function SMT.marginal_pullback(
         mapping::ReferenceMap{d, dC, T}, 
         u::PSDdata{T}
     ) where {d, dC, T<:Number}
     throw(error("Not implemented"))
 end
 
-function SMT.marg_Jacobian(
+function SMT.marginal_Jacobian(
         mapping::ReferenceMap{d, dC, T}, 
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
     throw(error("Not implemented"))
 end
 
-function SMT.marg_inverse_Jacobian(
+function SMT.marginal_inverse_Jacobian(
         mapping::ReferenceMap{d, dC, T}, 
         u::PSDdata{T}
     ) where {d, dC, T<:Number}

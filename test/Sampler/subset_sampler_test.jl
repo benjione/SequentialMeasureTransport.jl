@@ -89,7 +89,7 @@ end
     # compare marginal with second marginal
     rng = [[x, y] for x in rand(20), y in rand(20)]
     rng = reshape(rng, length(rng))
-    vec1 = SMT.marg_pdf.(Ref(proj_map), rng)
+    vec1 = SMT.marginal_pdf.(Ref(proj_map), rng)
     @test norm(vec1 - f_margin_single.(rng), 2)/norm(f_margin_single.(rng), 2) < 0.2
 end
 
@@ -199,7 +199,7 @@ end
     rng = reshape(rng, length(rng))
     rng_marg = reshape(rng_marg, length(rng_marg))
     @test norm(pdf.(Ref(sra_sub), rng) - f.(rng), 2)/norm(f.(rng), 2) < 0.4
-    @test norm(SMT.marg_pdf.(Ref(sra_sub), rng_marg) - f_marg.(rng_marg), 2)/norm(f_marg.(rng_marg), 2) < 0.4
+    @test norm(SMT.marginal_pdf.(Ref(sra_sub), rng_marg) - f_marg.(rng_marg), 2)/norm(f_marg.(rng_marg), 2) < 0.4
     
 
     ## check that conditional is normalized
@@ -211,15 +211,15 @@ end
         else
             rand(marg_distr2)
         end
-        cond_pdf_func = SMT.cond_pushforward(sra_sub, y->SMT.Jacobian(SMT.AlgebraicReference{1, 0, Float64}(), y), x)
+        cond_pdf_func = SMT.conditional_pushforward(sra_sub, y->SMT.Jacobian(SMT.AlgebraicReference{1, 0, Float64}(), y), x)
         int_cond = Δrng*sum(cond_pdf_func([y]) for y in rng)
-        int_cond2 = Δrng*sum(SMT.cond_pdf(sra_sub, [y], x) for y in rng)
+        int_cond2 = Δrng*sum(SMT.conditional_pdf(sra_sub, [y], x) for y in rng)
         @test isapprox(int_cond, 1.0, atol=0.05)
         @test isapprox(int_cond2, 1.0, atol=0.05)
     end
 
     # comparison of conditional difficult, use conditional negative log likelihood
-    model_c_vec = rng .|> (x)->SMT.cond_pdf(sra_sub, x[3:3], x[1:2])
+    model_c_vec = rng .|> (x)->SMT.conditional_pdf(sra_sub, x[3:3], x[1:2])
     c_vec = rng .|> (x)->f_cond(x[1:2], x[3:3])
     @test norm(model_c_vec - c_vec, 2)/norm(c_vec, 2) < 0.1
     X1 = rand(distr1, N1)
@@ -227,7 +227,7 @@ end
     X = hcat(X1, X2)
     cond_KL = (1/N) * sum(log.(f_cond(x[1:2], x[3:3])) for x in eachcol(X))
 
-    cond_neg_log_likelihood = (1/N) * sum(log.(SMT.cond_pdf(sra_sub, x[3:3], x[1:2])) for x in eachcol(X))
+    cond_neg_log_likelihood = (1/N) * sum(log.(SMT.conditional_pdf(sra_sub, x[3:3], x[1:2])) for x in eachcol(X))
 
     KL_cond = cond_KL - cond_neg_log_likelihood
 

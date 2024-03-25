@@ -115,6 +115,13 @@ function Distributions.pdf(
     return sar.model(x)::T
 end
 
+function Distributions.logpdf(
+        sar::PSDModelSampler{d, <:Any, T},
+        x::PSDdata{T}
+    ) where {d, T<:Number}
+    return log(sar.model(x))::T
+end
+
 @inline pushforward(sampler::PSDModelSampler{d, <:Any, T, S}, 
                     u::PSDdata{T}) where {d, T<:Number, S} = return _pushforward_first_n(sampler, u, d)
 
@@ -131,26 +138,26 @@ end
 
 ## Methods for satisfying ConditionalSampler interface
 
-function marg_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+function marginal_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
     return sampler.margins[d-dC](x)
 end
 
-function marg_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
-    return 1/marg_inverse_Jacobian(sampler, marg_pushforward(sampler, x))
+function marginal_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return 1/marginal_inverse_Jacobian(sampler, marginal_pushforward(sampler, x))
 end
 
-function marg_inverse_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
-    return marg_pdf(sampler, x)
+function marginal_inverse_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return marginal_pdf(sampler, x)
 end
 
-@inline marg_pushforward(sampler::PSDModelSampler{d, dC, T, S}, 
+@inline marginal_pushforward(sampler::PSDModelSampler{d, dC, T, S}, 
                          u::PSDdata{T}) where {d, T<:Number, S, dC} = 
                             return _pushforward_first_n(sampler, u, d-dC)
-@inline marg_pullback(sampler::PSDModelSampler{d, dC, T, S}, 
+@inline marginal_pullback(sampler::PSDModelSampler{d, dC, T, S}, 
                       x::PSDdata{T}) where {d, T<:Number, S, dC} = 
                             return _pullback_first_n(sampler, x, d-dC)
 
-function cond_pushforward(sampler::PSDModelSampler{d, dC, T, S}, u::PSDdata{T}, x::PSDdata{T}) where {d, T<:Number, S, dC}
+function conditional_pushforward(sampler::PSDModelSampler{d, dC, T, S}, u::PSDdata{T}, x::PSDdata{T}) where {d, T<:Number, S, dC}
     dx = d-dC
     # @assert length(u) == dC
     # @assert length(x) == dx
@@ -161,7 +168,7 @@ function cond_pushforward(sampler::PSDModelSampler{d, dC, T, S}, u::PSDdata{T}, 
                 sampler.margins[k+dx-1]([x; y[1:k-1]])) - u[k]
     end
     if S<:OMF
-        for k=1:d
+        for k=1:dC
             y[k] = find_zero(f(k), zero(T))
         end
     else
@@ -170,11 +177,11 @@ function cond_pushforward(sampler::PSDModelSampler{d, dC, T, S}, u::PSDdata{T}, 
             y[k] = find_zero(f(k), (left, right))
         end
     end
-    return invpermute!(y, sampler.variable_ordering[dx+1:end].-dx) # might be wrong, subtract dx from variable_ordering
+    return invpermute!(y, sampler.variable_ordering[dx+1:end].-dx)
 end
 
 
-function cond_pullback(sampler::PSDModelSampler{d, dC, T, S}, 
+function conditional_pullback(sampler::PSDModelSampler{d, dC, T, S}, 
                         y::PSDdata{T},
                         x::PSDdata{T}) where {d, T<:Number, S, dC}
     dx = d-dC

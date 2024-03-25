@@ -49,7 +49,7 @@ function SMT.inverse_Jacobian(
 end
 
 
-function SMT.marg_pushforward(
+function SMT.marginal_pushforward(
         m::AlgebraicReference{d, dC, T}, 
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -57,7 +57,7 @@ function SMT.marg_pushforward(
     return ((x./sqrt.(1 .+ x.^2)).+1.0)/2.0
 end
 
-function SMT.marg_pullback(
+function SMT.marginal_pullback(
         m::AlgebraicReference{d, dC, T}, 
         u::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -66,7 +66,7 @@ function SMT.marg_pullback(
     return ξ./sqrt.(1.0 .- ξ.^2)
 end
 
-function SMT.marg_Jacobian(
+function SMT.marginal_Jacobian(
         m::AlgebraicReference{d, dC, T}, 
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -74,7 +74,7 @@ function SMT.marg_Jacobian(
     return mapreduce(xi->0.5/(1+(xi)^2)^(3/2), *, x)
 end
 
-function SMT.marg_inverse_Jacobian(
+function SMT.marginal_inverse_Jacobian(
         mapping::AlgebraicReference{d, dC, T}, 
         u::PSDdata{T}
     ) where {d, dC, T<:Number}
