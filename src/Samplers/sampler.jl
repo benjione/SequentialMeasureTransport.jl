@@ -267,10 +267,12 @@ end
 PDF p(y|x) = p(x, y) / p(x)
 """
 function conditional_pdf(sampler::AbstractCondSampler{d,<:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {d,T}
-    return Distributions.pdf(sampler, [x; y]) / marginal_pdf(sampler, x)
+    # almost always better to use logpdf and exp
+    return exp(conditional_logpdf(sampler, y, x))
+    # return Distributions.pdf(sampler, [x; y]) / marginal_pdf(sampler, x)
 end
 function conditional_logpdf(sampler::AbstractCondSampler{d,<:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {d,T}
-    return Distributions.logpdf(sampler, [x; y]) - Distributions.marg_logpdf(sampler, x)
+    return Distributions.logpdf(sampler, [x; y]) - marginal_logpdf(sampler, x)
 end
 
 function conditional_sample(sampler::AbstractCondSampler{d,<:Any,T},

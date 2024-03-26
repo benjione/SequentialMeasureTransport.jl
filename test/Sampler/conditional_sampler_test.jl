@@ -59,7 +59,7 @@ end
     end
 
     ## test marginal pushforward normalized
-    marg_pf = SMT.marg_pushforward(sra, x->0.5)
+    marg_pf = SMT.marginal_pushforward(sra, x->0.5)
     rng = range(-1.0, 1.0, length=1000)
     @test isapprox((2/1000)*sum(marg_pf([x]) for x in rng), 1.0, atol=1e-2)
     @test isapprox((2/1000)*sum(SMT.marginal_pdf(sra, [x]) for x in rng), 1.0, atol=1e-2)
@@ -89,7 +89,7 @@ end
         f_cond_pdf(y, x) = f_pdf([x; y]) / f_marg_pdf(x)[1]
         for _=1:10
             x = [rand() * 2 - 1]
-            cond_pdf2 = SMT.conditional_pushforward(sra, y->SMT.marg_Jacobian(SMT.GaussianReference{2, 1, Float64}(2.0), y), x)
+            cond_pdf2 = SMT.conditional_pushforward(sra, y->SMT.marginal_Jacobian(SMT.GaussianReference{2, 1, Float64}(2.0), y), x)
             vec1 = Y .|> y -> f_cond_pdf(y, x)
             vec2 = Y .|> y -> SMT.conditional_pdf(sra, y, x)
             vec3 = Y .|> y -> cond_pdf2(y)
@@ -98,7 +98,7 @@ end
         end
 
         ## test marginal pushforward normalized
-        marg_pf = SMT.marg_pushforward(sra, x->pdf(Normal(0, 1), x)[1])
+        marg_pf = SMT.marginal_pushforward(sra, x->pdf(Normal(0, 1), x)[1])
         rng = range(-4.0, 4.0, length=1000)
         @test isapprox((8/1000)*sum(marg_pf([x]) for x in rng), 1.0, atol=1e-2)
         @test isapprox((8/1000)*sum(SMT.marginal_pdf(sra, [x]) for x in rng), 1.0, atol=1e-2)
@@ -127,7 +127,7 @@ end
         f_cond_pdf(y, x) = f_pdf([x; y]) / f_marg_pdf(x)[1]
         for _=1:10
             x = [rand() * 2 - 1]
-            cond_pdf2 = SMT.conditional_pushforward(sra, y->SMT.marg_Jacobian(SMT.AlgebraicReference{2, 1, Float64}(), y), x)
+            cond_pdf2 = SMT.conditional_pushforward(sra, y->SMT.marginal_Jacobian(SMT.AlgebraicReference{2, 1, Float64}(), y), x)
             vec1 = Y .|> y -> f_cond_pdf(y, x)
             vec2 = Y .|> y -> SMT.conditional_pdf(sra, y, x)
             vec3 = Y .|> y -> cond_pdf2(y)
@@ -136,7 +136,7 @@ end
         end
 
         ## test marginal pushforward normalized
-        marg_pf = SMT.marg_pushforward(sra, x->pdf(Normal(0, 1), x)[1])
+        marg_pf = SMT.marginal_pushforward(sra, x->pdf(Normal(0, 1), x)[1])
         rng = range(-4.0, 4.0, length=1000)
         @test isapprox((8/1000)*sum(marg_pf([x]) for x in rng), 1.0, atol=1e-2)
         @test isapprox((8/1000)*sum(SMT.marginal_pdf(sra, [x]) for x in rng), 1.0, atol=1e-2)

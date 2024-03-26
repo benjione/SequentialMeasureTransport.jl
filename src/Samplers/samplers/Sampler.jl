@@ -205,8 +205,18 @@ function Distributions.pdf(
         sar::CondSampler{d, <:Any, T}, 
         x::PSDdata{T}
     ) where {d, T<:Number}
-    pdf_func = pushforward(sar, x->reference_pdf(sar, x))
-    return pdf_func(x)
+    log_pdf_func = log_pushforward(sar, x->log(reference_pdf(sar, x)))
+    return exp(log_pdf_func(x))
+    # pdf_func = pushforward(sar, x->reference_pdf(sar, x))
+    # return pdf_func(x)
+end
+
+function Distributions.logpdf(
+        sar::CondSampler{d, <:Any, T}, 
+        x::PSDdata{T}
+    ) where {d, T<:Number}
+    log_pdf_func = log_pushforward(sar, x->log(reference_pdf(sar, x)))
+    return log_pdf_func(x)
 end
 
 function marginal_pdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
@@ -214,4 +224,11 @@ function marginal_pdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {
     # reference Jacobian flexible for dimension
     pdf_func = marginal_pushforward(sra, x->marginal_reference_pdf(sra, x))
     return pdf_func(x)
+end
+
+function marginal_logpdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
+    @assert length(x) == _d_marg(sra)
+    # reference Jacobian flexible for dimension
+    log_pdf_func = marginal_log_pushforward(sra, x->log(marginal_reference_pdf(sra, x)))
+    return log_pdf_func(x)
 end

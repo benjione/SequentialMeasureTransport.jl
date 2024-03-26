@@ -122,6 +122,13 @@ function Distributions.logpdf(
     return log(sar.model(x))::T
 end
 
+
+function marginal_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
+    return sampler.margins[d-dC](x)
+end
+
+marginal_logpdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S} = log(marginal_pdf(sampler, x))
+
 @inline pushforward(sampler::PSDModelSampler{d, <:Any, T, S}, 
                     u::PSDdata{T}) where {d, T<:Number, S} = return _pushforward_first_n(sampler, u, d)
 
@@ -137,10 +144,6 @@ end
 
 
 ## Methods for satisfying ConditionalSampler interface
-
-function marginal_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
-    return sampler.margins[d-dC](x)
-end
 
 function marginal_Jacobian(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
     return 1/marginal_inverse_Jacobian(sampler, marginal_pushforward(sampler, x))

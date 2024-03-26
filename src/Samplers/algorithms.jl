@@ -282,7 +282,7 @@ end
 function SelfReinforced_ML_estimation(
         X::PSDDataVector{T},
         model::PSDModelOrthonormal{dsub, T, S},
-        bridge::BridgingDensity{dsub, T},
+        bridge::BridgingDensity{d, T},
         reference_map::ReferenceMap{d, <:Any, T};
         subsample_data=false,
         subsample_size=2000,
@@ -413,7 +413,7 @@ function Adaptive_Self_reinforced_ML_estimation(
     @assert _d == d
     @assert typeof(reference_map) <: ReferenceMap{d, dC, T}
 
-    bridge = BridgingDensities.DiffusionBrigdingDensity{dsub, T}()
+    bridge = BridgingDensities.DiffusionBrigdingDensity{d, T}()
 
     if dsub < d
         @assert subspace_reference_map !== nothing

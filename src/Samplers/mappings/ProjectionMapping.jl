@@ -95,6 +95,27 @@ Jacobian(sampler::ProjectionMapping{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}
                 x::PSDdata{T}
             ) where {T<:Number, R, R_sub, ST} = 1.0/inverse_Jacobian(sampler, pushforward(sampler, x))
 
+function inverse_log_Jacobian(sampler::ProjectionMapping{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}, 
+                x::PSDdata{T}
+            ) where {T<:Number, R, R_sub, ST}
+    xs = pullback(sampler.R_map, x) # from [0,1]^d to R^d
+    sub_x = sampler.P_tilde * xs # from R^d to R^d2
+    sub_x_maped = pushforward(sampler.R_map_sub, sub_x) # from R^d2 to [0,1]^d2
+    sub_u = pullback(sampler.sampler, sub_x_maped) # still in [0,1]^d2
+    us = sampler.X * pullback(sampler.R_map_sub, sub_u) + (I - sampler.P) * xs
+    # u = pushforward(sampler.R_map, us)
+    T_inv_jac_det = inverse_log_Jacobian(sampler.sampler, sub_x_maped) +
+                    inverse_log_Jacobian(sampler.R_map_sub, sub_u) +
+                    log_Jacobian(sampler.R_map_sub, sub_x)
+
+    return inverse_log_Jacobian(sampler.R_map, x) + T_inv_jac_det + log_Jacobian(sampler.R_map, us)
+end
+function log_Jacobian(sampler::ProjectionMapping{<:Any, <:Any, T, R, R_sub, <:Any, <:Any, ST}, 
+                x::PSDdata{T}
+            ) where {T<:Number, R, R_sub, ST}
+    return -inverse_log_Jacobian(sampler, pushforward(sampler, x))
+end
+
 ###
 ## Helper functions
 @inline _d_sub_marg(
@@ -191,10 +212,32 @@ function marginal_inverse_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dC
     return marginal_inverse_Jacobian(sampler.R_map, x) * T_inv_jac_det * marginal_Jacobian(sampler.R_map, us)
 end
 
+function marginal_inverse_log_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
+                x::PSDdata{T}
+            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
+    xs = marginal_pullback(sampler.R_map, x) # from [0,1]^dx to R^dx
+    sub_x = _marg_P_tilde(sampler) * xs # from R^dx to R^d_sub_marg
+    sub_x_maped = marginal_pushforward(sampler.R_map_sub, sub_x) # from R^d_sub_marg to [0,1]^d_sub_marg
+    sub_u = marginal_pullback(sampler.sampler, sub_x_maped) # still in [0,1]^d_sub_marg
+    us = _marg_X(sampler) * marginal_pullback(sampler.R_map_sub, sub_u) + (I - _marg_P(sampler)) * xs
+    # u = pushforward(sampler.R_map, us)
+    T_inv_jac_det = marginal_inverse_log_Jacobian(sampler.sampler, sub_x_maped) + 
+                    marginal_inverse_log_Jacobian(sampler.R_map_sub, sub_u) +
+                    marginal_log_Jacobian(sampler.R_map_sub, sub_x)
+
+    return marginal_inverse_log_Jacobian(sampler.R_map, x) + T_inv_jac_det + marginal_log_Jacobian(sampler.R_map, us)
+end
+
 function marginal_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
                 x::PSDdata{T}
             ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
     return 1.0/marginal_inverse_Jacobian(sampler, marginal_pushforward(sampler, x))
+end
+
+function marginal_log_Jacobian(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
+                x::PSDdata{T}
+            ) where {d, dC, T<:Number, dsub, dCsub, ST, R1, R2}
+    return -marginal_inverse_log_Jacobian(sampler, marginal_pushforward(sampler, x))
 end
 
 function marginal_pushforward(sampler::ProjectionMapping{d, dC, T, dsub, dCsub, ST, R1, R2}, 
