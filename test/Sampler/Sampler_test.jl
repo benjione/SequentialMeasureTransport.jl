@@ -54,7 +54,7 @@ end
     end
 
     @testset "indefinite domain" begin
-        f(x) = pdf(MvNormal([0.0, 0.0], 4.0*diagm(ones(2))), x)
+        f(x) = pdf(MvNormal([0.0, 0.0], 4.0*I), x)
         model = PSDModel(Legendre(0.0..1.0)^2, 
                     :downward_closed, 3)
         sra = SelfReinforcedSampler(

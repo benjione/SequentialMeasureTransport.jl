@@ -67,7 +67,23 @@ function SMT.inverse_Jacobian(
     return 1/Jacobian(mapping, pullback(mapping, u))
 end
 
-function SMT.marg_pushforward(
+function SMT.log_Jacobian(
+        m::GaussianReference{d, <:Any, T}, 
+        x::PSDdata{T}
+    ) where {d, T<:Number}
+    @assert length(x) == d
+    mapreduce(xi->Distributions.logpdf(Distributions.Normal(0, m.σ), xi), +, x)
+end
+
+function SMT.inverse_log_Jacobian(
+        mapping::GaussianReference{d, <:Any, T}, 
+        u::PSDdata{T}
+    ) where {d, T<:Number}
+    # inverse function theorem
+    return -SMT.log_Jacobian(mapping, SMT.pullback(mapping, u))
+end
+
+function SMT.marginal_pushforward(
         m::GaussianReference{d, dC, T}, 
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -75,7 +91,7 @@ function SMT.marg_pushforward(
     return 0.5 * (1 .+ erf.(x ./ (m.σ * sqrt(2))))
 end
 
-function SMT.marg_pullback(
+function SMT.marginal_pullback(
         m::GaussianReference{d, dC, T}, 
         u::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -83,7 +99,7 @@ function SMT.marg_pullback(
     return sqrt(2) * m.σ * erfcinv.(2.0 .- 2*u)
 end
 
-function SMT.marg_Jacobian(
+function SMT.marginal_Jacobian(
         m::GaussianReference{d, dC, T}, 
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -91,10 +107,26 @@ function SMT.marg_Jacobian(
     mapreduce(xi->Distributions.pdf(Distributions.Normal(0, m.σ), xi), *, x)
 end
 
-function SMT.marg_inverse_Jacobian(
+function SMT.marginal_inverse_Jacobian(
         mapping::GaussianReference{<:Any, <:Any, T}, 
         u::PSDdata{T}
     ) where {T<:Number}
     # inverse function theorem
-    return 1/SMT.marg_Jacobian(mapping, SMT.marg_pullback(mapping, u))
+    return 1/SMT.marginal_Jacobian(mapping, SMT.marginal_pullback(mapping, u))
+end
+
+function SMT.marginal_log_Jacobian(
+        m::GaussianReference{d, dC, T}, 
+        x::PSDdata{T}
+    ) where {d, dC, T<:Number}
+    @assert length(x) == d-dC
+    mapreduce(xi->Distributions.logpdf(Distributions.Normal(0, m.σ), xi), +, x)
+end
+
+function SMT.marginal_inverse_log_Jacobian(
+        mapping::GaussianReference{<:Any, <:Any, T}, 
+        u::PSDdata{T}
+    ) where {T<:Number}
+    # inverse function theorem
+    return -SMT.marginal_log_Jacobian(mapping, SMT.marginal_pullback(mapping, u))
 end

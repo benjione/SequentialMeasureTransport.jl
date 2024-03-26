@@ -2,7 +2,6 @@ abstract type OptProp{T} end
 
 include("SDP_optimizer.jl")
 include("JuMP_optimizer.jl")
-include("manopt_optimizer.jl")
 
 const _optimize_PSD_kwargs = 
     (:convex, :trace, :maxit, :tol, 
@@ -30,33 +29,11 @@ function create_SoS_opt_problem(
             loss::Function;
             kwargs...
         ) where {T<:Number}
-    if method == :manopt
-        return create_SoS_manopt_problem(initial, loss; kwargs...)
-    elseif method == :SDP
+    if method == :SDP
         return create_SoS_SDP_problem(initial, loss; kwargs...)
     else
         throw(error("Optimization method $method not implemented."))
         return nothing
-    end
-end
-
-function create_SoS_manopt_problem(
-            initial::AbstractMatrix{T}, 
-            loss::Function;
-            grad_loss=nothing,
-            convex::Bool = true,
-            trace::Bool=false,
-            maxit::Int=5000,
-            tol::Real=1e-6,
-            optimizer=nothing,
-            vectorize_matrix::Bool=true,
-            normalization_constraint::Bool=false,
-            fixed_variables=nothing,
-        ) where {T<:Number}
-    if grad_loss === nothing
-        return ManOptProp(initial, loss)
-    else
-        return ManOptProp(initial, loss, grad_loss)
     end
 end
 

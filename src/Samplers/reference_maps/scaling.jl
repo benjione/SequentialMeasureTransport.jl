@@ -70,7 +70,7 @@ function SMT.inverse_Jacobian(
     return mapping.V
 end
 
-function SMT.marg_pushforward(
+function SMT.marginal_pushforward(
         m::ScalingReference{d, dC, T}, 
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -78,7 +78,7 @@ function SMT.marg_pushforward(
     return (x .- m.L[1:dC]) ./ (m.R[1:dC] .- m.L[1:dC])
 end
 
-function SMT.marg_pullback(
+function SMT.marginal_pullback(
         m::ScalingReference{d, dC, T}, 
         u::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -86,7 +86,7 @@ function SMT.marg_pullback(
     return u .* (m.R[1:dC] .- m.L[1:dC]) .+ m.L[1:dC]
 end
 
-function SMT.marg_Jacobian(
+function SMT.marginal_Jacobian(
         mapping::ScalingReference{d, dC, T}, 
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
@@ -94,7 +94,7 @@ function SMT.marg_Jacobian(
     1/mapping.V_margin
 end
 
-function SMT.marg_inverse_Jacobian(
+function SMT.marginal_inverse_Jacobian(
         mapping::ScalingReference{d, dC, T}, 
         u::PSDdata{T}
     ) where {d, dC, T<:Number}

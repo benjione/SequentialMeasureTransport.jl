@@ -44,24 +44,24 @@ function inverse_Jacobian(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
     return inverse_Jacobian(m.map, u[m.subvariables])
 end
 
-function marg_pushforward(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
+function marginal_pushforward(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
         u::PSDdata{T}) where {d,dC,T<:Number,dsub,dCsub,Mtype<:ConditionalMapping{dsub,dCsub,T}}
-    u[m.subvariables[1:(dsub-dCsub)]] = marg_pushforward(m.map, u[m.subvariables[1:(dsub-dCsub)]])
+    u[m.subvariables[1:(dsub-dCsub)]] = marginal_pushforward(m.map, u[m.subvariables[1:(dsub-dCsub)]])
     return u
 end
 
-function marg_pullback(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
+function marginal_pullback(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
         u::PSDdata{T}) where {d,dC,T<:Number,dsub,dCsub,Mtype<:ConditionalMapping{dsub,dCsub,T}}
-    u[m.subvariables[1:(dsub-dCsub)]] = marg_pullback(m.map, u[m.subvariables[1:(dsub-dCsub)]])
+    u[m.subvariables[1:(dsub-dCsub)]] = marginal_pullback(m.map, u[m.subvariables[1:(dsub-dCsub)]])
     return u
 end
 
-function marg_Jacobian(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
+function marginal_Jacobian(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
         x::PSDdata{T}) where {d,dC,T<:Number,dsub,dCsub,Mtype<:ConditionalMapping{dsub,dCsub,T}}
-    return marg_Jacobian(m.map, x[m.subvariables[1:(dsub-dCsub)]])
+    return marginal_Jacobian(m.map, x[m.subvariables[1:(dsub-dCsub)]])
 end
 
-function marg_inverse_Jacobian(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
+function marginal_inverse_Jacobian(m::MarginalMapping{d,dC,T,dsub,dCsub,Mtype},
         u::PSDdata{T}) where {d,dC,T<:Number,dsub,dCsub,Mtype<:ConditionalMapping{dsub,dCsub,T}}
-    return marg_inverse_Jacobian(m.map, u[m.subvariables[1:(dsub-dCsub)]])
+    return marginal_inverse_Jacobian(m.map, u[m.subvariables[1:(dsub-dCsub)]])
 end
