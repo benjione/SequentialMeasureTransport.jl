@@ -68,7 +68,7 @@ end
 
 @testset "2 layer conditional sampler indefinite domain" begin
     @testset "Gaussian reference" begin
-        f(x) = pdf(MvNormal(zeros(2), ones(2)), x)
+        f(x) = pdf(MvNormal(zeros(2), I), x)
         model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 3)
         
         sra = SelfReinforcedSampler(f, model, 2, 
@@ -105,22 +105,23 @@ end
     end
 
     @testset "Algebraic reference" begin
-        f(x) = pdf(MvNormal(zeros(2), 0.5*ones(2)), x)
-        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 5)
+        variance = 1.0
+        f(x) = pdf(MvNormal(zeros(2), variance*I), x)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 6)
         
-        bridge = AlgebraicBridgingDensity{2}(f, [0.5, 1.0])
-        sra = SelfReinforcedSampler(bridge, model, 2, 
+        bridge = AlgebraicBridgingDensity{2}(f, [1.0, 1.0])
+        sra = SelfReinforcedSampler(bridge, model, length(bridge.β_list), 
                     :Chi2, SMT.AlgebraicReference{2, 1, Float64}(); 
-                    N_sample=1000,
+                    N_sample=2000,
                     dC=1)
 
         ## test pdf and marginal pdf
-        Y_marg = [[rand() * 2 - 1] for _=1:100]
-        Y = [rand(2) * 2 .- 1 for _=1:100]
+        Y_marg = [[rand() * 3 - 1] for _=1:100]
+        Y = [rand(2) * 3 .- 1 for _=1:100]
         f_pdf(x) = f(x)
-        f_marg_pdf(x) = pdf(Normal(0, 0.5), x)
+        f_marg_pdf(x) = pdf(Normal(0, variance), x)
         @test norm(pdf.(Ref(sra), Y) - vcat(f_pdf.(Y)...), 2)/norm(vcat(f_pdf.(Y)...), 2) < 0.1
-        @test norm(SMT.marginal_pdf.(Ref(sra), Y_marg) - vcat(f_marg_pdf.(Y_marg)...), 2)/norm(vcat(f_marg_pdf.(Y)...), 2) < 0.1
+        @test norm(SMT.marginal_pdf.(Ref(sra), Y_marg) - vcat(f_marg_pdf.(Y_marg)...), 2)/norm(vcat(f_marg_pdf.(Y_marg)...), 2) < 0.1
 
         ## test conditional pdf
         Y = [[rand() * 2 - 1] for _=1:100]

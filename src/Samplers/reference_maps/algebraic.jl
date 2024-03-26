@@ -33,7 +33,7 @@ function _log_Jacobian(m::AlgebraicReference{<:Any, <:Any, T}, x::PSDdata{T}) wh
 end
 
 function _inverse_log_Jacobian(m::AlgebraicReference{<:Any, <:Any, T}, u::PSDdata{T}) where {T<:Number}
-    return mapreduce(ui->log(2.0) - (3/2) * log(1-(2*ui - 1.0)^2), +, u)
+    return mapreduce(ui->log(2.0) - (3/2) * log(1.0-((2*ui - 1.0)^2)), +, u)
 end
 
 

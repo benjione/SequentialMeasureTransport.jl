@@ -181,21 +181,17 @@ end
 Jacobian defintions
 """
 
-function inverse_Jacobian(sra::CondSampler{d, <:Any, T},
-            x::PSDdata{T}) where {d, T<:Number}
-    pushforward(sra, x->one(T))(x)
-end
-@inline Jacobian(sra::CondSampler{d, <:Any, T},
-            x::PSDdata{T}) where {d, T<:Number} = pullback(sra, x->one(T))(x)
+@inline inverse_Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = pushforward(sra, x->one(T))(x)
+@inline Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = pullback(sra, x->one(T))(x)
 
-function marginal_inverse_Jacobian(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
-    return marginal_pushforward(sra, x->one(T))(x)
-end
+@inline marginal_inverse_Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = marginal_pushforward(sra, x->one(T))(x)
+@inline marginal_Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = marginal_pullback(sra, x->one(T))(x)
 
-function marginal_Jacobian(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
-    return marginal_pullback(sra, x->one(T))(x)
-end
+@inline log_Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = log_pullback(sra, x->zero(T))(x)
+@inline inverse_log_Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = log_pushforward(sra, x->zero(T))(x)
 
+@inline marginal_log_Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = marginal_log_pullback(sra, x->zero(T))(x)
+@inline marginal_inverse_log_Jacobian(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = marginal_log_pushforward(sra, x->zero(T))(x)
 
 """
 PDF definitions
@@ -212,21 +208,21 @@ function Distributions.pdf(
 end
 
 function Distributions.logpdf(
-        sar::CondSampler{d, <:Any, T}, 
+        sar::CondSampler{<:Any, <:Any, T}, 
         x::PSDdata{T}
-    ) where {d, T<:Number}
+    ) where {T<:Number}
     log_pdf_func = log_pushforward(sar, x->log(reference_pdf(sar, x)))
     return log_pdf_func(x)
 end
 
-function marginal_pdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
+function marginal_pdf(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number}
     @assert length(x) == _d_marg(sra)
     # reference Jacobian flexible for dimension
     pdf_func = marginal_pushforward(sra, x->marginal_reference_pdf(sra, x))
     return pdf_func(x)
 end
 
-function marginal_logpdf(sra::CondSampler{d, dC, T, R1, R2}, x::PSDdata{T}) where {d, dC, T<:Number, R1, R2}
+function marginal_logpdf(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number}
     @assert length(x) == _d_marg(sra)
     # reference Jacobian flexible for dimension
     log_pdf_func = marginal_log_pushforward(sra, x->log(marginal_reference_pdf(sra, x)))

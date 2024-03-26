@@ -2,7 +2,7 @@
 
 
 @testset "Single Projection" begin
-    f(x) = pdf(MvNormal(0.5.+zeros(2), 0.2*diagm(ones(2))), x)
+    f(x) = pdf(MvNormal(0.5.+zeros(2), 0.2*I), x)
     f_marg(x) = pdf(Normal(0.5, 0.2), x)[1]
     model = PSDModel(Legendre(0.0..1.0), :downward_closed, 3)
     X = rand(1, 1000)
@@ -38,9 +38,9 @@ end
     variance = 0.5
     scaling_1d = cdf(Normal(0.5, variance), 1.0) - cdf(Normal(0.5, variance), 0.0)
     rng = range(0, 1, length=200)
-    scaling_2d = 1/length(rng)^2 * sum(pdf(MvNormal(0.5.+zeros(2), variance*diagm(ones(2))), [x, y]) for x in rng, y in rng)
-    f(x) = pdf(MvNormal(0.5.+zeros(3), variance*diagm(ones(3))), x)
-    f_marg(x) = (1/scaling_2d) * pdf(MvNormal(0.5.+zeros(2), variance*diagm(ones(2))), x)
+    scaling_2d = 1/length(rng)^2 * sum(pdf(MvNormal(0.5.+zeros(2), variance*I), [x, y]) for x in rng, y in rng)
+    f(x) = pdf(MvNormal(0.5.+zeros(3), variance*I), x)
+    f_marg(x) = (1/scaling_2d) * pdf(MvNormal(0.5.+zeros(2), variance*I), x)
     f_margin_single(x) = (1/scaling_1d) * pdf(Normal(0.5, variance), x[1])
     model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 5)
     X = rand(2, 1000)

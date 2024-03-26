@@ -114,7 +114,7 @@ end
     @testset "T^♯ f normalized" begin
         for d=1:2
             ref_map = SMT.AlgebraicReference{d, Float64}()
-            f_app = SMT.pushforward(ref_map, x->pdf(MvNormal(zeros(d), 1.0), x))
+            f_app = SMT.pushforward(ref_map, x->pdf(MvNormal(zeros(d), I), x))
             rng = 0.001:0.001:0.999
             iter = Iterators.product(fill(rng, d)...)
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
@@ -123,7 +123,7 @@ end
     @testset "exp(log(T^♯ f)) normalized" begin
         for d=1:2
             ref_map = SMT.AlgebraicReference{d, Float64}()
-            f_app = SMT.log_pushforward(ref_map, x->logpdf(MvNormal(zeros(d), 1.0), x))
+            f_app = SMT.log_pushforward(ref_map, x->logpdf(MvNormal(zeros(d), I), x))
             f_app = let f_app=f_app 
                 x->exp(f_app(x))
             end
@@ -172,7 +172,7 @@ end
     @testset "T^♯ f normalized" begin
         for d=1:2
             ref_map = SMT.AlgebraicReference{d, Float64}()
-            f_app = SMT.pushforward(ref_map, x->pdf(MvNormal(zeros(d), 1.0), x))
+            f_app = SMT.pushforward(ref_map, x->pdf(MvNormal(zeros(d), I), x))
             rng = 0.001:0.001:0.999
             iter = Iterators.product(fill(rng, d)...)
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
@@ -181,7 +181,7 @@ end
     @testset "exp(log(T^♯ f)) normalized" begin
         for d=1:2
             ref_map = SMT.AlgebraicReference{d, Float64}()
-            f_app = SMT.log_pushforward(ref_map, x->logpdf(MvNormal(zeros(d), 1.0), x))
+            f_app = SMT.log_pushforward(ref_map, x->logpdf(MvNormal(zeros(d), I), x))
             f_app = let f_app=f_app 
                 x->exp(f_app(x))
             end

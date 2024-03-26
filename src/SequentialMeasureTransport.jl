@@ -54,8 +54,4 @@ include("Samplers/sampler.jl")
 include("statistics.jl")
 using .Statistics
 
-# for AbstractMCMC interface
-include("MCMC/mcmc.jl")
-# using .MCMC
-
 end # module PositiveSemidefiniteModels
