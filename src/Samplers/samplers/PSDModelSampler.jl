@@ -21,7 +21,7 @@ struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Not
         # integrals = map((x,k)->compiled_integral(x, k), margins, 1:d)
         integrals = map((x,k)->integral(x, k), margins, 1:d)
         # margins = map(x->compile(x), margins)
-        new{d, dC, T, S}(model, margins, integrals, variable_ordering)
+        new{d, dC, T, S}(perm_model, margins, integrals, variable_ordering)
     end
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
                              variable_ordering::Vector{Int}) where {d, T<:Number, S}
