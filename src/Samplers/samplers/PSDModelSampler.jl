@@ -21,7 +21,7 @@ struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Not
         # integrals = map((x,k)->compiled_integral(x, k), margins, 1:d)
         integrals = map((x,k)->integral(x, k), margins, 1:d)
         # margins = map(x->compile(x), margins)
-        new{d, dC, T, S}(perm_model, margins, integrals, variable_ordering)
+        new{d, dC, T, S}(model, margins, integrals, variable_ordering)
     end
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
                              variable_ordering::Vector{Int}) where {d, T<:Number, S}
@@ -124,7 +124,7 @@ end
 
 
 function marginal_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S}
-    return sampler.margins[d-dC](x)
+    return sampler.margins[d-dC](x[sampler.variable_ordering[1:d-dC]])
 end
 
 marginal_logpdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S} = log(marginal_pdf(sampler, x)+ϵ_log)
