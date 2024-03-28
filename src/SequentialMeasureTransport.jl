@@ -14,6 +14,7 @@ import Base
 import Distributions
 import Random
 
+include("config.jl")
 include("utils.jl")
 
 export PSDModel

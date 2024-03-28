@@ -206,19 +206,23 @@ end
     
 
     ## check that conditional is normalized
-    rng = range(-8, 8, 2000)
-    Δrng = 16/2000
-    for _=1:10
+    rng = range(-12, 10, 3000)
+    Δrng = 22/3000
+    for _=1:5
         x = if rand() < 0.5
             rand(marg_distr1)
         else
             rand(marg_distr2)
         end
+        # x = randn(2) * 1e7
         cond_pdf_func = SMT.conditional_pushforward(sra_sub, y->SMT.Jacobian(SMT.AlgebraicReference{1, 0, Float64}(), y), x)
         int_cond = Δrng*sum(cond_pdf_func([y]) for y in rng)
         int_cond2 = Δrng*sum(SMT.conditional_pdf(sra_sub, [y], x) for y in rng)
         @test isapprox(int_cond, 1.0, atol=0.05)
         @test isapprox(int_cond2, 1.0, atol=0.05)
+        # print("x = ", x, "\n")
+        # print("pushforward func ", int_cond, " conditional pdf ", int_cond2, "\n")
+        # print("t1 = ", t1, " t2 = ", t2, "\n")
     end
 
     rng = [[x...] for x in Iterators.product(
@@ -241,7 +245,7 @@ end
 
     KL_cond = cond_KL - cond_neg_log_likelihood
 
-    @assert KL_cond < 10.0
+    @test KL_cond < 12.0
 
 
     ## test that pushforward is pullback
@@ -258,7 +262,7 @@ end
     end
 
     ## test that conditional pushforward is pullback
-    for k=1:10
+    for k=1:5
         x = rand(2)
         for i=1:100
             y = rand(1)

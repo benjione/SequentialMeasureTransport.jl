@@ -17,7 +17,7 @@ struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Not
         perm_model = permute_indices(model, variable_ordering) # permute dimensions
         margins = PSDModelOrthonormal{<:Any, T, S}[marginalize(perm_model, collect(k:d)) for k in 2:d]
         margins = [margins; perm_model] # add the full model at last
-        margins = map(normalize, margins) # normalize all marginals again to reduce numerical errors
+        # margins = map(normalize, margins) # normalize all marginals again to reduce numerical errors
         # integrals = map((x,k)->compiled_integral(x, k), margins, 1:d)
         integrals = map((x,k)->integral(x, k), margins, 1:d)
         # margins = map(x->compile(x), margins)
@@ -119,7 +119,7 @@ function Distributions.logpdf(
         sar::PSDModelSampler{d, <:Any, T},
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return log(sar.model(x))::T
+    return log(sar.model(x)+ϵ_log)::T
 end
 
 
@@ -127,7 +127,7 @@ function marginal_pdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) wher
     return sampler.margins[d-dC](x)
 end
 
-marginal_logpdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S} = log(marginal_pdf(sampler, x))
+marginal_logpdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, dC, T<:Number, S} = log(marginal_pdf(sampler, x)+ϵ_log)
 
 @inline pushforward(sampler::PSDModelSampler{d, <:Any, T, S}, 
                     u::PSDdata{T}) where {d, T<:Number, S} = return _pushforward_first_n(sampler, u, d)

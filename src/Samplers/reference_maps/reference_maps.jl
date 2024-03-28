@@ -115,5 +115,12 @@ function SMT.marginal_inverse_Jacobian(
     throw(error("Not implemented"))
 end
 
+function SMT.conditional_log_Jacobian(sampler::ReferenceMap{<:Any, <:Any, T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
+    return SMT.log_Jacobian(sampler, [x; y]) - SMT.marginal_log_Jacobian(sampler, x)
+end
+function SMT.conditional_inverse_log_Jacobian(sampler::ReferenceMap{<:Any, <:Any, T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
+    return SMT.inverse_log_Jacobian(sampler, [x; y]) - SMT.marginal_inverse_log_Jacobian(sampler, x)
+end
+
 
 end # module ReferenceMaps

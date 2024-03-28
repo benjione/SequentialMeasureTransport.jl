@@ -68,8 +68,8 @@ marginal_pushforward(sampler::ConditionalMapping, u::PSDdata) = throw("Not Imple
 marginal_pullback(sampler::ConditionalMapping, x::PSDdata) = throw("Not Implemented")
 marginal_Jacobian(mapping::ConditionalMapping, u::PSDdata) = throw("Not Implemented")
 marginal_inverse_Jacobian(mapping::ConditionalMapping, x::PSDdata) = throw("Not Implemented")
-marginal_log_Jacobian(mapping::ConditionalMapping, u::PSDdata) = log(marginal_Jacobian(mapping, u))
-marginal_inverse_log_Jacobian(mapping::ConditionalMapping, x::PSDdata) = log(marginal_inverse_Jacobian(mapping, x))
+marginal_log_Jacobian(mapping::ConditionalMapping, u::PSDdata) = log(marginal_Jacobian(mapping, u)+ϵ_log)
+marginal_inverse_log_Jacobian(mapping::ConditionalMapping, x::PSDdata) = log(marginal_inverse_Jacobian(mapping, x)+ϵ_log)
 function conditional_Jacobian(sampler::ConditionalMapping{<:Any, <:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
     x = marginal_pullback(sampler, x)
     return Jacobian(sampler, [x; y]) / marginal_Jacobian(sampler, x)
@@ -82,7 +82,7 @@ function conditional_log_Jacobian(sampler::ConditionalMapping{<:Any, <:Any,T}, y
     return log_Jacobian(sampler, [x; y]) - marginal_log_Jacobian(sampler, x)
 end
 function conditional_inverse_log_Jacobian(sampler::ConditionalMapping{<:Any, <:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
-    return log_inverse_Jacobian(sampler, [x; y]) - marginal_inverse_log_Jacobian(sampler, x)
+    return inverse_log_Jacobian(sampler, [x; y]) - marginal_inverse_log_Jacobian(sampler, x)
 end
 
 """
