@@ -18,6 +18,10 @@ using Distributions
     end
 end
 
+@testset "PSDModels test" begin
+    include("PSDModel_test.jl")
+end
+
 @testset "Reference map and reference sampling" begin
     include("reference_maps_test.jl")
 end
