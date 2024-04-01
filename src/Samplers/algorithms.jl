@@ -392,13 +392,44 @@ function SelfReinforced_ML_estimation(
     return sra
 end
 
+
+"""
+Adaptive self-reinforced maximum likelihood estimation
+
+This function creates a Sampler by adding layers of bridging densities
+until the residual of the sampler is larger than the smallest residual times (1+ϵ_smallest) or
+larger than the previous residual times (1 + ϵ_last).
+
+# Arguments
+- `X_train::PSDDataVector{T}`: Training data
+- `X_val::PSDDataVector{T}`: Validation data
+- `model::PSDModelOrthonormal{dsub, T, S}`: Model to be fitted
+- `β::T`: Bridging density parameter
+- `reference_map::ReferenceMap{d, <:Any, T}`: Reference map
+- `ϵ_last=1e-4`: Residual threshold for previous residual
+- `ϵ_smallest=1e-3`: Residual threshold for smallest residual
+- `residual`: Residual function, default is negative log likelihood
+- `L_max=100`: Maximum number of layers
+- `subsample_data=false`: Subsample data in case of large data
+- `subsample_size=2000`: Size of subsample, only used if `subsample_data=true`
+- `threading=true`: Enable/disable threading
+- `dC`: Conditional dimension to estimate π(y | x) where y are the last dC dimensions
+- `dCsub`: Conditional dimension of the subspace
+- `trace_df`: DataFrame to store trace information. If not `nothing`, the following columns are added at every iteration:
+    - `:residual`: Residual of the sampler
+    - `:layers`: Number of layers
+    - `:time`: Time to add layer
+"""
 function Adaptive_Self_reinforced_ML_estimation(
     X_train::PSDDataVector{T},
     X_val::PSDDataVector{T},
     model::PSDModelOrthonormal{dsub, T, S},
     β::T,
     reference_map::ReferenceMap{d, <:Any, T};
-    ϵ=1e-3,
+    ϵ_last=1e-4,
+    ϵ_smallest=1e-3,
+    residual=nothing,
+    L_max=100,
     subsample_data=false,
     subsample_size=2000,
     subspace_reference_map=nothing,
@@ -406,6 +437,7 @@ function Adaptive_Self_reinforced_ML_estimation(
     threading=true,
     dC=0,
     dCsub=0,
+    trace_df=nothing,
     kwargs...
 ) where {T<:Number, S, d, dsub}
     _d = length(X_train[1]) # data dimension
@@ -443,10 +475,16 @@ function Adaptive_Self_reinforced_ML_estimation(
                                 reference_map)
     end
 
-    Residual(mapping) = mapreduce(x->-log(Distributions.pdf(mapping, x)), +, X_val)
+    _residual(mapping, X_val) = if residual === nothing 
+        mapreduce(x->-Distributions.logpdf(mapping, x), +, X_val)
+    else
+        residual(mapping, X_val)
+    end
     last_residual = Inf64
+    smallest_residual = Inf64
 
-    while true
+    while length(sra.samplers) < L_max
+        start_time = time()
         t_ℓ = BridgingDensities.add_timestep!(bridge, β)
         model_ML = deepcopy(model)
     
@@ -508,12 +546,23 @@ function Adaptive_Self_reinforced_ML_estimation(
         end
         add_layer!(sra, layer)
 
-        residual = Residual(sra)
-        if residual > (1.0 + ϵ)* last_residual
+        resid = _residual(sra, X_val)
+        if resid > (1.0 + ϵ_smallest) * smallest_residual || resid > (1.0 + ϵ_last) * last_residual
             pop!(sra.samplers)
             break
         end
-        last_residual = residual
+        last_residual = resid
+        if resid < smallest_residual
+            smallest_residual = resid
+        end
+
+        end_time = time()
+
+        ## store trace information
+        if trace_df !== nothing
+            push!(trace_df, (residual=resid, layers=length(sra.samplers), time=end_time-start_time))
+        end
+
         X_evolved = nothing
         X_iter = nothing
         GC.gc()

@@ -33,8 +33,8 @@ end
         distr2 = Normal(1.0, 0.5)
         distr = MixtureModel([distr1, distr2], [0.5, 0.5])
         f(x) = pdf(distr, x)
-        X_train = rand(distr, 1000) + 0.05 * randn(1000)
-        X_val = rand(distr, 1000) + 0.05 * randn(1000)
+        X_train = rand(distr, 1000) + 0.5 * randn(1000)
+        X_val = rand(distr, 1000) + 0.5 * randn(1000)
         X_train = [[x] for x in X_train]
         X_val = [[x] for x in X_val]
         model = PSDModel(Legendre(0.0..1.0), :downward_closed, 5)
@@ -47,7 +47,6 @@ end
             ref_map;
             # optimizer=Hypatia.Optimizer,
             trace=false,
-            ϵ=1e-5,
         )
 
         # check neg log likelihood of test data
