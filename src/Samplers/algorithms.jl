@@ -408,14 +408,15 @@ larger than the previous residual times (1 + ϵ_last).
 - `reference_map::ReferenceMap{d, <:Any, T}`: Reference map
 - `ϵ_last=1e-4`: Residual threshold for previous residual
 - `ϵ_smallest=1e-3`: Residual threshold for smallest residual
+- `return_smallest_residual=false`: If true, after conditions is reached the last layers are removed and the sampler with the smallest residual is returned
 - `residual`: Residual function, default is negative log likelihood
 - `L_max=100`: Maximum number of layers
 - `subsample_data=false`: Subsample data in case of large data
 - `subsample_size=2000`: Size of subsample, only used if `subsample_data=true`
 - `threading=true`: Enable/disable threading
-- `dC`: Conditional dimension to estimate π(y | x) where y are the last dC dimensions
-- `dCsub`: Conditional dimension of the subspace
-- `trace_df`: DataFrame to store trace information. If not `nothing`, the following columns are added at every iteration:
+- `dC=0`: Conditional dimension to estimate π(y | x) where y are the last dC dimensions
+- `dCsub=0`: Conditional dimension of the subspace, at least 1 if `dsub < d` and `dC > 0`
+- `trace_df=nothing`: DataFrame to store trace information. If not `nothing`, the following columns are added at every iteration:
     - `:residual`: Residual of the sampler
     - `:layers`: Number of layers
     - `:time`: Time to add layer
@@ -428,6 +429,7 @@ function Adaptive_Self_reinforced_ML_estimation(
     reference_map::ReferenceMap{d, <:Any, T};
     ϵ_last=1e-4,
     ϵ_smallest=1e-3,
+    return_smallest_residual=false,
     residual=nothing,
     L_max=100,
     subsample_data=false,
@@ -566,6 +568,20 @@ function Adaptive_Self_reinforced_ML_estimation(
         X_evolved = nothing
         X_iter = nothing
         GC.gc()
+    end
+
+    if return_smallest_residual
+        ## calc residual after each layer
+        _resids = zeros(T, length(sra.samplers))
+        for i in 1:length(sra.samplers)
+            _sra = CondSampler(sra.samplers[1:i], sra.R1_map, sra.R2_map)
+            _resids[i] = _residual(_sra, X_val)
+        end
+        ## find layer with smallest residual
+        min_idx = argmin(_resids)
+        ## remove layers after min_idx
+        sra.samplers = sra.samplers[1:min_idx]
+        return CondSampler(sra.samplers, sra.R1_map, sra.R2_map)
     end
 
     return sra
