@@ -579,9 +579,7 @@ function Adaptive_Self_reinforced_ML_estimation(
         end
         ## find layer with smallest residual
         min_idx = argmin(_resids)
-        ## remove layers after min_idx
-        sra.samplers = sra.samplers[1:min_idx]
-        return CondSampler(sra.samplers, sra.R1_map, sra.R2_map)
+        return CondSampler(sra.samplers[1:min_idx], sra.R1_map, sra.R2_map)
     end
 
     return sra
