@@ -209,7 +209,7 @@ function _fit_JuMP!(a::PSDModel{T},
         JuMP.add_to_expression!(ex, λ_1 * nuclearnorm(B))
     end
     if λ_2 > 0.0
-        JuMP.add_to_expression!(ex, λ_2 * opnorm(B, 2)^2)
+        JuMP.add_to_expression!(ex, λ_2 * norm(B, 2)^2)
     end
 
     JuMP.@objective(model, Min, ex);
@@ -290,7 +290,7 @@ function _ML_JuMP!(a::PSDModel{T},
         JuMP.add_to_expression!(min_func, λ_1 * nuclearnorm(B))
     end
     if λ_2 > 0.0
-        JuMP.add_to_expression!(min_func, λ_2 * opnorm(B, 2)^2)
+        JuMP.add_to_expression!(min_func, λ_2 * norm(B, 2)^2)
     end
 
 
@@ -367,7 +367,7 @@ function _KL_JuMP!(a::PSDModel{T},
 
     JuMP.@expression(model, min_func, t + tr(B))
     if λ_2 > 0.0
-        JuMP.add_to_expression!(min_func, λ_2 * opnorm(B, 2)^2)
+        JuMP.add_to_expression!(min_func, λ_2 * norm(B, 2)^2)
     end
 
 
@@ -453,7 +453,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     ## use discrete approximation of the integral
     # JuMP.@expression(model, min_func, (one(T)/(α*(α-one(T)))) * t + (1/α)* sum(ex[i] for i=1:m))
     if λ_2 > 0.0
-        JuMP.add_to_expression!(min_func, λ_2 * opnorm(B, 2)^2)
+        JuMP.add_to_expression!(min_func, λ_2 * norm(B, 2)^2)
     end
 
 
