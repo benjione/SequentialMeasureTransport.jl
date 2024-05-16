@@ -209,10 +209,14 @@ function _fit_JuMP!(a::PSDModel{T},
         JuMP.add_to_expression!(ex, λ_1 * nuclearnorm(B))
     end
     if λ_2 > 0.0
-        JuMP.add_to_expression!(ex, λ_2 * norm(B, 2)^2)
+        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
+        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
     end
-
-    JuMP.@objective(model, Min, ex);
+    if λ_2 == 0.0
+        JuMP.@objective(model, Min, min_func)
+    else
+        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
+    end
 
     # @show t2
     if normalization
@@ -286,15 +290,22 @@ function _ML_JuMP!(a::PSDModel{T},
     # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
 
     JuMP.@expression(model, min_func, (1/m)*t)
+    
     if λ_1 > 0.0
         JuMP.add_to_expression!(min_func, λ_1 * nuclearnorm(B))
     end
     if λ_2 > 0.0
-        JuMP.add_to_expression!(min_func, λ_2 * norm(B, 2)^2)
+        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
+        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
+    end
+    if λ_2 == 0.0
+        JuMP.@objective(model, Min, min_func)
+    else
+        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
     end
 
 
-    JuMP.@objective(model, Min, min_func);
+    # JuMP.@objective(model, Min, min_func);
 
     # @show t2
     if normalization
@@ -367,11 +378,17 @@ function _KL_JuMP!(a::PSDModel{T},
 
     JuMP.@expression(model, min_func, t + tr(B))
     if λ_2 > 0.0
-        JuMP.add_to_expression!(min_func, λ_2 * norm(B, 2)^2)
+        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
+        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
+    end
+    if λ_2 == 0.0
+        JuMP.@objective(model, Min, min_func)
+    else
+        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
     end
 
 
-    JuMP.@objective(model, Min, min_func);
+    # JuMP.@objective(model, Min, min_func);
 
     # @show t2
     if normalization
@@ -453,11 +470,17 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     ## use discrete approximation of the integral
     # JuMP.@expression(model, min_func, (one(T)/(α*(α-one(T)))) * t + (1/α)* sum(ex[i] for i=1:m))
     if λ_2 > 0.0
-        JuMP.add_to_expression!(min_func, λ_2 * norm(B, 2)^2)
+        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
+        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
+    end
+    if λ_2 == 0.0
+        JuMP.@objective(model, Min, min_func)
+    else
+        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
     end
 
 
-    JuMP.@objective(model, Min, min_func);
+    # JuMP.@objective(model, Min, min_func);
 
     # @show t2
     if normalization
