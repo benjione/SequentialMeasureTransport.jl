@@ -191,3 +191,67 @@ end
         end
     end
 end
+
+
+@testset "Composed Reference" begin
+    @testset "T^{-1}(T(x)) = x" begin
+        for d=1:5
+            ref_map = SMT.normalized_gaussian_reference(randn(d), 2.0*rand(d))
+
+            for i=1:100
+                x = rand(d)
+                @test SMT.pullback(ref_map, SMT.pushforward(ref_map, x)) ≈ x
+            end
+        end
+    end
+    @testset "T^♯ T_♯ f = f" begin
+        for d=1:5
+            ref_map = SMT.normalized_gaussian_reference(randn(d), 2.0*rand(d))
+            f_app = SMT.pullback(ref_map, x->1.0)
+            f_app_2 = SMT.pushforward(ref_map, f_app)
+    
+            for i=1:100
+                x = rand(d)
+                @test f_app_2(x) ≈ 1.0
+            end
+        end
+    end
+    @testset "log(T^♯ T_♯ f) = log(f)" begin
+        for d=1:5
+            ref_map = SMT.normalized_gaussian_reference(randn(d), 2.0*rand(d))
+            f_app = SMT.log_pullback(ref_map, x->0.0)
+            f_app_2 = SMT.log_pushforward(ref_map, f_app)
+    
+            for i=1:100
+                x = rand(d)
+                @test isapprox(f_app_2(x), 0.0, atol=1e-13)
+            end
+        end
+    end
+    @testset "T^♯ f normalized" begin
+        for d=1:2
+            means = randn(d)
+            stds = 0.1*ones(d) + rand(d)
+            ref_map = SMT.normalized_gaussian_reference(means, stds)
+            f_app = SMT.pushforward(ref_map, x->pdf(MvNormal(means, diagm(stds.^2)), x))
+            rng = 1e-8:0.001:1.0-1e-8
+            iter = Iterators.product(fill(rng, d)...)
+            @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
+        end
+    end
+    @testset "exp(log(T^♯ f)) normalized" begin
+        for d=1:2
+            means = randn(d)
+            stds = 0.1*ones(d) + rand(d)
+            ref_map = SMT.normalized_gaussian_reference(means, stds)
+            # f_app = SMT.pushforward(ref_map, x->pdf(MvNormal(means, diagm(stds)), x))
+            f_app = SMT.log_pushforward(ref_map, x->logpdf(MvNormal(means, diagm(stds.^2)), x))
+            f_app = let f_app=f_app 
+                x->exp(f_app(x))
+            end
+            rng = 1e-8:0.001:1.0-1e-8
+            iter = Iterators.product(fill(rng, d)...)
+            @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-3)
+        end
+    end
+end

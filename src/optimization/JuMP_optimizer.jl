@@ -213,9 +213,9 @@ function _fit_JuMP!(a::PSDModel{T},
         # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
     end
     if λ_2 == 0.0
-        JuMP.@objective(model, Min, min_func)
+        JuMP.@objective(model, Min, ex)
     else
-        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
+        JuMP.@objective(model, Min, ex + λ_2 * norm_B)
     end
 
     # @show t2

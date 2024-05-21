@@ -1,5 +1,13 @@
 module ReferenceMaps
 
+"""
+    ReferenceMap{d, dC, T}
+
+    Reference maps are diagonal maps used to work on domains of choice, while keeping the
+    density estimation in [0, 1]. The reference map is defined as a map from the uniform
+    distribution on [0, 1]^d to a domain of choice.
+"""
+
 import ..SequentialMeasureTransport as SMT
 using ..SequentialMeasureTransport: PSDModelOrthonormal, domain_interval_left, domain_interval_right,
                    PSDdata, ConditionalMapping, pullback, pushforward, Jacobian, inverse_Jacobian
@@ -14,9 +22,11 @@ abstract type ReferenceMap{d, dC, T} <: ConditionalMapping{d, dC, T} end
 include("scaling.jl")
 include("gaussian.jl")
 include("algebraic.jl")
+include("composed_reference.jl")
 
 export ReferenceMap
 export ScalingReference, GaussianReference, AlgebraicReference
+export normalized_gaussian_reference, normalized_algebraic_reference
 
 """
 Attention!

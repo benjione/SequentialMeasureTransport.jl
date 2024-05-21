@@ -31,6 +31,11 @@ function ScalingReference(model::PSDModelOrthonormal{d, T, S}) where {d, T, S}
     ScalingReference{d}(L, R)
 end
 
+function NormalizationReference(mean::Vector{T}, std::Vector{T}, dC::Int) where {T<:Number}
+    d = length(mean)
+    @assert length(std) == d
+    ScalingReference{d, dC}(mean, mean .+ std)
+end
 
 
 ## Interface implementation

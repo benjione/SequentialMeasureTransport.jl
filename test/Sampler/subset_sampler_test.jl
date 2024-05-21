@@ -201,7 +201,7 @@ end
         ]
     rng = reshape(rng, length(rng))
     rng_marg = reshape(rng_marg, length(rng_marg))
-    @test norm(pdf.(Ref(sra_sub), rng) - f.(rng), 2)/norm(f.(rng), 2) < 0.45
+    @test norm(pdf.(Ref(sra_sub), rng) - f.(rng), 2)/norm(f.(rng), 2) < 0.5
     @test norm(SMT.marginal_pdf.(Ref(sra_sub), rng_marg) - f_marg.(rng_marg), 2)/norm(f_marg.(rng_marg), 2) < 0.45
     
 

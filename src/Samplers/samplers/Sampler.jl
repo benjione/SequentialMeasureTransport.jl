@@ -2,6 +2,11 @@
 
 """
 The most generic implementation of CondSampler and Sampler.
+
+ATTENTION:
+    applies maps in reverse order, i.e., the last map is applied first.
+     T = T_1 ◦ T_2 ◦ ... ◦ T_n
+    where T_i is the i-th map in the sampler.
 """
 struct CondSampler{d, dC, T, R1, R2} <: AbstractCondSampler{d, dC, T, R1, R2}
     samplers::Vector{<:ConditionalMapping{d, dC, T}}   # defined on [0, 1]^d
