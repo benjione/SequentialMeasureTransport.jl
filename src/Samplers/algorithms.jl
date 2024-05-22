@@ -557,7 +557,7 @@ function Adaptive_Self_reinforced_ML_estimation(
         add_layer!(sra, layer)
 
         resid = _residual(sra, X_val)
-        if resid/smallest_residual > (1.0 + ϵ_smallest) || resid/last_residual > (1.0 + ϵ_last)
+        if (resid - smallest_residual) > ϵ_smallest || (resid - last_residual) > ϵ_last
             pop!(sra.samplers)
             break
         end
