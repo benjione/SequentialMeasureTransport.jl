@@ -477,8 +477,9 @@ function Adaptive_Self_reinforced_ML_estimation(
                                 reference_map)
     end
 
+    # residual as negative log likelihood
     _residual(mapping, X_val) = if residual === nothing 
-        mapreduce(x->-Distributions.logpdf(mapping, x), +, X_val)
+        (1/length(X_val)) * mapreduce(x->-Distributions.logpdf(mapping, x), +, X_val)
     else
         residual(mapping, X_val)
     end

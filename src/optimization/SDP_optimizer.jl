@@ -1,5 +1,4 @@
 import Convex as con
-using Convex: opnorm
 import SCS
 
 struct SDPOptProp{T} <: OptProp{T}
@@ -67,7 +66,7 @@ function optimize(prob::SDPOptProp{T}) where {T<:Number}
 
     con.solve!(problem,
         prob.optimizer;
-        silent_solver = !verbose_solver
+        silent = !verbose_solver
     )
     return Hermitian(T.(con.evaluate(B)))
 end
