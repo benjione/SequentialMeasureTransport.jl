@@ -440,6 +440,8 @@ function Adaptive_Self_reinforced_ML_estimation(
     dC=0,
     dCsub=0,
     trace_df=nothing,
+    σ=nothing,
+    μ=nothing,
     kwargs...
 ) where {T<:Number, S, d, dsub}
     _d = length(X_train[1]) # data dimension
@@ -447,7 +449,12 @@ function Adaptive_Self_reinforced_ML_estimation(
     @assert _d == d
     @assert typeof(reference_map) <: ReferenceMap{d, dC, T}
 
-    bridge = BridgingDensities.DiffusionBrigdingDensity{d, T}()
+    bridge = if σ === nothing
+        BridgingDensities.DiffusionBrigdingDensity{d, T}()
+    else
+        @assert μ !== nothing
+        BridgingDensities.GaussianBridgingDensity{d, T}(σ, μ)
+    end
 
     if dsub < d
         @assert subspace_reference_map !== nothing
