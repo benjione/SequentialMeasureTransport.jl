@@ -4,19 +4,28 @@ struct DiffusionBrigdingDensity{d, T} <: BridgingDensity{d, T}
     target_density::Function
     t_vec::Vector{T}            # time vector of diffusion steps
     σ::T                         # diffusion coefficient
+    μ::Vector{T}                 # mean of the diffusion
     function DiffusionBrigdingDensity{d}(target_density::Function, 
                         t_vec::Vector{T},
                         σ::T) where {d, T<:Number}
-        new{d, T}(target_density, t_vec, σ)
+        new{d, T}(target_density, t_vec, σ, zeros(T, d))
+    end
+    function DiffusionBrigdingDensity{d}(target_density::Function, 
+        t_vec::Vector{T},
+        σ::T, μ::Vector{T}) where {d, T<:Number}
+        new{d, T}(target_density, t_vec, σ, μ)
     end
     function DiffusionBrigdingDensity{d}(target_density::Function, 
                         β::T,
                         N::Int) where {d, T<:Number}
         t_vec = choosing_timesteps(β, d, N)
-        new{d, T}(target_density, t_vec, one(T))
+        new{d, T}(target_density, t_vec, one(T), zeros(T, d))
     end
     function DiffusionBrigdingDensity{d, T}() where {d, T<:Number}
-        new{d, T}(x->1.0, T[], one(T))
+        new{d, T}(x->1.0, T[], one(T), zeros(T, d))
+    end
+    function DiffusionBrigdingDensity{d, T}(σ::T, μ::Vector{T}) where {d, T<:Number}
+        new{d, T}(x->1.0, T[], σ, μ)
     end
 end
 
@@ -57,7 +66,7 @@ end
 function evolve_samples(bridge::DiffusionBrigdingDensity{<:Any, T},
                         X::PSDDataVector{T}, 
                         t::T) where {T<:Number}
-    f(du, u, p, t) = (du .= -1.0 * u)
+    f(du, u, p, t) = (du .= 1.0 * (bridge.μ - u))
     g(du, u, p, t) = (du .= bridge.σ)
     tspan = (0.0, t)
     function evolve_X(x::PSDdata{T})
