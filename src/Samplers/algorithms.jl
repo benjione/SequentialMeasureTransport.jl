@@ -453,7 +453,7 @@ function Adaptive_Self_reinforced_ML_estimation(
         BridgingDensities.DiffusionBrigdingDensity{d, T}()
     else
         @assert μ !== nothing
-        BridgingDensities.GaussianBridgingDensity{d, T}(σ, μ)
+        BridgingDensities.DiffusionBrigdingDensity{d, T}(σ, μ)
     end
 
     if dsub < d
