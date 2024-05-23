@@ -10,14 +10,14 @@ struct ScalingReference{d, dC, T} <: ReferenceMap{d, dC, T}
         @assert length(L) == d
         @assert length(R) == d
         @assert all(L .< R)
-        V = prod(R .- L)
+        V = prod(R - L)
         new{d, 0, T}(L, R, V, V)
     end
     function ScalingReference{d, dC}(L::Vector{T}, R::Vector{T}) where {d, dC, T<:Number}
         @assert length(L) == d
         @assert length(R) == d
         @assert all(L .< R)
-        V = prod(R .- L)
+        V = prod(R - L)
         new{d, dC, T}(L, R, V, prod(R[1:d-dC] .- L[1:d-dC]))
     end
     function ScalingReference(L::Vector{T}, R::Vector{T}) where {T<:Number}
@@ -80,7 +80,7 @@ function SMT.marginal_pushforward(
         x::PSDdata{T}
     ) where {d, dC, T<:Number}
     @assert length(x) == d-dC
-    return (x .- m.L[1:dC]) ./ (m.R[1:dC] .- m.L[1:dC])
+    return (x - m.L[1:d-dC]) ./ (m.R[1:d-dC] - m.L[1:d-dC])
 end
 
 function SMT.marginal_pullback(
@@ -88,7 +88,7 @@ function SMT.marginal_pullback(
         u::PSDdata{T}
     ) where {d, dC, T<:Number}
     @assert length(u) == d-dC
-    return u .* (m.R[1:dC] .- m.L[1:dC]) .+ m.L[1:dC]
+    return u .* (m.R[1:d-dC] - m.L[1:d-dC]) + m.L[1:d-dC]
 end
 
 function SMT.marginal_Jacobian(

@@ -71,7 +71,7 @@ marginal_inverse_Jacobian(mapping::ConditionalMapping, x::PSDdata) = throw("Not 
 marginal_log_Jacobian(mapping::ConditionalMapping, u::PSDdata) = log(marginal_Jacobian(mapping, u)+ϵ_log)
 marginal_inverse_log_Jacobian(mapping::ConditionalMapping, x::PSDdata) = log(marginal_inverse_Jacobian(mapping, x)+ϵ_log)
 function conditional_Jacobian(sampler::ConditionalMapping{<:Any, <:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
-    x = marginal_pullback(sampler, x)
+    # x = marginal_pullback(sampler, x)
     return Jacobian(sampler, [x; y]) / marginal_Jacobian(sampler, x)
 end
 function conditional_inverse_Jacobian(sampler::ConditionalMapping{<:Any, <:Any,T}, y::PSDdata{T}, x::PSDdata{T}) where {T}
@@ -164,7 +164,7 @@ function conditional_pullback(sampler::ConditionalMapping{d,dC,T},
 ) where {d,T<:Number,dC}
     π_pb = let sampler = sampler, π = π, x = x
         (y::PSDdata{T}) -> begin
-            π(conditional_pushforward(sampler, y, x)) * conditional_Jacobian(sampler, y, x)
+            π(conditional_pushforward(sampler, y, x)) * conditional_Jacobian(sampler, y, marginal_pullback(sampler, x))
         end
     end
     return π_pb

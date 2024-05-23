@@ -68,6 +68,19 @@ import SequentialMeasureTransport as SMT
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
         end
     end
+    @testset "marginal T^♯ f normalized" begin
+        for d=2:3
+            L = rand(d)
+            R = L + 2.0 * rand(d) .+ 0.1
+            V = prod(R - L)
+            V_marg = prod(R[1:d-1] - L[1:d-1])
+            ref_map = SMT.ScalingReference{d, 1}(L, R)
+            f_app = SMT.marginal_pushforward(ref_map, x->1/V_marg)
+            rng = 1e-9:0.001:1.0-1e-9
+            iter = Iterators.product(fill(rng, d-1)...)
+            @test isapprox(0.001^(d-1)*sum(f_app([x...]) for x in iter), 1.0, atol=1e-1)
+        end
+    end
 end
 
 @testset "Gaussian Reference" begin
@@ -113,7 +126,7 @@ end
     end
     @testset "T^♯ f normalized" begin
         for d=1:2
-            ref_map = SMT.AlgebraicReference{d, Float64}()
+            ref_map = SMT.GaussianReference{d, Float64}()
             f_app = SMT.pushforward(ref_map, x->pdf(MvNormal(zeros(d), I), x))
             rng = 0.001:0.001:0.999
             iter = Iterators.product(fill(rng, d)...)
@@ -122,7 +135,7 @@ end
     end
     @testset "exp(log(T^♯ f)) normalized" begin
         for d=1:2
-            ref_map = SMT.AlgebraicReference{d, Float64}()
+            ref_map = SMT.GaussianReference{d, Float64}()
             f_app = SMT.log_pushforward(ref_map, x->logpdf(MvNormal(zeros(d), I), x))
             f_app = let f_app=f_app 
                 x->exp(f_app(x))
@@ -130,6 +143,15 @@ end
             rng = 0.001:0.001:0.999
             iter = Iterators.product(fill(rng, d)...)
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
+        end
+    end
+    @testset "marginal T^♯ f normalized" begin
+        for d=2:3
+            ref_map = SMT.GaussianReference{d, 1, Float64}()
+            f_app = SMT.marginal_pushforward(ref_map, x->pdf(MvNormal(ones(d-1), diagm(ones(d-1))), x))
+            rng = 1e-9:0.0005:1.0-1e-9
+            iter = Iterators.product(fill(rng, d-1)...)
+            @test isapprox(0.0005^(d-1)*sum(f_app([x...]) for x in iter), 1.0, atol=1e-1)
         end
     end
 end
@@ -188,6 +210,15 @@ end
             rng = 0.001:0.001:0.999
             iter = Iterators.product(fill(rng, d)...)
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-3)
+        end
+    end
+    @testset "marginal T^♯ f normalized" begin
+        for d=2:3
+            ref_map = SMT.AlgebraicReference{d, 1, Float64}()
+            f_app = SMT.marginal_pushforward(ref_map, x->pdf(MvNormal(ones(d-1), diagm(ones(d-1))), x))
+            rng = 1e-8:0.001:1.0-1e-8
+            iter = Iterators.product(fill(rng, d-1)...)
+            @test isapprox(0.001^(d-1)*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
         end
     end
 end
@@ -255,6 +286,19 @@ end
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-3)
         end
     end
+    @testset "marginal T^♯ f normalized" begin
+        for d=2:3
+            means = randn(d)
+            stds = 0.1*ones(d) + rand(d)
+            ref_map = SMT.normalized_gaussian_reference(means, stds, 1)
+            # f_app = SMT.marginal_pushforward(ref_map, x->pdf(MvNormal(means[1:d-1], diagm(stds[1:d-1].^2)), x))
+            f_app_1 = SMT.marginal_pushforward(ref_map.components[2], x->pdf(MvNormal(means[1:d-1], diagm(stds[1:d-1].^2)), x))
+            f_app = SMT.marginal_pushforward(ref_map.components[1], x->f_app_1(x))
+            rng = 1e-8:0.001:1.0-1e-8
+            iter = Iterators.product(fill(rng, d-1)...)
+            @test isapprox(0.001^(d-1)*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
+        end
+    end
 end
 
 
@@ -305,6 +349,18 @@ end
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
         end
     end
+    @testset "T^♯ T_♯ ρ normalized" begin
+        for d=1:2
+            means = randn(d)
+            stds = 0.1*ones(d) + rand(d)
+            ref_map = SMT.normalized_algebraic_reference(means, stds)
+            f_app = SMT.pullback(ref_map, x->1.0)
+            f_app_2 = SMT.pushforward(ref_map, f_app)
+            rng = 1e-8:0.001:1.0-1e-8
+            iter = Iterators.product(fill(rng, d)...)
+            @test isapprox(0.001^d*sum(f_app_2([x...]) for x in iter), 1.0, atol=1e-2)
+        end
+    end
     @testset "exp(log(T^♯ f)) normalized" begin
         for d=1:2
             means = randn(d)
@@ -318,6 +374,17 @@ end
             rng = 1e-8:0.001:1.0-1e-8
             iter = Iterators.product(fill(rng, d)...)
             @test isapprox(0.001^d*sum(f_app([x...]) for x in iter), 1.0, atol=1e-3)
+        end
+    end
+    @testset "marginal T^♯ f normalized" begin
+        for d=2:3
+            means = randn(d)
+            stds = 0.1*ones(d) + rand(d)
+            ref_map = SMT.normalized_algebraic_reference(means, stds, 1)
+            f_app = SMT.marginal_pushforward(ref_map, x->pdf(MvNormal(means[1:d-1], diagm(stds[1:d-1].^2)), x))
+            rng = 1e-8:0.001:1.0-1e-8
+            iter = Iterators.product(fill(rng, d-1)...)
+            @test isapprox(0.001^(d-1)*sum(f_app([x...]) for x in iter), 1.0, atol=1e-2)
         end
     end
 end

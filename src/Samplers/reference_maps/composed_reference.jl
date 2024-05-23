@@ -173,9 +173,24 @@ function SMT.marginal_log_pullback(
     return π
 end
 
+function SMT.Jacobian(sra::ComposedReference{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number}
+    res = one(T)
+    for component in reverse(sra.components)
+        res *= SMT.Jacobian(component, x)
+        x = SMT.pushforward(component, x)
+    end
+    return res
+end
 
-@inline SMT.inverse_Jacobian(sra::ComposedReference{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = SMT.pushforward(sra, x->one(T))(x)
-@inline SMT.Jacobian(sra::ComposedReference{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = SMT.pullback(sra, x->one(T))(x)
+function SMT.inverse_Jacobian(sra::ComposedReference{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number}
+    res = one(T)
+    for component in sra.components
+        res *= SMT.inverse_Jacobian(component, x)
+        x = SMT.pullback(component, x)
+    end
+    return res
+end
+
 
 @inline SMT.log_Jacobian(sra::ComposedReference{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = SMT.log_pullback(sra, x->zero(T))(x)
 @inline SMT.inverse_log_Jacobian(sra::ComposedReference{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number} = SMT.log_pushforward(sra, x->zero(T))(x)
