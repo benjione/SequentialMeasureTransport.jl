@@ -99,6 +99,11 @@ function (a::PSDModel{T})(x::PSDdata{T}, B::AbstractMatrix) where {T<:Number}
     v = Φ(a, x)
     return dot(v, B, v)
 end
+# define this to use comfortably with Symbolics
+function (a::PSDModel)(x::PSDdata{T}, B::AbstractMatrix) where {T<:Number}
+    v = Φ(a, x)
+    return dot(v, B, v)
+end
 
 function set_coefficients!(a::PSDModel{T}, B::Hermitian{T}) where {T<:Number}
     a.B .= B

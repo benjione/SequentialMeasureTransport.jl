@@ -8,6 +8,7 @@ using ApproxFun
 using Combinatorics: multiexponents
 import ForwardDiff as FD
 import StatsBase
+import Symbolics as Sym
 
 ## overwrite functions in this module for compatibility
 import Base

@@ -1,5 +1,3 @@
-import Symbolics as Sym
-
 """
 A PSD model where the feature map is made out of orthonormal 
 polynomial functions such as Chebyshev polynomials. There is an own 
@@ -208,6 +206,36 @@ function compiled_integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) 
                                 )
     Base.remove_linenums!(comp_int_poly)
     return comp_int_poly
+end
+
+import SymbolicNumericIntegration as SNI
+# Sym.@register_symbolic a(x, y)
+function _compute_symbolic_idmap_regularizer(a::PSDModelPolynomial{d, T, S}) where {d, T<:Number, S}
+    N = size(a.B, 1)
+    Sym.@variables x[1:d]
+    Sym.@variables _B_sym[1:N, 1:N]
+    B_sym = Symmetric(_B_sym)
+    sq_model = a(x, B_sym)^2
+    sq_model_int = sq_model
+    for i=1:d
+        sq_model_int = SNI.integrate(sq_model_int, (x[i], 0, 1); symbolic=true, num_steps=1, detailed=false, complex_plane=false)
+    end
+    # reg_term = Sym.substitute(sq_model_int, x=>ones(d)) - Sym.substitute(sq_model_int, x=>zeros(d))
+    return sq_model_int, _B_sym
+    sq_model_eval(y) = Sym.substitute(sq_model, x=>y)
+    corr = (1/2)^d
+    
+    # integrating SoS squared -> highest order polynomial is 4*order
+    gl_order = a.Φ.highest_order*2+1
+    x_q, w_q = gausslegendre(gl_order)
+    x_q = (x_q .+ 1) ./ 2
+    integrated = 0.0 * B_sym[1, 1]
+    for ituple in Iterators.product(ntuple(x->1:gl_order, d)...)
+        @inbounds weight = prod(w_q[i] for i in ituple)
+        @inbounds integrated += weight * sq_model_eval([x_q[i] for i in ituple])
+    end
+    integrated *= corr
+    return integrated, _B_sym
 end
 
 import LinearAlgebra: normalize, normalize!

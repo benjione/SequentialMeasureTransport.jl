@@ -1,5 +1,7 @@
 import JuMP
 
+include("JuMP_regularizer.jl")
+
 struct JuMPOptProp{T} <: OptProp{T}
     initial::AbstractMatrix{T}
     loss::Function
@@ -247,6 +249,9 @@ function _ML_JuMP!(a::PSDModel{T},
                 samples::PSDDataVector{T};
                 λ_1 = 0.0,
                 λ_2 = 0.0,
+                λ_id = 0.0,
+                λ_custom=0.0,
+                cust_regu_func=nothing,
                 trace=false,
                 optimizer=nothing,
                 maxit=5000,
@@ -291,21 +296,29 @@ function _ML_JuMP!(a::PSDModel{T},
 
     JuMP.@expression(model, min_func, (1/m)*t)
     
-    if λ_1 > 0.0
-        JuMP.add_to_expression!(min_func, λ_1 * nuclearnorm(B))
-    end
-    if λ_2 > 0.0
-        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
-        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
-    end
-    if λ_2 == 0.0
-        JuMP.@objective(model, Min, min_func)
-    else
-        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
-    end
+    # if λ_1 > 0.0
+    #     JuMP.add_to_expression!(min_func, λ_1 * nuclearnorm(B))
+    # end
+    # if λ_2 > 0.0
+    #     JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
+    #     # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
+    # end
+    # if λ_id > 0.0
+    #     JuMP.@expression(model, reg_id_map, _JuMP_identity_map_regularizer(a, model, B))
+    # end
+    # if λ_2 == 0.0 && λ_id == 0.0
+    #     JuMP.@objective(model, Min, min_func)
+    # elseif λ_2 > 0.0 && λ_id == 0.0
+    #     JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
+    # elseif λ_2 == 0.0 && λ_id > 0.0
+    #     JuMP.@objective(model, Min, min_func + λ_id * reg_id_map)
+    # else
+    #     JuMP.@objective(model, Min, min_func + λ_2 * norm_B + λ_id * reg_id_map)
+    # end
+    expr_regularization = JuMP_regularization(a, model, B; λ_1=λ_1, λ_2=λ_2, λ_id=λ_id, λ_custom=λ_custom, cust_regu_func=cust_regu_func)
 
 
-    # JuMP.@objective(model, Min, min_func);
+    JuMP.@objective(model, Min, min_func + expr_regularization);
 
     # @show t2
     if normalization

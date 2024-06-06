@@ -24,3 +24,11 @@ function (a::TraceModel{T})(x::PSDdata{T}, B::AbstractMatrix{T}) where {T<:Numbe
     # tr(B * M) = tr(M * B) = dot(M', B) = dot(M, B) , but faster evaluation
     return dot(M, B)
 end
+
+# define this for Zygote, ForwardDiff, etc.
+function (a::TraceModel{T})(x::PSDdata{T1}, B::AbstractMatrix{T2}) where {T<:Number, T1<:Number, T2<:Number}
+    M = ΦΦT(a, x)
+    # return tr(B * M)
+    # tr(B * M) = tr(M * B) = dot(M', B) = dot(M, B) , but faster evaluation
+    return dot(M, B)
+end
