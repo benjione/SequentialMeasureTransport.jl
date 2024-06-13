@@ -2,6 +2,7 @@ abstract type OptProp{T} end
 
 include("SDP_optimizer.jl")
 include("JuMP_optimizer.jl")
+include("manopt_optimizer.jl")
 
 const _optimize_PSD_kwargs = 
     (:convex, :trace, :maxit, :tol, 
