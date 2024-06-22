@@ -7,13 +7,14 @@ using ..SequentialMeasureTransport: CondSampler
 using ..SequentialMeasureTransport: domain_interval_left, domain_interval_right
 using ..SequentialMeasureTransport: greedy_IRLS
 using ..SequentialMeasureTransport: _ML_JuMP!, _ML_Manopt!
-using ..SequentialMeasureTransport: _KL_JuMP!
+using ..SequentialMeasureTransport: _KL_JuMP!, _reversed_KL_JuMP!, _KL_Manopt!
 using ..SequentialMeasureTransport: _α_divergence_JuMP!, _α_divergence_Manopt!
 using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
 
 export ML_fit!, Chi2_fit!, TV_fit!, KL_fit!, Hellinger_fit!, α_divergence_fit!
+export reversed_KL_fit!
 
 """
     ML_fit!(model, samples; kwargs...)
@@ -128,7 +129,7 @@ function KL_fit!(model::PSDModel{T},
         Y::AbstractVector{T};
         normalization_constraint=false,
         SDP_library=:JuMP,
-        data_normalization=true,
+        data_normalization=false,
         kwargs...) where {T<:Number}
     # Helps some solvers, such as SCS, not needed with Hypatia
     if data_normalization
@@ -138,13 +139,54 @@ function KL_fit!(model::PSDModel{T},
         return _KL_JuMP!(model, X, Y; 
                         normalization=normalization_constraint, 
                         kwargs...)
+    elseif SDP_library == :Manopt
+        return _KL_Manopt!(model, X, Y; 
+                        normalization=normalization_constraint, 
+                        kwargs...)
+    elseif SDP_library == :Convex
+        # KL by α div: \int log(f/g) df - \int df + \int dg
+        # we deal with \int dg = tr(B), hence setting λ_1 = 1.0
+        loss(Z) = (1/length(Z)) * sum(-log.(Z) .* Y)
+        if normalization_constraint
+            minimize!(model, loss, X; 
+                normalization_constraint=normalization_constraint,
+                kwargs...)
+        else
+            minimize!(model, loss, X; 
+                normalization_constraint=false,
+                λ_1 = 1.0,
+                kwargs...)
+        end
+    else
+        throw(ArgumentError("Only JuMP, Manopt and Convex is supported for now."))
+    end
+end
+
+"""
+KL-divergence extended to positive measures, defined by the alpha-divergence.
+"""
+function reversed_KL_fit!(model::PSDModel{T},
+        X::PSDDataVector{T},
+        Y::AbstractVector{T};
+        normalization_constraint=false,
+        SDP_library=:JuMP,
+        data_normalization=true,
+        kwargs...) where {T<:Number}
+    # Helps some solvers, such as SCS, not needed with Hypatia
+    if data_normalization
+        Y = Y ./ sum(Y)
+    end
+    if SDP_library == :JuMP
+        return _reversed_KL_JuMP!(model, X, Y; 
+                        normalization=normalization_constraint, 
+                        kwargs...)
     end
     if normalization_constraint == true
         @info "By using normalization during minimization, the KL-divergence for probabilities is used."
     end
     # KL by α div: \int log(f/g) df - \int df + \int dg
     # we deal with \int dg = tr(B), hence setting λ_1 = 1.0
-    loss(Z) = (1/length(Z)) * sum(-log.(Z) .* Y)
+    loss(Z) = (1/length(Z)) * sum((log.(Z) - log.(Y)) .* Z)
     if normalization_constraint
         minimize!(model, loss, X; 
             normalization_constraint=normalization_constraint,
