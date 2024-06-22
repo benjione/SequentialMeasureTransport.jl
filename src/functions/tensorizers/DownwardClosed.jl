@@ -117,6 +117,16 @@ function reduce_dim(t::DownwardClosedTensorizer{d}, dim::Int) where {d}
     return ten
 end
 
+function tensorize(t1::DownwardClosedTensorizer{d}, t2::DownwardClosedTensorizer{e}) where {d, e}
+    it = Iterators.product(t1.index_list, t2.index_list)
+    it2 = Iterators.product(t1.M_inner, t2.M_inner)
+    index_list = [(x..., y...) for (x, y) in it]
+    M_inner = [(x..., y...) for (x,y) in it2 ]
+    index_list = reshape(index_list, length(index_list))
+    M_inner = reshape(M_inner, length(M_inner))
+    return DownwardClosedTensorizer{d+e}(index_list, M_inner)
+end
+
 function highest_order(t::DownwardClosedTensorizer)
     return max([sum(x) for x in t.M_inner]...)
 end

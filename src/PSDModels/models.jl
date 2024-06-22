@@ -85,7 +85,7 @@ function (a::PSDModel{T})(x::PSDdata{T}) where {T<:Number}
 end
 
 # define this for Zygote, ForwardDiff, etc.
-function (a::PSDModel)(x::PSDdata{T}) where {T<:Number}
+function (a::PSDModel)(x::PSDdata{T}) where {T}
     v = Φ(a, x)
     return dot(v, a.B, v)::T
 end

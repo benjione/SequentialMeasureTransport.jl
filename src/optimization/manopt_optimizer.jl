@@ -298,7 +298,7 @@ function _KL_Manopt!(a::PSDModel{T},
     function _cost_KL(A, X, Y)
         res = zero(T)
         for (x, y) in zip(X, Y)
-            res += (log(y)-log(a(x, A))-1) * ys
+            res += (log(y)-log(a(x, A))-1) * y
         end
         res = (1/length(X)) * res + tr(A)
         res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
@@ -315,7 +315,7 @@ function _KL_Manopt!(a::PSDModel{T},
 
     prob = ManoptOptPropblem(cost_KL, grad_KL!, N; algorithm=algorithm)
     A_new = optimize(prob, a.B; trace=trace, kwargs...)
-    A_new = A_new / tr(A_new)
+    # A_new = A_new / tr(A_new)
     set_coefficients!(a, A_new)
     return cost_KL(nothing, A_new)
 end

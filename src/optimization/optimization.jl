@@ -47,6 +47,7 @@ function create_SoS_SDP_problem(
             normalization_constraint::Bool=false,
             fixed_variables=nothing,
             SDP_library=:Convex,
+            marg_constraints=nothing,
         ) where {T<:Number}
     if SDP_library == :Convex
     return SDPOptProp(initial, loss; 
@@ -63,6 +64,7 @@ function create_SoS_SDP_problem(
             optimizer=optimizer,
             normalization=normalization_constraint,
             fixed_variables=fixed_variables,
+            marg_constraints=marg_constraints,
         )
     else
         throw(error("SDP library $SDP_library not implemented."))

@@ -64,6 +64,22 @@ function reduce_dim(p::FMTensorPolynomial{d, T}, dim::Int) where {d, T}
     return FMTensorPolynomial{d-1, T}(space, norm_factors, new_N, ten_new, p.highest_order)
 end
 
+function reduce_dim(p::FMTensorPolynomial{d, T}, dims::Vector{Int}) where {d, T}
+    p_red = p
+    for dim in dims
+        p_red = reduce_dim(p_red, dim)
+    end
+    return p_red
+end
+
+function tensorize(p1::FMTensorPolynomial{d1, T}, p2::FMTensorPolynomial{d2, T}) where {d1, d2, T}
+    ten_new = tensorize(p1.ten, p2.ten)
+    space = TensorSpace(p1.space.spaces..., p2.space.spaces...)
+    new_highest_order = max(highest_order(p1.ten), highest_order(p2.ten))
+    normalization_factor = set_normalization_factors(T, space, new_highest_order)
+    return FMTensorPolynomial{d1+d2, T}(space, normalization_factor, p1.N*p2.N, ten_new, new_highest_order)
+end
+
 function permute_indices(p::FMTensorPolynomial{d, T}, perm::Vector{Int}) where {d, T}
     @assert length(perm) == d
     @assert length(unique(perm)) == d
@@ -91,7 +107,7 @@ end
 downwardClosed_Polynomial(T::Type{<:Number}, 
                         sp::Space, 
                         max_order::Int;
-                        kwargs...) = trivial_TensorPolynomial(T, TensorSpace(sp), max_order)
+                        kwargs...) = downwardClosed_Polynomial(T, TensorSpace(sp), max_order)
 function downwardClosed_Polynomial(T::Type{<:Number},
                                     space::TensorSpace, 
                                    max_order::Int;
@@ -128,7 +144,7 @@ function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T}) where {d, T<:Number
     map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
 
-function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T2}) where {d, T<:Number, T2<:Number}
+function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T2}) where {d, T<:Number, T2}
     @assert length(x) == d
     A = zeros(T2, p.highest_order+1, d)
     poly(k,i) = begin

@@ -7,6 +7,7 @@ struct JuMPOptProp{T} <: OptProp{T}
     optimizer
     fixed_variables
     trace::Bool
+    marg_constraints          # (expr, result)
     function JuMPOptProp(
             initial::AbstractMatrix{T}, 
             loss::Function;
@@ -15,6 +16,7 @@ struct JuMPOptProp{T} <: OptProp{T}
             fixed_variables=nothing,
             normalization=false,
             maxit::Int=5000,
+            marg_constraints = nothing,
         ) where {T<:Number}
         if optimizer === nothing
             optimizer = con.MOI.OptimizerWithAttributes(
@@ -29,7 +31,8 @@ struct JuMPOptProp{T} <: OptProp{T}
                 normalization,
                 optimizer,
                 fixed_variables,
-                trace
+                trace,
+                marg_constraints
             )
     end
 end
@@ -49,7 +52,9 @@ function optimize(prob::JuMPOptProp{T}) where {T<:Number}
 
     JuMP.set_start_value.(B, prob.initial)
     if prob.fixed_variables !== nothing
-        throw(@error "fixed variables not supported yet by JuMP interface!")
+        @info "some variables are fixed"
+        JuMP.fix.(B[prob.fixed_variables], prob.initial[prob.fixed_variables], force=true)
+        # JuMP.@constraint(model, B[prob.fixed_variables] .== prob.initial[prob.fixed_variables])
     end
     JuMP.@objective(model, Min, prob.loss(B))
 
@@ -58,6 +63,15 @@ function optimize(prob::JuMPOptProp{T}) where {T<:Number}
         @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
         JuMP.@constraint(model, tr(B) == 1)
     end
+
+    if prob.marg_constraints !== nothing
+        for (marg_model, B_marg) in prob.marg_constraints
+            @info "fixing marginal"
+            JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') == B_marg)
+        end
+    end
+
+    @show model
 
     JuMP.optimize!(model)
     res_B = Hermitian(T.(JuMP.value(B)))
@@ -358,9 +372,20 @@ function _KL_JuMP!(a::PSDModel{T},
         JuMP.set_silent(model)
     end
     N = size(a.B, 1)
-    JuMP.@variable(model, B[1:N, 1:N], PSD)
+    JuMP.@variable(model, _B[1:N, 1:N], PSD)
+    JuMP.set_start_value.(_B, a.B)
+    if typeof(a) <: PSDOrthonormalSubModel
+        @info "fix non marginal variables"
+        JuMP.fix.(_B[map(~, a.M)], a.B[map(~, a.M)], force=true)
+    end
 
-    JuMP.set_start_value.(B, a.B)
+    B = if typeof(a) <: PSDOrthonormalSubModel
+        a.M .* _B
+    else
+        _B
+    end
+
+
     if fixed_variables !== nothing
         throw(@error "fixed variables not supported yet by JuMP interface!")
     end
@@ -397,8 +422,113 @@ function _KL_JuMP!(a::PSDModel{T},
         JuMP.@constraint(model, tr(B) == 1)
     end
 
+
     JuMP.optimize!(model)
-    res_B = Hermitian(T.(JuMP.value(B)))
+    res_B = Hermitian(T.(JuMP.value(_B)))
+    e_vals, e_vecs = eigen(res_B)
+    e_vals[e_vals .< 0.0] .= 0.0
+    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
+
+    finalize(model)
+    model = nothing
+    GC.gc()
+    return _loss(a.(X))
+end
+
+
+function _reversed_KL_JuMP!(a::PSDModel{T}, 
+                X::PSDDataVector{T},
+                Y::Vector{T};
+                # λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                optimizer=nothing,
+                maxit=5000,
+                normalization=false,
+                fixed_variables=nothing,
+                marg_constraints=nothing,
+            ) where {T<:Number}
+    verbose_solver = trace ? true : false
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+    N = size(a.B, 1)
+    JuMP.@variable(model, _B[1:N, 1:N], PSD)
+    JuMP.set_start_value.(_B, a.B)
+    if typeof(a) <: PSDOrthonormalSubModel
+        @info "fix non marginal variables"
+        JuMP.fix.(_B[map(~, a.M)], a.B[map(~, a.M)], force=true)
+    end
+
+    B = if typeof(a) <: PSDOrthonormalSubModel
+        a.M .* _B
+    else
+        _B
+    end
+
+
+    if fixed_variables !== nothing
+        @info "some variables are fixed"
+        JuMP.fix.(B[fixed_variables], a.B[fixed_variables], force=true)
+        # JuMP.@constraint(model, B[prob.fixed_variables] .== prob.initial[prob.fixed_variables])
+    end
+
+    K = reduce(hcat, Φ.(Ref(a), X))
+
+    m = length(X)
+    JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
+    
+    JuMP.@variable(model, t)
+    JuMP.@constraint(model, [t; Y; ex] in JuMP.MOI.RelativeEntropyCone(2*m+1))
+    
+    # JuMP.@variable(model, t[i=1:m])
+    # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
+
+    JuMP.@expression(model, min_func, t - tr(B))
+    if λ_2 > 0.0
+        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
+        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
+    end
+    if λ_2 == 0.0
+        JuMP.@objective(model, Min, min_func)
+    else
+        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
+    end
+
+
+    # JuMP.@objective(model, Min, min_func);
+
+    # @show t2
+    if normalization
+        # IMPORTANT: only valid for tensorized polynomial maps.
+        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
+        JuMP.@constraint(model, tr(B) == 1)
+    end
+
+    if marg_constraints !== nothing
+        for (marg_model, B_marg) in marg_constraints
+            @info "fixing marginal"
+            JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') == B_marg)
+        end
+    end
+
+    JuMP.optimize!(model)
+    res_B = Hermitian(T.(JuMP.value(_B)))
     e_vals, e_vecs = eigen(res_B)
     e_vals[e_vals .< 0.0] .= 0.0
     res_B = e_vecs * Diagonal(e_vals) * e_vecs'
@@ -424,6 +554,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
                 maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
+                marg_constraints=nothing,
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -487,6 +618,13 @@ function _α_divergence_JuMP!(a::PSDModel{T},
         # IMPORTANT: only valid for tensorized polynomial maps.
         @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
         JuMP.@constraint(model, tr(B) == 1)
+    end
+
+    if marg_constraints !== nothing
+        for (marg_model, B_marg) in marg_constraints
+            @info "fixing marginal"
+            JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') == B_marg)
+        end
     end
 
     JuMP.optimize!(model)
