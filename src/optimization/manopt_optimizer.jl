@@ -72,6 +72,8 @@ end
 
 abstract type _grad_struct end
 
+add_grad!(a::AbstractArray{T}, b::AbstractArray{T}) where {T<:Number} = a .+= b
+
 struct _grad_cost_alpha <: _grad_struct
     model
     α
@@ -89,12 +91,10 @@ function (a::_grad_cost_alpha)(_, A)
         ret = dot(v, A, v)^(-a.α) * (v * v')
         return ret
     end
-    # put grad_A to zero
+    # putt grad_A to zero
     a.grad_A .= 0.0
-    for (x, y) in zip(a.X, a.Y)
-        res = _help(x) * y^(a.α)
-        a.grad_A .+= res
-    end
+    # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)), init=a.grad_A)
+    a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)))
     a.grad_A .*= (1/length(a.Y)) * (-1/a.α)
     a.grad_A .= a.grad_A + (1/ a.α) * diagm(0=>ones(size(A, 1)))
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
@@ -119,9 +119,11 @@ function (a::_grad_ML)(_, A)
     end
     # put grad_A to zero
     a.grad_A .= 0.0
-    for x in a.X
-        a.grad_A .+= _help(x)
-    end
+    # for x in a.X
+    #     a.grad_A .+= _help(x)
+    # end
+    # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(_help), init=a.grad_A)
+    a.grad_A .= foldxt(add_grad!, a.X |> Transducers.Map(_help))
     a.grad_A .*= -(1/length(a.X))
     a.grad_A .= a.grad_A + diagm(0=>ones(size(A, 1)))
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
@@ -146,9 +148,11 @@ function (a::_grad_KL)(_, A)
     end
     # put grad_A to zero
     a.grad_A .= 0.0
-    for (x, y) in zip(a.X, a.Y)
-        a.grad_A .+= _help(x) * y
-    end
+    # for (x, y) in zip(a.X, a.Y)
+    #     a.grad_A .+= _help(x) * y
+    # end
+    # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]), init=a.grad_A)
+    a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]))
     a.grad_A .*= -(1/length(a.X))
     a.grad_A .= a.grad_A + I
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)

@@ -6,6 +6,7 @@ using DomainSets
 using FastGaussQuadrature: gausslegendre
 using ApproxFun
 using Combinatorics: multiexponents
+using Transducers
 import ForwardDiff as FD
 import StatsBase
 
