@@ -34,7 +34,46 @@ function _λ_id_regularization_gradient!(grad_A::AbstractMatrix{T}, a::PSDModel{
     return nothing
 end
 
+mutable struct CrossValidationStopping{T <: Number} <: Manopt.StoppingCriterion
+    CV_X :: PSDDataVector{T}
+    CV_Y :: AbstractVector{T}
+    loss :: Function
+    CV_seq :: AbstractVector{T}
+    ϵ_CV :: T   # stopping criterion if CV loss increases by ϵ_CV
+    function CrossValidationStopping(CV_X::PSDDataVector{T}, 
+                    CV_Y::AbstractVector{T},
+                    loss::Function; ϵ_CV=1e-4) where {T<:Number}
+        new{T}(CV_X, CV_Y, loss, T[], ϵ_CV)
+    end
+end
+function (c::CrossValidationStopping{T})(::Manopt.AbstractManoptProblem, 
+                            state::Manopt.AbstractManoptSolverState, 
+                            i::Int) where {T<:Number}
+    A = Manopt.get_iterate(state)
+    new_cv_loss = c.loss(c.CV_X, c.CV_Y, A)
+    push!(c.CV_seq, new_cv_loss)
+    if length(c.CV_seq) < 5
+        return false
+    end
+    if c.CV_seq[end] > (1 + c.ϵ_CV) * minimum(c.CV_seq)
+        return true
+    end 
+    return false
+end
+function Manopt.get_reason(c::CrossValidationStopping)
+    return "Stopping by CV with CV loss of $(c.CV_seq[end]).\n"
+end
+function Manopt.status_summary(c::CrossValidationStopping)
+    return "Cross validation reached $(c.CV_seq[end])."
+end
+Manopt.indicates_convergence(c::CrossValidationStopping) = true
+function show(io::IO, c::CrossValidationStopping)
+    return print(io, "StopAfter( $(status_summary(c)) )" )
+end
+
 abstract type _grad_struct end
+
+add_grad!(a::AbstractArray{T}, b::AbstractArray{T}) where {T<:Number} = a .+= b
 
 struct _grad_cost_alpha <: _grad_struct
     model
@@ -53,20 +92,17 @@ function (a::_grad_cost_alpha)(_, A)
         ret = dot(v, A, v)^(-a.α) * (v * v')
         return ret
     end
-    # put grad_A to zero
+    # putt grad_A to zero
     a.grad_A .= 0.0
-    for (x, y) in zip(a.X, a.Y)
-        res = _help(x) * y^(a.α)
-        # @show res
-        a.grad_A .+= res
-    end
-    # @show a.grad_A
+    # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)), init=a.grad_A)
+    a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)))
     a.grad_A .*= (1/length(a.Y)) * (-1/a.α)
     a.grad_A .= a.grad_A + (1/ a.α) * diagm(0=>ones(size(A, 1)))
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
     _λ2_regularization_gradient!(a.grad_A, A, a.λ_2)
     return nothing
 end
+
 
 struct _grad_ML <: _grad_struct
     model
@@ -84,9 +120,11 @@ function (a::_grad_ML)(_, A)
     end
     # put grad_A to zero
     a.grad_A .= 0.0
-    for x in a.X
-        a.grad_A .+= _help(x)
-    end
+    # for x in a.X
+    #     a.grad_A .+= _help(x)
+    # end
+    # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(_help), init=a.grad_A)
+    a.grad_A .= foldxt(add_grad!, a.X |> Transducers.Map(_help))
     a.grad_A .*= -(1/length(a.X))
     a.grad_A .= a.grad_A + diagm(0=>ones(size(A, 1)))
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
@@ -111,9 +149,11 @@ function (a::_grad_KL)(_, A)
     end
     # put grad_A to zero
     a.grad_A .= 0.0
-    for (x, y) in zip(a.X, a.Y)
-        a.grad_A .+= _help(x) * y
-    end
+    # for (x, y) in zip(a.X, a.Y)
+    #     a.grad_A .+= _help(x) * y
+    # end
+    # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]), init=a.grad_A)
+    a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]))
     a.grad_A .*= -(1/length(a.X))
     a.grad_A .= a.grad_A + I
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
@@ -152,6 +192,8 @@ end
 
 function optimize(prob::ManoptOptPropblem, A_init;
             maxit=1000, trace=false,
+            mingrad_stop=1e-8,
+            custom_stopping_criterion=nothing,
             stepsize=nothing)
     M = prob.M
     cost_func = prob.cost_func
@@ -171,10 +213,13 @@ function optimize(prob::ManoptOptPropblem, A_init;
         []
     end
     
-    stopping_criterion = (Manopt.StopAfterIteration(maxit) |Manopt.StopWhenGradientNormLess(1e-8))
+    stopping_criterion = if custom_stopping_criterion === nothing
+        (Manopt.StopAfterIteration(maxit) | Manopt.StopWhenGradientNormLess(mingrad_stop))
+    else
+        custom_stopping_criterion
+    end
 
     _stepsize = if stepsize === nothing
-        # Manopt.PolyakStepsize(i->1/i, 0.0)
         Manopt.default_stepsize(M, Manopt.GradientDescentState)
     else
         stepsize
@@ -241,7 +286,148 @@ function _α_divergence_Manopt!(a::PSDModel{T},
     return cost_alpha(nothing, A_new)
 end
 
+function _adaptive_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
+                α::T,
+                X::PSDDataVector{T},
+                Y::AbstractVector{T},
+                g::Function, adap_s::SamplingStruct{T, d};
+                λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                normalization=false,
+                algorithm=:gradient_descent,
+                maxit=1000,
+                adaptive_sample_steps=10,
+                broadcasted_target = false,
+                kwargs...
+            ) where {d, T<:Number}
 
+    @assert normalization == false "Normalization not implemented yet."
+    @assert α != 1 "Use KL divergence instead"
+    @assert α != 0 "Use reversed KL divergence instead"
+
+    @assert δ > 0 "δ must be positive"
+    @assert 0 < p < 1 "p must be in (0, 1)"
+
+    function _cost_alpha(A, α, X, Y)
+        res = zero(T)
+        for (x, y) in zip(X, Y)
+            v = Φ(a, x)
+            res += dot(v, A, v)^(1-α) * y^(α)
+        end
+        y_int = (1/length(Y)) * (1/(α-1)) * sum(Y)
+        res = (1/length(Y)) * (1/(α * (α - 1))) * res + (1/α)* tr(A) - y_int
+        res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
+    end
+
+    N_sample = length(Y)
+    for i in 1:adaptive_sample_steps
+        loss = (x, y) -> begin
+            # res = zero(T)
+            v = Φ(a, x)
+            res = dot(v, a.B, v)^(1-α) * y^(α)
+            y_int = (1/(α-1)) * y
+            res = (1/(α * (α - 1))) * res + (1/α)* res - (1/(α-1)) * y_int
+            # res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
+            return res
+        end
+        # do not sample adaptive in first round, variance too unreliable
+        
+        sample!(adap_s, g, loss, X, Y; broadcasted_target=broadcasted_target)
+
+        trace && println("Iteration $i: $(length(Y)) samples, added $(length(Y) - N_sample) samples.")
+        N_sample = length(Y)
+
+        cost_alpha = let α=α, X=X, Y=Y
+            (M, A) -> _cost_alpha(A, α, X, Y)
+        end
+
+        N = size(a.B, 1)
+
+        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), X, Y, λ_1, λ_2)
+
+        prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
+        A_new = optimize(prob, a.B; trace=trace, maxit=Int(floor(maxit/adaptive_sample_steps)), kwargs...)
+        set_coefficients!(a, A_new)
+    end
+    return _cost_alpha(a.B, α, X, Y)
+end
+
+
+function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
+                α::T,
+                X::PSDDataVector{T},
+                Y::AbstractVector{T},
+                g::Function,
+                samp_t::SamplingStruct{T, d};
+                λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                normalization=false,
+                algorithm=:gradient_descent,
+                adaptive_sample_steps=10,
+                CV_split=0.8,
+                broadcasted_target = false,
+                maxit=1000,
+                mingrad_stop=1e-8,
+                normalize_data=true,
+                kwargs...
+            ) where {d, T<:Number}
+
+    @assert normalization == false "Normalization not implemented yet."
+    @assert α != 1 "Use KL divergence instead"
+    @assert α != 0 "Use reversed KL divergence instead"
+
+
+    function _cost_alpha(A, α, X, Y)
+        res = zero(T)
+        for (x, y) in zip(X, Y)
+            v = Φ(a, x)
+            res += dot(v, A, v)^(1-α) * y^(α)
+        end
+        y_int = (1/length(Y)) * (1/(α-1)) * sum(Y)
+        res = (1/length(Y)) * (1/(α * (α - 1))) * res + (1/α)* tr(A) - y_int
+        res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
+    end
+    
+    CV_loss(X, Y, A) = _cost_alpha(A, α, X, Y)
+
+    for _ in 1:adaptive_sample_steps
+        sample!(samp_t, g, (x, y)->CV_loss([x], [y], a.B), X, Y; broadcasted_target=broadcasted_target, trace=trace)
+        # split into train and test, with 10 percent test data
+        _Y_copy = if normalize_data
+            Y .* (length(Y) / sum(Y))
+        else
+            Y
+        end
+        shuf = Random.shuffle(1:length(X))
+        _X, _Y = X[shuf], _Y_copy[shuf]
+        X_train = _X[1:round(Int, CV_split * length(_X))]
+        Y_train = _Y[1:round(Int, CV_split * length(_Y))]
+        X_test = _X[round(Int, CV_split * length(_X))+1:end]
+        Y_test = _Y[round(Int, CV_split * length(_Y))+1:end]
+
+        cost_alpha = let α=α, X=X_train, Y=Y_train
+            (M, A) -> _cost_alpha(A, α, X, Y)
+        end
+
+        N = size(a.B, 1)
+
+        stop_CV = CrossValidationStopping(X_test, Y_test, CV_loss) | 
+                    Manopt.StopAfterIteration(maxit) |
+                    Manopt.StopWhenGradientNormLess(mingrad_stop) |
+                    Manopt.StopWhenStepsizeLess(1e-8)
+
+        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), 
+                        X_train, Y_train, λ_1, λ_2)
+
+        prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
+        A_new = optimize(prob, a.B; trace=trace, 
+                custom_stopping_criterion=stop_CV, kwargs...)
+        set_coefficients!(a, A_new)
+    end
+    return _cost_alpha(a.B, α, X, Y)
+end
 
 function _ML_Manopt!(a::PSDModel{T},
                 X::PSDDataVector{T};

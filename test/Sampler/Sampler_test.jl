@@ -229,6 +229,7 @@ end
 
     @testset "TV" begin
         f(x) = 1/(4*(16/15)) * sum(x.^2 + x.^4)
+        
         model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
         sra = SelfReinforcedSampler(
             f,
@@ -243,6 +244,42 @@ end
         end 
         N = 20
         # test close to each other
+        rng = [[x...] for x in Iterators.product(
+                range(-1, 1, length=N),
+                range(-1, 1, length=N)
+            )
+        ]
+        rng = reshape(rng, length(rng))
+        @test norm(pdf.(Ref(sra), rng) - f.(rng), 2)/norm(f.(rng), 2) < 0.3
+    end
+
+    @testset "Chi2 with Manopt and CV" begin
+        f(x) = 1/(4*(16/15)) * sum(x.^2 + x.^4)
+        # f(x) = pdf(MvNormal(0.5 * ones(2), 0.05*I), x)
+        model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
+        adaptive_struct = SMT.AdaptiveSamplingStruct{Float64, 2}(0.01, 0.975;
+                    Nmax=5000, addmax=1000)
+
+        custom_fit!(model, X, Y, g; kwargs...) = SMT._adaptive_CV_α_divergence_Manopt!(model, 2.0, 
+                        X, Y, g, adaptive_struct; trace=false, 
+                            maxit=1000, adaptive_sample_steps=10)
+
+        sra = SelfReinforcedSampler(
+                            f,
+                            model,
+                            2, :adaptive,
+                            SMT.ScalingReference{2}(-ones(2), ones(2));
+                            custom_fit=custom_fit!,
+                            trace=true,
+                            λ_2 = 0.0,
+                            λ_1 = 0.0,
+                            maxit=1000,
+                        )
+        for _=1:10
+            x = SMT.sample(sra)
+            @test all([-1≤xi≤1 for xi in x])
+        end 
+        N = 20
         rng = [[x...] for x in Iterators.product(
                 range(-1, 1, length=N),
                 range(-1, 1, length=N)

@@ -6,6 +6,7 @@ using DomainSets
 using FastGaussQuadrature: gausslegendre
 using ApproxFun
 using Combinatorics: multiexponents
+using Transducers
 import ForwardDiff as FD
 import StatsBase
 
@@ -44,6 +45,9 @@ abstract type TraceModel{T} end
 include("functions/functions.jl")
 include("PSDModels/models.jl")
 include("TraceModels/models.jl")
+
+# adaptive sampling from target Distributions
+include("extra/adaptive_sampling/stopping_rule_MC_sampling.jl")
 
 # Optimization methods on models
 include("optimization/optimization.jl")

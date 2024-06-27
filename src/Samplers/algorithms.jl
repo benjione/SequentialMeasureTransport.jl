@@ -70,6 +70,8 @@ function SelfReinforcedSampler(
         @info "Using custom fit method!"
         @assert typeof(custom_fit) <: Function
         (m,x,y) -> custom_fit(m, x, y; kwargs...)
+    elseif approx_method == :adaptive
+        (m,x,y,g) -> custom_fit(m, x, y, g; kwargs...)
     else
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
@@ -93,26 +95,36 @@ function SelfReinforcedSampler(
         end
     end
 
-    # sample from reference map
-    X = eachcol(rand(T, d, N_sample))
-    # compute pdf
-    Y = if broadcasted_tar_pdf
-        π_tar_samp(X, 1)
+    model_orig = model
+    model = deepcopy(model)
+    if approx_method == :adaptive
+        X = Vector{T}[]
+        Y = T[]
+        g(x) = π_tar_samp(x, 1)
+        fit_method!(model, X, Y, g)
+
     else
-        _Y = zeros(T, N_sample)
-        @_condusethreads threading&&pdf_threading for i in 1:N_sample
-            _Y[i] = π_tar_samp(X[i], 1)
+        # sample from reference map
+        X = eachcol(rand(T, d, N_sample))
+        # compute pdf
+        Y = if broadcasted_tar_pdf
+            π_tar_samp(X, 1)
+        else
+            _Y = zeros(T, N_sample)
+            @_condusethreads threading&&pdf_threading for i in 1:N_sample
+                _Y[i] = π_tar_samp(X[i], 1)
+            end
+            _Y
         end
-        _Y
+
+        if any(isnan, Y)
+            throw(error("NaN in target!"))
+        end
+
+        fit_method!(model, X, Y)
     end
 
-    if any(isnan, Y)
-        throw(error("NaN in target!"))
-    end
-
-    fit_method!(model, X, Y)
-
-    if any(isnan, model.B)
+    if any(isnan, model.B) || any(isinf, model.B)
         throw(error("NaN in model! Model did not converge!"))
     end
 
@@ -141,10 +153,11 @@ function SelfReinforcedSampler(
         layer_method = let i=i, bridging_π=bridging_π
             x->bridging_π(x, i)
         end
-        add_layer!(sra, layer_method, deepcopy(model), fit_method!; 
+        add_layer!(sra, layer_method, deepcopy(model_orig), fit_method!; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf,
                 threading=threading, variable_ordering=variable_ordering,
+                approx_method=approx_method,
                 kwargs...)
     end
     
@@ -161,10 +174,10 @@ function add_layer!(
         threading=true,
         pdf_threading=true,     # turn off threading for pdf computation while keeping threading in general
         variable_ordering=nothing,
+        approx_method=:Chi2,
         kwargs...
     ) where {d, T<:Number, dC}
     # sample from reference map
-    X = eachcol(rand(T, d, N_sample))
     pdf_tar_pullbacked = if broadcasted_tar_pdf
         _broadcasted_pullback_pdf_function(sra, pdf_tar)        
     else 
@@ -179,21 +192,28 @@ function add_layer!(
             (x) -> π_tar(_ref_pullback(sra, x)) * _ref_inv_Jacobian(sra, x)
         end
     end
-    Y = if broadcasted_tar_pdf
-        pdf_tar_pullbacked_sample(X)
+    if approx_method == :adaptive
+        X = Vector{T}[]
+        Y = T[]
+        fit_method!(model, X, Y, x->pdf_tar_pullbacked_sample(x)+1e-10)
     else
-        _Y = zeros(T, N_sample)
-        @_condusethreads threading && pdf_threading for i in 1:N_sample
-            _Y[i] = pdf_tar_pullbacked_sample(X[i])
+        X = eachcol(rand(T, d, N_sample))
+        Y = if broadcasted_tar_pdf
+            pdf_tar_pullbacked_sample(X)
+        else
+            _Y = zeros(T, N_sample)
+            @_condusethreads threading && pdf_threading for i in 1:N_sample
+                _Y[i] = pdf_tar_pullbacked_sample(X[i])
+            end
+            _Y
         end
-        _Y
-    end
 
-    if any(isnan, Y)
-        throw(error("NaN in target!"))
-    end
+        if any(isnan, Y)
+            throw(error("NaN in target!"))
+        end
 
-    fit_method!(model, collect(X), Y)
+        fit_method!(model, collect(X), Y)
+    end
     normalize!(model)
     if dC == 0
         if variable_ordering === nothing
