@@ -83,6 +83,10 @@ struct _grad_cost_alpha <: _grad_struct
     Y
     λ_1
     λ_2
+    threading::Bool
+    function _grad_cost_alpha(model, α, grad_A, X, Y, λ_1, λ_2; threading=true) where {T<:Number}
+        new(model, α, grad_A, X, Y, λ_1, λ_2, threading)
+    end
 end
 
 
@@ -95,7 +99,11 @@ function (a::_grad_cost_alpha)(_, A)
     # putt grad_A to zero
     a.grad_A .= 0.0
     # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)), init=a.grad_A)
-    a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)))
+    if a.threading
+        a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)))
+    else
+        a.grad_A .= foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]^(a.α)))
+    end
     a.grad_A .*= (1/length(a.Y)) * (-1/a.α)
     a.grad_A .= a.grad_A + (1/ a.α) * diagm(0=>ones(size(A, 1)))
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
@@ -370,6 +378,7 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
                 broadcasted_target = false,
                 maxit=1000,
                 mingrad_stop=1e-8,
+                threading=true,
                 normalize_data=true,
                 kwargs...
             ) where {d, T<:Number}
@@ -419,7 +428,7 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
                     Manopt.StopWhenStepsizeLess(1e-8)
 
         grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), 
-                        X_train, Y_train, λ_1, λ_2)
+                        X_train, Y_train, λ_1, λ_2; threading=threading)
 
         prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
         A_new = optimize(prob, a.B; trace=trace, 

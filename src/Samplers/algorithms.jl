@@ -71,7 +71,7 @@ function SelfReinforcedSampler(
         @assert typeof(custom_fit) <: Function
         (m,x,y) -> custom_fit(m, x, y; kwargs...)
     elseif approx_method == :adaptive
-        (m,x,y,g) -> custom_fit(m, x, y, g; kwargs...)
+        (m,x,y,g) -> custom_fit(m, x, y, g; broadcasted_target=broadcasted_tar_pdf, kwargs...)
     else
         throw(error("Approx mehtod $(approx_method) not implemented!"))
     end
