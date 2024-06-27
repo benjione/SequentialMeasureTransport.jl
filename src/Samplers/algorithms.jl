@@ -195,7 +195,7 @@ function add_layer!(
     if approx_method == :adaptive
         X = Vector{T}[]
         Y = T[]
-        fit_method!(model, X, Y, x->pdf_tar_pullbacked_sample(x)+1e-10)
+        fit_method!(model, X, Y, x->pdf_tar_pullbacked_sample(x))
     else
         X = eachcol(rand(T, d, N_sample))
         Y = if broadcasted_tar_pdf
