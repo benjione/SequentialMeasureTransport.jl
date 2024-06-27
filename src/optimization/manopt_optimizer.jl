@@ -39,10 +39,11 @@ mutable struct CrossValidationStopping{T <: Number} <: Manopt.StoppingCriterion
     CV_Y :: AbstractVector{T}
     loss :: Function
     CV_seq :: AbstractVector{T}
+    ϵ_CV :: T   # stopping criterion if CV loss increases by ϵ_CV
     function CrossValidationStopping(CV_X::PSDDataVector{T}, 
                     CV_Y::AbstractVector{T},
-                    loss::Function) where {T<:Number}
-        new{T}(CV_X, CV_Y, loss, T[])
+                    loss::Function; ϵ_CV=1e-4) where {T<:Number}
+        new{T}(CV_X, CV_Y, loss, T[], ϵ_CV)
     end
 end
 function (c::CrossValidationStopping{T})(::Manopt.AbstractManoptProblem, 
@@ -54,7 +55,7 @@ function (c::CrossValidationStopping{T})(::Manopt.AbstractManoptProblem,
     if length(c.CV_seq) < 5
         return false
     end
-    if c.CV_seq[end] > c.CV_seq[end-1]
+    if c.CV_seq[end] > (1 + c.ϵ_CV) * minimum(c.CV_seq)
         return true
     end 
     return false
@@ -213,7 +214,7 @@ function optimize(prob::ManoptOptPropblem, A_init;
     end
     
     stopping_criterion = if custom_stopping_criterion === nothing
-        (Manopt.StopAfterIteration(maxit) |Manopt.StopWhenGradientNormLess(mingrad_stop))
+        (Manopt.StopAfterIteration(maxit) | Manopt.StopWhenGradientNormLess(mingrad_stop))
     else
         custom_stopping_criterion
     end
@@ -285,25 +286,19 @@ function _α_divergence_Manopt!(a::PSDModel{T},
     return cost_alpha(nothing, A_new)
 end
 
-include("../extra/adaptive_sampling/stopping_rule_MC_sampling.jl")
-
 function _adaptive_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
                 α::T,
                 X::PSDDataVector{T},
                 Y::AbstractVector{T},
-                g::Function, δ::T, p::T;
+                g::Function, adap_s::SamplingStruct{T, d};
                 λ_1 = 0.0,
                 λ_2 = 0.0,
                 trace=false,
                 normalization=false,
                 algorithm=:gradient_descent,
-                N0=200,
-                Nmax=100000,
                 maxit=1000,
                 adaptive_sample_steps=10,
-                addmax=500,
-                addmin=10,
-                rand_gen=nothing,
+                broadcasted_target = false,
                 kwargs...
             ) where {d, T<:Number}
 
@@ -327,11 +322,6 @@ function _adaptive_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
 
     N_sample = length(Y)
     for i in 1:adaptive_sample_steps
-        _rand_gen = if rand_gen === nothing
-            () -> rand(T, d)
-        else
-            rand_gen
-        end
         loss = (x, y) -> begin
             # res = zero(T)
             v = Φ(a, x)
@@ -343,9 +333,7 @@ function _adaptive_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
         end
         # do not sample adaptive in first round, variance too unreliable
         
-        sample_adaptive!(g, loss, X, Y, _rand_gen, _chebyshev_stopping_rule, δ, p; 
-                    N0=N0, Nmax=Nmax, addmax=addmax, addmin=addmin)
-    
+        sample!(adap_s, g, loss, X, Y; broadcasted_target=broadcasted_target)
 
         trace && println("Iteration $i: $(length(Y)) samples, added $(length(Y) - N_sample) samples.")
         N_sample = length(Y)
@@ -370,19 +358,18 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
                 α::T,
                 X::PSDDataVector{T},
                 Y::AbstractVector{T},
-                g::Function;
+                g::Function,
+                samp_t::SamplingStruct{T, d};
                 λ_1 = 0.0,
                 λ_2 = 0.0,
                 trace=false,
                 normalization=false,
                 algorithm=:gradient_descent,
-                N0=500,
-                Nadd_per_iter=200,
                 adaptive_sample_steps=10,
                 CV_split=0.8,
                 broadcasted_target = false,
-                rand_gen=nothing,
                 maxit=1000,
+                mingrad_stop=1e-8,
                 kwargs...
             ) where {d, T<:Number}
 
@@ -401,33 +388,11 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
         res = (1/length(Y)) * (1/(α * (α - 1))) * res + (1/α)* tr(A) - y_int
         res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
     end
-    _rand_gen = if rand_gen === nothing
-        () -> rand(T, d)
-    else
-        rand_gen
-    end
-    ## create N0 samples
-    function add_samples(N) 
-        for _ = 1:N
-            x = _rand_gen()
-            push!(X, x)
-        end
-        _Y = if broadcasted_target
-            g(X[end-N+1:end])
-        else
-            [g(x) for x in X[end-N+1:end]]
-        end
-        append!(Y, _Y)
-    end
-    if length(Y) < N0
-        add_samples(N0 - length(Y))
-    end
+    
     CV_loss(X, Y, A) = _cost_alpha(A, α, X, Y)
 
-    for i in 1:adaptive_sample_steps
-        if i ≠ 1
-            add_samples(Nadd_per_iter)
-        end
+    for _ in 1:adaptive_sample_steps
+        sample!(samp_t, g, (x, y)->CV_loss([x], [y], a.B), X, Y; broadcasted_target=broadcasted_target)
         # split into train and test, with 10 percent test data
         shuf = Random.shuffle(1:length(X))
         _X, _Y = X[shuf], Y[shuf]
@@ -442,7 +407,9 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
 
         N = size(a.B, 1)
 
-        stop_CV = CrossValidationStopping(X_test, Y_test, CV_loss) | Manopt.StopAfterIteration(maxit)
+        stop_CV = CrossValidationStopping(X_test, Y_test, CV_loss) | 
+                    Manopt.StopAfterIteration(maxit) |
+                    Manopt.StopWhenGradientNormLess(mingrad_stop)
 
         grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), 
                         X_train, Y_train, λ_1, λ_2)
