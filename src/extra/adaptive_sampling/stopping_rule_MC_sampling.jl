@@ -116,6 +116,8 @@ function sample!(adap_s::AdaptiveSamplingStruct, π_tar, loss, X, Y;
     end
     # println("stopping rule is $(stopping_rule(δ, p, i, s_sq)) at i = $i and estimated variance is $s_sq")
     # println("mean x is $mean_X and squared mean is $mean_X2")
-    println("Stopping rule is $(adap_s.stopping_rule(adap_s.δ, adap_s.p, i, s_sq)) with $(i - i_before_add) samples added.")
+    if trace
+        println("Stopping rule is $(adap_s.stopping_rule(adap_s.δ, adap_s.p, i, s_sq)) with $(i - i_before_add) samples added.")
+    end
     return X, Y
 end

@@ -327,7 +327,7 @@ function _adaptive_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
             v = Φ(a, x)
             res = dot(v, a.B, v)^(1-α) * y^(α)
             y_int = (1/(α-1)) * y
-            res = (1/(α * (α - 1))) * res + (1/α)* res - y_int
+            res = (1/(α * (α - 1))) * res + (1/α)* res - (1/(α-1)) * y_int
             # res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
             return res
         end
@@ -370,6 +370,7 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
                 broadcasted_target = false,
                 maxit=1000,
                 mingrad_stop=1e-8,
+                normalize_data=true,
                 kwargs...
             ) where {d, T<:Number}
 
@@ -392,10 +393,15 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
     CV_loss(X, Y, A) = _cost_alpha(A, α, X, Y)
 
     for _ in 1:adaptive_sample_steps
-        sample!(samp_t, g, (x, y)->CV_loss([x], [y], a.B), X, Y; broadcasted_target=broadcasted_target)
+        sample!(samp_t, g, (x, y)->CV_loss([x], [y], a.B), X, Y; broadcasted_target=broadcasted_target, trace=trace)
         # split into train and test, with 10 percent test data
+        _Y_copy = if normalize_data
+            Y .* (length(Y) / sum(Y))
+        else
+            Y
+        end
         shuf = Random.shuffle(1:length(X))
-        _X, _Y = X[shuf], Y[shuf]
+        _X, _Y = X[shuf], _Y_copy[shuf]
         X_train = _X[1:round(Int, CV_split * length(_X))]
         Y_train = _Y[1:round(Int, CV_split * length(_Y))]
         X_test = _X[round(Int, CV_split * length(_X))+1:end]
@@ -409,7 +415,8 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
 
         stop_CV = CrossValidationStopping(X_test, Y_test, CV_loss) | 
                     Manopt.StopAfterIteration(maxit) |
-                    Manopt.StopWhenGradientNormLess(mingrad_stop)
+                    Manopt.StopWhenGradientNormLess(mingrad_stop) |
+                    Manopt.StopWhenStepsizeLess(1e-8)
 
         grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), 
                         X_train, Y_train, λ_1, λ_2)

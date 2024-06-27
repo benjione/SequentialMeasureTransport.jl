@@ -95,6 +95,8 @@ function SelfReinforcedSampler(
         end
     end
 
+    model_orig = model
+    model = deepcopy(model)
     if approx_method == :adaptive
         X = Vector{T}[]
         Y = T[]
@@ -122,7 +124,7 @@ function SelfReinforcedSampler(
         fit_method!(model, X, Y)
     end
 
-    if any(isnan, model.B)
+    if any(isnan, model.B) || any(isinf, model.B)
         throw(error("NaN in model! Model did not converge!"))
     end
 
@@ -151,7 +153,7 @@ function SelfReinforcedSampler(
         layer_method = let i=i, bridging_π=bridging_π
             x->bridging_π(x, i)
         end
-        add_layer!(sra, layer_method, deepcopy(model), fit_method!; 
+        add_layer!(sra, layer_method, deepcopy(model_orig), fit_method!; 
                 N_sample=N_sample, 
                 broadcasted_tar_pdf=broadcasted_tar_pdf,
                 threading=threading, variable_ordering=variable_ordering,
@@ -193,7 +195,7 @@ function add_layer!(
     if approx_method == :adaptive
         X = Vector{T}[]
         Y = T[]
-        fit_method!(model, X, Y, pdf_tar_pullbacked_sample)
+        fit_method!(model, X, Y, x->pdf_tar_pullbacked_sample(x)+1e-10)
     else
         X = eachcol(rand(T, d, N_sample))
         Y = if broadcasted_tar_pdf
