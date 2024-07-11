@@ -335,23 +335,50 @@ function moment_tensor(Φ::FMTensorPolynomial{d, T}; threading=true) where {d, T
 end
 
 
-function mat_D(Φ::FMTensorPolynomial{d, T}, q, dim::Int) where {d, T}
-    @assert q.space.domain.left == Φ.space.spaces[dim].domain.left
-    @assert q.space.domain.right == Φ.space.spaces[dim].domain.right
-    D = spzeros(T, Φ.N, Φ.N)
+function mat_D(Φ::FMTensorPolynomial{d, T}, q_list, dim::Int) where {d, T}
+    for q in q_list
+        @assert q.space.domain.left == Φ.space.spaces[dim].domain.left
+        @assert q.space.domain.right == Φ.space.spaces[dim].domain.right
+    end
+    @inline δ(i::Int, j::Int) = i == j ? 1 : 0
+    @inline δ(i, j, not_dim) = mapreduce(k->k==not_dim ? true : i[k]==j[k],*, 1:d)
+    D_list = [spzeros(T, Φ.N, Φ.N) for _=1:length(q_list)]
+    j_ignore = []
     for i=1:Φ.N
         ind_i = σ_inv(Φ, i)
         Φ_i = Fun(Φ.space.spaces[dim], [zeros(ind_i[dim]-1); Φ.normal_factor[dim][ind_i[dim]]])
-        Φ_new = Φ_i * q
-        new_vec = Φ_new.coefficients
-        new_vec = new_vec[1:minimum([Φ.N, length(new_vec)])]
-        new_vec ./= Φ.normal_factor[dim][1:length(new_vec)]
-        for j=1:Φ.N
-            ind_j = σ_inv(Φ, j)
-            if length(new_vec) ≥ ind_j[dim] && new_vec[ind_j[dim]] ≠ 0
-                D[j, i] = new_vec[ind_j[dim]]
+        Φ_new_list = [Φ_i * q for q in q_list]
+        # Φ_new = Φ_i * q
+        # out_of_order = false
+        # for Φ_new in Φ_new_list
+        #     new_vec = Φ_new.coefficients
+        #     if length(new_vec) > Φ.highest_order+1
+        #         out_of_order = true
+        #     end
+        # end
+        # if out_of_order
+        #     continue
+        # end
+        for (D, Φ_new) in zip(D_list, Φ_new_list)
+            new_vec = Φ_new.coefficients
+            new_vec = new_vec[1:minimum([Φ.highest_order+1, length(new_vec)])]
+            new_vec ./= Φ.normal_factor[dim][1:length(new_vec)]
+            for j=1:Φ.N
+                ind_j = σ_inv(Φ, j)
+                if δ(ind_i, ind_j, dim)
+                    if length(new_vec) ≥ ind_j[dim] && new_vec[ind_j[dim]] ≠ 0
+                        D[j, i] = new_vec[ind_j[dim]]
+                    elseif length(new_vec) < ind_j[dim]
+                        push!(j_ignore, j)
+                    end
+                end
             end
         end
     end
-    return D
+    # for D in D_list
+    #     for j in j_ignore
+    #         D[j, :] .= 0.0
+    #     end
+    # end
+    return D_list
 end

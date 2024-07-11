@@ -260,13 +260,19 @@ function optimize(prob::ManoptOptPropblem, A_init;
     end
     
     stopping_criterion = if custom_stopping_criterion === nothing
-        (Manopt.StopAfterIteration(maxit) | Manopt.StopWhenGradientNormLess(mingrad_stop))
+        (Manopt.StopAfterIteration(maxit) | Manopt.StopWhenGradientNormLess(mingrad_stop) | Manopt.StopWhenStepsizeLess(1e-8))
     else
         custom_stopping_criterion
     end
 
     _stepsize = if stepsize === nothing
-        Manopt.default_stepsize(M, Manopt.GradientDescentState)
+        if prob.algorithm == :quasi_newton
+            Manopt.default_stepsize(M, Manopt.QuasiNewtonState)
+        elseif prob.algorithm == :gradient_descent
+            Manopt.default_stepsize(M, Manopt.GradientDescentState)
+        else
+            throw(error("No optimal step size for $(prob.algorithm) known, set one explicitly."))
+        end
     else
         stepsize
     end
@@ -286,6 +292,12 @@ function optimize(prob::ManoptOptPropblem, A_init;
                 cost=cost_func,
                 evaluation=Manopt.InplaceEvaluation(),
                 debug=debug)
+    elseif prob.algorithm == :quasi_newton
+        Manopt.quasi_Newton!(M, cost_func, grad_cost_M!, A_sol,
+                evaluation=Manopt.InplaceEvaluation(),
+                stopping_criterion=stopping_criterion,
+                debug=debug,
+                stepsize=_stepsize)
     else
         throw(error("Algorithm $(prob.algorithm) not implemented."))
         return nothing
@@ -331,12 +343,22 @@ function _α_divergence_Manopt!(a::PSDModel{T},
 
     prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
     A_new = optimize(prob, a.B; trace=trace, kwargs...)
-    set_coefficients!(a, A_new)
+    set_coefficients!(a, Hermitian(A_new))
     return cost_alpha(nothing, A_new)
 end
 
-
 function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
+    α::T,
+    X::PSDDataVector{T},
+    Y::AbstractVector{T}; putinar=false, kwargs...) where {d, T<:Number}
+    if putinar
+        return _α_divergence_Manopt_putinar!(a, α, X, Y; kwargs...)
+    end
+    return invoke(_α_divergence_Manopt!, Tuple{PSDModel{T}, typeof(α), typeof(X), typeof(Y)}, 
+                a, α, X, Y; kwargs...)
+end
+
+function _α_divergence_Manopt_putinar!(a::PSDModelPolynomial{d, T},
                 α::T,
                 X::PSDDataVector{T},
                 Y::AbstractVector{T};
@@ -356,7 +378,9 @@ function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
 
     N = size(a.B, 1)
     ## create a power manifold
-    M = Manifolds.SymmetricPositiveDefinite(N)^(d + 1)
+    # M = foldl(×, [Manifolds.SymmetricPositiveDefinite(N-1) for _ in 1:d], init=Manifolds.SymmetricPositiveDefinite(N))
+    M = Manifolds.SymmetricPositiveDefinite(N)^(d+1)
+    # M = Manifolds.SymmetricPositiveSemidefiniteFixedRank(N, 2)^(d+1)
 
     function _cost_alpha(A, α, X, Y)
         res = zero(T)
@@ -382,6 +406,8 @@ function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
     prob = ManoptOptPropblem(M, cost_alpha, grad_alpha!, grad_p_M!, algorithm)
     p_init = rand(M)
     p_new = optimize(prob, p_init; trace=trace, kwargs...)
+    # prob2 = ManoptOptPropblem(M, cost_alpha, grad_alpha!, grad_p_M!, :quasi_newton)
+    # p_new = optimize(prob2, p_new; trace=trace, kwargs...)
     A_new = _p_to_A(M, p_new, D_list, coef_list)
     set_coefficients!(a, Hermitian(A_new))
     return cost_alpha(M, p_new)

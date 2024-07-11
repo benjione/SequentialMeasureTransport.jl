@@ -193,7 +193,8 @@ function moment_tensor(a::PSDModelPolynomial{d, T}, M::AbstractMatrix{<:Abstract
 end
 
 function get_semialgebraic_domain_constraints(a::PSDModelPolynomial{d, T}) where {d, T<:Number}
-    D_list = Vector{Vector{SparseMatrixCSC{T}}}(undef, d)
+    # D_list = Vector{Vector{SparseMatrixCSC{T}}}(undef, d)
+    D_list = Vector{Vector{Matrix{T}}}(undef, d)
     coef_list = Vector{Vector{T}}(undef, d)
     for i=1:d
         @assert a.Φ.space.spaces[i].a == 0.0
@@ -202,13 +203,9 @@ function get_semialgebraic_domain_constraints(a::PSDModelPolynomial{d, T}) where
         @assert a.Φ.space.spaces[i].domain.right == 1.0 
         q_1 = Fun(a.Φ.space.spaces[i], [1.0])
         q_2 = Fun(a.Φ.space.spaces[i], [0.0, 1.0])
-        D_1 = mat_D(a.Φ, q_1, i)
-        D_2 = mat_D(a.Φ, q_2, i)
-        # D_2[end,:] .= 0
-        # D_1[end,:] .= 0
-        # D_2[:,end] .= 0
-        # D_1[:,end] .= 0
-        D_list[i] = [D_1, D_2]
+        D = mat_D(a.Φ, [q_1, q_2], i)
+        
+        D_list[i] = D
         coef_list[i] = [1.0, -1.0]
     end
     return D_list, coef_list
