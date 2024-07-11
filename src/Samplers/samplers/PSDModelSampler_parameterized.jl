@@ -1,7 +1,7 @@
 using Roots: find_zero
 
 struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Nothing, Nothing}
-    model::PSDModelOrthonormal{d, T, S}                 # model to sample from
+    perm_model::PSDModelOrthonormal{d, T, S}                 # permuted model to sample from
     margins::Vector{<:PSDModelOrthonormal{<:Any, T, S}} # start with x_{≤1}, then x_{≤2}, ...
     # margins::Vector{Function}                           # start with x_{≤1}, then x_{≤2}, ...
     integrals::Vector{<:OrthonormalTraceModel{T, S}}    # integrals of marginals
@@ -15,13 +15,12 @@ struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Not
         @assert issetequal(variable_ordering[(d-dC+1):d], (d-dC+1):d)
         model = normalize(model) # create normalized copy
         perm_model = permute_indices(model, variable_ordering) # permute dimensions
-        margins = PSDModelOrthonormal{<:Any, T, S}[marginalize(perm_model, collect(k:d)) for k in 2:d]
+        margins = PSDModelOrthonormal{<:Any, T, S}[marginal_model(perm_model, collect(k:d)) for k in 2:d]
         margins = [margins; perm_model] # add the full model at last
-        # margins = map(normalize, margins) # normalize all marginals again to reduce numerical errors
-        # integrals = map((x,k)->compiled_integral(x, k), margins, 1:d)
-        integrals = map((x,k)->integral(x, k), margins, 1:d)
-        # margins = map(x->compile(x), margins)
-        new{d, dC, T, S}(model, margins, integrals, variable_ordering)
+        real_margins = [marginalize(perm_model, collect(k:d)) for k in 2:d]
+        real_margins = [real_margins; perm_model]
+        integrals = map((x,k)->integral(x, k), real_margins, 1:d)
+        new{d, dC, T, S}(perm_model, margins, integrals, variable_ordering)
     end
     function PSDModelSampler(model::PSDModelOrthonormal{d, T, S}, 
                              variable_ordering::Vector{Int}) where {d, T<:Number, S}
@@ -71,7 +70,7 @@ end
 ## Pretty printing
 function Base.show(io::IO, sampler::PSDModelSampler{d, T, S, R}) where {d, T, S, R}
     println(io, "PSDModelSampler{d=$d, dC=$T, T=$S, S=$R}")
-    println(io, "   model: ", sampler.model)
+    println(io, "   model: ", sampler.perm_model)
     println(io, "   order of variables: ", sampler.variable_ordering)
 end
 
@@ -84,10 +83,15 @@ function _pushforward_first_n(sampler::PSDModelSampler{d, <:Any, T, S},
     u = @view u[sampler.variable_ordering[1:n]]
     ## T^{-1}(x_1,...,x_k) functions, z=x_k
     f(k::Int) = begin
+        A = if k==d
+            sampler.margins[k].B
+        else 
+            A = sampler.margins[k].P * (sampler.margins[k].M .* sampler.margins[k].B) * sampler.margins[k].P'
+        end
         if k==1
-            z->sampler.integrals[k](T[z]) - u[k] #u[sampler.variable_ordering[k]]
+            z->sampler.integrals[k](T[z], A) - u[k] #u[sampler.variable_ordering[k]]
         else
-            z->(sampler.integrals[k]([x[1:k-1]; z])/
+            z->(sampler.integrals[k]([x[1:k-1]; z], A)/
                     sampler.margins[k-1](x[1:k-1])) - u[k] #u[sampler.variable_ordering[k]]
         end
     end
@@ -97,7 +101,7 @@ function _pushforward_first_n(sampler::PSDModelSampler{d, <:Any, T, S},
         end
     else
         for k=1:n
-            left, right = domain_interval(sampler.model, sampler.variable_ordering[k])
+            left, right = domain_interval(sampler.perm_model, k)
             x[k] = find_zero(f(k), (left, right))::T
         end
     end
@@ -110,10 +114,15 @@ function _pullback_first_n(sampler::PSDModelSampler{d, <:Any, T},
                         n::Int) where {d, T<:Number}
     x = @view x[sampler.variable_ordering[1:n]]
     f(k::Int) = begin
+        A = if k==d
+            sampler.margins[k].B
+        else 
+            A = sampler.margins[k].P * (sampler.margins[k].M .* sampler.margins[k].B) * sampler.margins[k].P'
+        end
         if k==1
-            z->sampler.integrals[k](T[z])
+            z->sampler.integrals[k](T[z], A)
         else
-            z->(sampler.integrals[k]([x[1:k-1]; z])/sampler.margins[k-1](x[1:k-1]))
+            z->(sampler.integrals[k]([x[1:k-1]; z], A)/sampler.margins[k-1](x[1:k-1]))
         end
     end
     u = Vector{T}(undef, n)
@@ -141,14 +150,14 @@ function Distributions.pdf(
         sar::PSDModelSampler{d, <:Any, T},
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return sar.model(x)::T
+    return sar.perm_model(x[sar.variable_ordering])::T
 end
 
 function Distributions.logpdf(
         sar::PSDModelSampler{d, <:Any, T},
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return log(sar.model(x)+ϵ_log)::T
+    return log(sar.perm_model(x[sar.variable_ordering])+ϵ_log)::T
 end
 
 
@@ -205,7 +214,7 @@ function conditional_pushforward(sampler::PSDModelSampler{d, dC, T, S}, u::PSDda
         end
     else
         for k=1:dC
-            left, right = domain_interval(sampler.model, sampler.variable_ordering[dx+k])
+            left, right = domain_interval(sampler.perm_model, dx+k)
             y[k] = find_zero(f(k), (left, right))
         end
     end

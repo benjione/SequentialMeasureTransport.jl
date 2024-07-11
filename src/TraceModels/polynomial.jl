@@ -15,7 +15,7 @@ function ΦΦT(a::OrthonormalTraceModel{T, <:OMF}, x::PSDdata{T}) where {T<:Numb
 end
 
 struct PolynomialTraceModel{T<:Number, S<:Union{Nothing, OMF{T}}} <: OrthonormalTraceModel{T, S}
-    B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
+    B::Hermitian{T, <:AbstractMatrix{T}}
     ΦΦT::SquaredPolynomialMatrix{<:Any, T}
     mapping::S
     function PolynomialTraceModel(B::Hermitian{T, <:AbstractMatrix{T}},
@@ -30,3 +30,4 @@ struct PolynomialTraceModel{T<:Number, S<:Union{Nothing, OMF{T}}} <: Orthonormal
         new{T, S}(B, ΦΦT, mapping)
     end
 end
+

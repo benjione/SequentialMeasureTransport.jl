@@ -30,6 +30,11 @@ PSDModel(sp::Space, tensorizer::Symbol, ten_size::Int; kwargs...) = PSDModel{Flo
 function PSDModel{T}(sp::Space, tensorizer::Symbol, ten_size::Int; 
                      sparse=false, mapping=nothing, 
                      max_Φ_size=nothing, kwargs...) where {T<:Number}
+    d = if typeof(sp) <: TensorSpace
+        length(sp.spaces)
+    else
+        1
+    end
     Φ, N = if tensorizer == :trivial
         trivial_TensorPolynomial(T, sp, ten_size), ten_size
     elseif tensorizer == :downward_closed
@@ -49,6 +54,8 @@ function PSDModel{T}(sp::Space, tensorizer::Symbol, ten_size::Int;
             algebraicOMF{T}()
     elseif mapping == :logarithmicOMF
             logarithmicOMF{T}()
+    elseif typeof(mapping) <: Mapping{d, T}
+        mapping
     else
         throw(error("Mapping not implemented"))
     end

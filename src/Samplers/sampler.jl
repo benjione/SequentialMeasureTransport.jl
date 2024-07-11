@@ -1,11 +1,5 @@
 
 """
-A mapping is a function from a domain to a codomain.
-"""
-abstract type ConditionalMapping{d,dC,T} end
-const Mapping{d,T} = ConditionalMapping{d,0,T}
-
-"""
 A mapping acting on a subset of the domain d of dimension dC.
 """
 abstract type SubsetMapping{d,dC,T,dsub,dCsub} <: ConditionalMapping{d,dC,T} end
@@ -311,9 +305,17 @@ end
 @inline marginal_reference_pdf(sampler::AbstractCondSampler{d,<:Any,T,R}, x) where {d,T,R<:ReferenceMap} = marginal_Jacobian(sampler.R1_map, x)
 @inline marginal_reference_pdf(_::AbstractCondSampler{d,<:Any,T,Nothing}, x) where {d,T} = all(1.0 .> x .> 0) ? 1.0 : 0.0
 
+## nothing reference
+@inline pushforward(::Nothing, x) = x
+@inline pullback(::Nothing, x) = x
+@inline Jacobian(::Nothing, x) = 1.0
+@inline inverse_Jacobian(::Nothing, x) = 1.0
+@inline log_Jacobian(::Nothing, x) = 0.0
+@inline inverse_log_Jacobian(::Nothing, x) = 0.0
+
 include("mappings/ProjectionMapping.jl")
 include("mappings/MarginalMapping.jl")
-include("samplers/PSDModelSampler.jl")
 include("samplers/Sampler.jl")
+include("samplers/PSDModelSampler.jl")
 
 include("algorithms.jl")
