@@ -208,9 +208,9 @@ end
             model,
             2, :Hellinger,
             SMT.ScalingReference{2}(-ones(2), ones(2));
-            N_sample=1000,
-            trace=false,
-            data_normalization=false,
+            N_sample=2000,
+            trace=true,
+            # data_normalization=false,
         )
         for _=1:10
             x = SMT.sample(sra)

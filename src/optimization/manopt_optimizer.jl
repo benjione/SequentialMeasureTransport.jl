@@ -553,7 +553,7 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
         prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
         A_new = optimize(prob, a.B; trace=trace, 
                 custom_stopping_criterion=stop_CV, kwargs...)
-        set_coefficients!(a, A_new)
+        set_coefficients!(a, Hermitian(A_new))
     end
     return _cost_alpha(a.B, α, X, Y)
 end
@@ -591,8 +591,8 @@ function _ML_Manopt!(a::PSDModel{T},
 
     prob = ManoptOptPropblem(cost_ML, grad_ML!, N; algorithm=algorithm)
     A_new = optimize(prob, a.B; trace=trace, kwargs...)
-    A_new = A_new / tr(A_new)
-    set_coefficients!(a, A_new)
+    # A_new = A_new / tr(A_new)
+    set_coefficients!(a, Hermitian(A_new))
     return cost_ML(nothing, A_new)
 end
 
@@ -631,6 +631,6 @@ function _KL_Manopt!(a::PSDModel{T},
     prob = ManoptOptPropblem(cost_KL, grad_KL!, N; algorithm=algorithm)
     A_new = optimize(prob, a.B; trace=trace, kwargs...)
     # A_new = A_new / tr(A_new)
-    set_coefficients!(a, A_new)
+    set_coefficients!(a, Hermitian(A_new))
     return cost_KL(nothing, A_new)
 end
