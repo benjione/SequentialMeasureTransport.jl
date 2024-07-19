@@ -66,7 +66,7 @@ end
 
 function reduce_dim(p::FMTensorPolynomial{d, T}, dims::Vector{Int}) where {d, T}
     p_red = p
-    for dim in dims
+    for dim in sort(dims, rev=true)
         p_red = reduce_dim(p_red, dim)
     end
     return p_red
@@ -161,12 +161,23 @@ end
 _eval(p::FMTensorPolynomial{d, T}, x::T, ignore_dim::Vector{Int}) where {d, T} = _eval(p, T[x], ignore_dim)
 function _eval(p::FMTensorPolynomial{d, T, S, tsp}, 
                x::AbstractVector{T},
-               ignore_dim::Vector{Int}) where {d, T, S, tsp<:TensorSpace}
+               ignore_dim::Vector{Int}) where {d, T<:Number, S, tsp<:TensorSpace}
     @assert length(x) == d
     iter_dim = setdiff(1:d, ignore_dim)
-    A = zeros(T, p.highest_order+1, d)
-    poly(k::Int,i::Int) = Fun(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]])(x[i]::T)::T
-    map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
+    # A = zeros(T, p.highest_order+1, d)
+    # poly(k::Int,i::Int) = Fun(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]])(x[i]::T)::T
+    # map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
+    
+    A = Array{T}(undef, p.highest_order+1, d)
+    @inbounds for i=1:d
+        if i in ignore_dim
+            # A[:, i] .= 1.0
+            continue
+        end
+        A[:, i] = ApproxFun.ApproxFunOrthogonalPolynomials.forwardrecurrence(T, p.space.spaces[i], 0:p.highest_order, ApproxFun.tocanonical(p.space.spaces[i], x[i]))
+        A[:, i] .*= p.normal_factor[i]
+    end
+    
     @inline Ψ(k) = mapreduce(j->A[k[j], j], *, iter_dim, init=one(T))
     return map(i -> Ψ(σ_inv(p, i)), 1:p.N)
 end
@@ -281,3 +292,93 @@ norm_func(T::Type{<:Number}, sp::Hermite, n) = begin
     return T(sqrt(1/(sqrt(T(π)) * 2^n * factorial(n))))
 end
 norm_func(T::Type{<:Number}, ::Any, n) = @error "Not implemented"
+
+function moment_matrix_legendre(degree, norm_fac_vec)
+    mom = spzeros(degree+1, degree+1)
+    mom[1, 1] = 1.0
+    mom[2, 2] = 1.0
+    for i=3:degree+1
+        j = i-2
+        mom[i, :] = (2*j+1)/(j+1) * circshift(mom[i-1, :], 1) - j/(j+1) * mom[i-2, :]
+    end
+    for (i, n_const) in enumerate(norm_fac_vec)
+        mom[i, :] .*= n_const
+    end
+    return mom
+end
+
+using DSP
+function moment_tensor(Φ::FMTensorPolynomial{d, T}; threading=true) where {d, T}
+    for i=1:d
+        @assert Φ.space.spaces[i] isa Jacobi
+        @assert Φ.space.spaces[i].a == Φ.space.spaces[i].b == 0
+    end
+    legendre_mom = moment_matrix_legendre(Φ.highest_order, Φ.normal_factor[1])
+    mom = Vector{SparseVector{T}}(undef, Φ.N)
+    @_condusethreads threading for i=1:Φ.N
+        indices = σ_inv(Φ, i)
+        mom_tensor = foldl((x, j)->kron(x, legendre_mom[indices[j], :]), 1:d, init=one(T))
+        # mom_tensor = reshape(mom_tensor, fill(Φ.highest_order+1, d)...)
+        mom[i] = mom_tensor
+    end
+    mom_matrix = Matrix{Array{T, d}}(undef, Φ.N, Φ.N)
+    @_condusethreads threading for i=1:Φ.N
+        for j=i:Φ.N
+            res = conv(reshape(mom[i], fill(Φ.highest_order+1, d)...), reshape(mom[j], fill(Φ.highest_order+1, d)...))
+            # res = conv(mom[i], mom[j])
+            res[abs.(res) .< 1e-12] .= 0.0
+            mom_matrix[i, j] = res
+            mom_matrix[j, i] = res
+        end
+    end
+    return mom_matrix
+end
+
+
+function mat_D(Φ::FMTensorPolynomial{d, T}, q_list, dim::Int) where {d, T}
+    for q in q_list
+        @assert q.space.domain.left == Φ.space.spaces[dim].domain.left
+        @assert q.space.domain.right == Φ.space.spaces[dim].domain.right
+    end
+    @inline δ(i::Int, j::Int) = i == j ? 1 : 0
+    @inline δ(i, j, not_dim) = mapreduce(k->k==not_dim ? true : i[k]==j[k],*, 1:d)
+    D_list = [spzeros(T, Φ.N, Φ.N) for _=1:length(q_list)]
+    j_ignore = []
+    for i=1:Φ.N
+        ind_i = σ_inv(Φ, i)
+        Φ_i = Fun(Φ.space.spaces[dim], [zeros(ind_i[dim]-1); Φ.normal_factor[dim][ind_i[dim]]])
+        Φ_new_list = [Φ_i * q for q in q_list]
+        # Φ_new = Φ_i * q
+        # out_of_order = false
+        # for Φ_new in Φ_new_list
+        #     new_vec = Φ_new.coefficients
+        #     if length(new_vec) > Φ.highest_order+1
+        #         out_of_order = true
+        #     end
+        # end
+        # if out_of_order
+        #     continue
+        # end
+        for (D, Φ_new) in zip(D_list, Φ_new_list)
+            new_vec = Φ_new.coefficients
+            new_vec = new_vec[1:minimum([Φ.highest_order+1, length(new_vec)])]
+            new_vec ./= Φ.normal_factor[dim][1:length(new_vec)]
+            for j=1:Φ.N
+                ind_j = σ_inv(Φ, j)
+                if δ(ind_i, ind_j, dim)
+                    if length(new_vec) ≥ ind_j[dim] && new_vec[ind_j[dim]] ≠ 0
+                        D[j, i] = new_vec[ind_j[dim]]
+                    elseif length(new_vec) < ind_j[dim]
+                        push!(j_ignore, j)
+                    end
+                end
+            end
+        end
+    end
+    # for D in D_list
+    #     for j in j_ignore
+    #         D[j, :] .= 0.0
+    #     end
+    # end
+    return D_list
+end

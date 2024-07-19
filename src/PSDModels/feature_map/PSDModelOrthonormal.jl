@@ -14,9 +14,23 @@ Returns the feature map of the PSD model at x.
     return a.Φ(ξ(a.mapping, x)) * sqrt(1/x_deriv_prod(a.mapping, ξ(a.mapping, x)))
 end
 
+@inline function Φ(a::PSDModelOrthonormal{<:Any, T, S}, x::PSDdata{T}) where {T<:Number, S<:ConditionalMapping{<:Any, <:Any, T}}
+    return a.Φ(pullback(a.mapping, x)) * sqrt(inverse_Jacobian(a.mapping, x))
+end
+
+# faster evaluation for mapping, since pushforward of function faster than doing manually
+function (a::PSDModelOrthonormal{<:Any, T, S})(x::PSDdata{T}) where {T<:Number, S<:ConditionalMapping{<:Any, <:Any, T}}
+    _help(x) = begin
+        v = a.Φ(x)
+        return dot(v, a.B, v)
+    end
+    return pushforward(a.mapping, _help)(x)
+end
+
 
 domain_interval_left(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}, k::Int) = -∞
 domain_interval_right(a::PSDModelOrthonormal{<:Any, <:Any, <:OMF}, k::Int) = +∞
+
 
 domain_interval_left(a::PSDModelOrthonormal, k::Int) = domain_interval(a, k)[1]
 domain_interval_right(a::PSDModelOrthonormal, k::Int) = domain_interval(a, k)[2]
@@ -28,6 +42,7 @@ _volume(a::PSDModelOrthonormal) = prod(domain_interval_right(a) - domain_interva
 
 ## general interface
 _tensorizer(a::PSDModelOrthonormal) = throw(error("Not implemented!"))
+_remove_mapping(a::PSDModelOrthonormal{<:Any, <:Any, <:ConditionalMapping}) = throw(error("Not implemented!"))
 
 ## for greedy downward closed approximation
 next_index_proposals(a::PSDModelOrthonormal) = next_index_proposals(_tensorizer(a))

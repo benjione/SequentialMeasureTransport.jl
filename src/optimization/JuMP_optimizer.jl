@@ -524,6 +524,8 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
         for (marg_model, B_marg) in marg_constraints
             @info "fixing marginal"
             JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') == B_marg)
+            # JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') .≤ (1 + 1e-2) * B_marg)
+            # JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') .≥ (1 - 1e-2) * B_marg)
         end
     end
 

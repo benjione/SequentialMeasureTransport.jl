@@ -1,5 +1,5 @@
 
-struct PSDOrthonormalSubModel{d, d2, T} <: PSDModelOrthonormal{d, T, Nothing}
+struct PSDOrthonormalSubModel{d, d2, T, S<:Union{Nothing, OMF}} <: PSDModelOrthonormal{d, T, S}
     a::PSDModelOrthonormal{d2, T}
     B::SubArray{T, 2}
     M::Symmetric{Bool, <:AbstractMatrix{Bool}}
@@ -8,17 +8,21 @@ struct PSDOrthonormalSubModel{d, d2, T} <: PSDModelOrthonormal{d, T, Nothing}
 end
 
 
-function marginal_model(a::PSDModelOrthonormal{d, T}, 
-    dims::Vector{Int}) where {d, T<:Number}
+function marginal_model(a::PSDModelOrthonormal{d, T, S}, 
+    dims::Vector{Int}) where {d, T<:Number, S}
     P = _calculate_projector_P(a.Φ, dims)
     M = _calculate_marginal_M(a, dims)
     new_Φ = reduce_dim(a.Φ, dims)
     B = @view a.B[1:end, 1:end]
-    PSDOrthonormalSubModel{d-length(dims), d, T}(a, B, M, P, new_Φ)
+    PSDOrthonormalSubModel{d-length(dims), d, T, S}(a, B, M, P, new_Φ)
 end
 
 function Φ(a::PSDOrthonormalSubModel{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number}
     return a.P' * a.Φ(x)
+end
+
+function Φ(a::PSDOrthonormalSubModel{<:Any, <:Any, T, <:OMF}, x::PSDdata{T}) where {T<:Number}
+    return Φ(a.a, x)
 end
 
 function (a::PSDOrthonormalSubModel{<:Any, <:Any, T})(x::PSDdata{T}) where {T<:Number}

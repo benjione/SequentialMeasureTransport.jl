@@ -78,14 +78,16 @@ add_grad!(a::AbstractArray{T}, b::AbstractArray{T}) where {T<:Number} = a .+= b
 struct _grad_cost_alpha <: _grad_struct
     model
     α
+    A
     grad_A
+    grad_p
     X
     Y
     λ_1
     λ_2
     threading::Bool
-    function _grad_cost_alpha(model, α, grad_A, X, Y, λ_1, λ_2; threading=true) where {T<:Number}
-        new(model, α, grad_A, X, Y, λ_1, λ_2, threading)
+    function _grad_cost_alpha(model, α, A, grad_A, grad_p, X, Y, λ_1, λ_2; threading=true)
+        new(model, α, A, grad_A, grad_p, X, Y, λ_1, λ_2, threading)
     end
 end
 
@@ -182,8 +184,8 @@ struct ManoptOptPropblem
     function ManoptOptPropblem(M::Manifolds.AbstractManifold, cost_func, grad_cost!::_grad_struct, algorithm::Symbol)
         new(M, cost_func, grad_cost!, nothing, algorithm)
     end
-    function ManoptOptPropblem(M::Manifolds.AbstractManifold, cost_func, grad_cost!, grad_cost_M!)
-        new(M, cost_func, grad_cost!, grad_cost_M!, :gradient_descent)
+    function ManoptOptPropblem(M::Manifolds.AbstractManifold, cost_func, grad_cost!::_grad_struct, grad_cost_M!, algorithm::Symbol)
+        new(M, cost_func, grad_cost!, grad_cost_M!, algorithm)
     end
 end
 
@@ -195,6 +197,42 @@ end
 function _grad_cost_M!(prob::ManoptOptPropblem, M, grad_A, A)
     prob.grad_cost!(grad_A, A)
     ManifoldDiff.riemannian_gradient!(M, grad_A, A, prob.grad_cost!.grad_A)
+    return nothing
+end
+
+function _p_to_A!(A, M, p, D_list, coef_list)
+    A .= p[M, 1]
+    for (i, (D, C)) in enumerate(zip(D_list, coef_list))
+        for (_D, c) in zip(D, C)
+            A .+= c * _D' * p[M, i+1] * _D
+        end
+    end
+    return nothing
+end
+
+function _p_to_A(M, p, D_list, coef_list)
+    A = zeros(size(p[M, 1])...)
+    _p_to_A!(A, M, p, D_list, coef_list)
+    return A
+end
+
+function _grad_A_to_grad_p!(grad_p, M, grad_A, D_list, coef_list)
+    grad_p[M, 1] .= grad_A
+    for (i, (D, C)) in enumerate(Iterators.zip(D_list, coef_list))
+        grad_p[M, i+1] .= 0.0
+        for (_D, c) in Iterators.zip(D, C)
+            grad_p[M, i+1] .+= c * _D * _D'
+        end
+        grad_p[M, i+1] .= grad_A * grad_p[M, i+1]
+    end
+    return nothing
+end
+
+function _grad_p_cost_M!(grad_cost!::_grad_struct, M, grad_p, p, D_list, coef_list)
+    _p_to_A!(grad_cost!.A, M, p, D_list, coef_list)
+    grad_cost!(grad_cost!.grad_A, grad_cost!.A)
+    _grad_A_to_grad_p!(grad_cost!.grad_p, M, grad_cost!.grad_A, D_list, coef_list)
+    ManifoldDiff.riemannian_gradient!(M, grad_p, p, grad_cost!.grad_p)
     return nothing
 end
 
@@ -222,18 +260,27 @@ function optimize(prob::ManoptOptPropblem, A_init;
     end
     
     stopping_criterion = if custom_stopping_criterion === nothing
-        (Manopt.StopAfterIteration(maxit) | Manopt.StopWhenGradientNormLess(mingrad_stop))
+        (Manopt.StopAfterIteration(maxit) | Manopt.StopWhenGradientNormLess(mingrad_stop) | Manopt.StopWhenStepsizeLess(1e-8))
     else
         custom_stopping_criterion
     end
 
     _stepsize = if stepsize === nothing
-        Manopt.default_stepsize(M, Manopt.GradientDescentState)
+        if prob.algorithm == :quasi_newton
+            Manopt.default_stepsize(M, Manopt.QuasiNewtonState)
+        elseif prob.algorithm == :gradient_descent
+            Manopt.default_stepsize(M, Manopt.GradientDescentState)
+        else
+            throw(error("No optimal step size for $(prob.algorithm) known, set one explicitly."))
+        end
     else
         stepsize
     end
 
-    A_sol = Matrix(deepcopy(A_init))
+    A_sol = deepcopy(A_init)
+    if A_sol isa Hermitian || A_sol isa Symmetric
+        A_sol = Matrix(A_sol)
+    end
     if prob.algorithm == :gradient_descent
         Manopt.gradient_descent!(M, cost_func, grad_cost_M!, A_sol, 
                 evaluation=Manopt.InplaceEvaluation(),
@@ -245,11 +292,17 @@ function optimize(prob::ManoptOptPropblem, A_init;
                 cost=cost_func,
                 evaluation=Manopt.InplaceEvaluation(),
                 debug=debug)
+    elseif prob.algorithm == :quasi_newton
+        Manopt.quasi_Newton!(M, cost_func, grad_cost_M!, A_sol,
+                evaluation=Manopt.InplaceEvaluation(),
+                stopping_criterion=stopping_criterion,
+                debug=debug,
+                stepsize=_stepsize)
     else
         throw(error("Algorithm $(prob.algorithm) not implemented."))
         return nothing
     end
-    return Hermitian(A_sol)
+    return A_sol
 end
 
 
@@ -286,13 +339,80 @@ function _α_divergence_Manopt!(a::PSDModel{T},
 
     N = size(a.B, 1)
 
-    grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), X, Y, λ_1, λ_2)
+    grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), zeros(T, N, N), X, Y, λ_1, λ_2)
 
     prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
     A_new = optimize(prob, a.B; trace=trace, kwargs...)
-    set_coefficients!(a, A_new)
+    set_coefficients!(a, Hermitian(A_new))
     return cost_alpha(nothing, A_new)
 end
+
+function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
+    α::T,
+    X::PSDDataVector{T},
+    Y::AbstractVector{T}; putinar=false, kwargs...) where {d, T<:Number}
+    if putinar
+        return _α_divergence_Manopt_putinar!(a, α, X, Y; kwargs...)
+    end
+    return invoke(_α_divergence_Manopt!, Tuple{PSDModel{T}, typeof(α), typeof(X), typeof(Y)}, 
+                a, α, X, Y; kwargs...)
+end
+
+function _α_divergence_Manopt_putinar!(a::PSDModelPolynomial{d, T},
+                α::T,
+                X::PSDDataVector{T},
+                Y::AbstractVector{T};
+                λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                normalization=false,
+                algorithm=:gradient_descent,
+                kwargs...
+            ) where {d, T<:Number}
+
+    @assert normalization == false "Normalization not implemented yet."
+    @assert α != 1 "Use KL divergence instead"
+    @assert α != 0 "Use reversed KL divergence instead"
+
+    D_list, coef_list = get_semialgebraic_domain_constraints(a)
+
+    N = size(a.B, 1)
+    ## create a power manifold
+    # M = foldl(×, [Manifolds.SymmetricPositiveDefinite(N-1) for _ in 1:d], init=Manifolds.SymmetricPositiveDefinite(N))
+    M = Manifolds.SymmetricPositiveDefinite(N)^(d+1)
+    # M = Manifolds.SymmetricPositiveSemidefiniteFixedRank(N, 2)^(d+1)
+
+    function _cost_alpha(A, α, X, Y)
+        res = zero(T)
+        for (x, y) in zip(X, Y)
+            v = Φ(a, x)
+            res += dot(v, A, v)^(1-α) * y^(α)
+        end
+        y_int = (1/length(Y)) * (1/(α-1)) * sum(Y)
+        res = (1/length(Y)) * (1/(α * (α - 1))) * res + (1/α)* tr(A) - y_int
+        res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
+    end
+
+    cost_alpha = let α=α, X=X, Y=Y, D_list=D_list
+        (M, A) -> _cost_alpha(_p_to_A(M, A, D_list, coef_list), α, X, Y)
+    end
+
+    grad_p = rand(M)
+    grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), grad_p, X, Y, λ_1, λ_2)
+    grad_p_M! = let grad_t=grad_alpha!, D_list=D_list, coef_list=coef_list
+        (M, grad_p, p) -> _grad_p_cost_M!(grad_t, M, grad_p, p, D_list, coef_list)
+    end
+
+    prob = ManoptOptPropblem(M, cost_alpha, grad_alpha!, grad_p_M!, algorithm)
+    p_init = rand(M)
+    p_new = optimize(prob, p_init; trace=trace, kwargs...)
+    # prob2 = ManoptOptPropblem(M, cost_alpha, grad_alpha!, grad_p_M!, :quasi_newton)
+    # p_new = optimize(prob2, p_new; trace=trace, kwargs...)
+    A_new = _p_to_A(M, p_new, D_list, coef_list)
+    set_coefficients!(a, Hermitian(A_new))
+    return cost_alpha(M, p_new)
+end
+
 
 function _adaptive_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
                 α::T,
@@ -352,7 +472,7 @@ function _adaptive_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
 
         N = size(a.B, 1)
 
-        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), X, Y, λ_1, λ_2)
+        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), zeros(T, N, N), X, Y, λ_1, λ_2)
 
         prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
         A_new = optimize(prob, a.B; trace=trace, maxit=Int(floor(maxit/adaptive_sample_steps)), kwargs...)
@@ -427,13 +547,13 @@ function _adaptive_CV_α_divergence_Manopt!(a::PSDModelOrthonormal{d, T},
                     Manopt.StopWhenGradientNormLess(mingrad_stop) |
                     Manopt.StopWhenStepsizeLess(1e-8)
 
-        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), 
+        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), zeros(T, N, N),
                         X_train, Y_train, λ_1, λ_2; threading=threading)
 
         prob = ManoptOptPropblem(cost_alpha, grad_alpha!, N, algorithm=algorithm)
         A_new = optimize(prob, a.B; trace=trace, 
                 custom_stopping_criterion=stop_CV, kwargs...)
-        set_coefficients!(a, A_new)
+        set_coefficients!(a, Hermitian(A_new))
     end
     return _cost_alpha(a.B, α, X, Y)
 end
@@ -471,8 +591,8 @@ function _ML_Manopt!(a::PSDModel{T},
 
     prob = ManoptOptPropblem(cost_ML, grad_ML!, N; algorithm=algorithm)
     A_new = optimize(prob, a.B; trace=trace, kwargs...)
-    A_new = A_new / tr(A_new)
-    set_coefficients!(a, A_new)
+    # A_new = A_new / tr(A_new)
+    set_coefficients!(a, Hermitian(A_new))
     return cost_ML(nothing, A_new)
 end
 
@@ -511,6 +631,6 @@ function _KL_Manopt!(a::PSDModel{T},
     prob = ManoptOptPropblem(cost_KL, grad_KL!, N; algorithm=algorithm)
     A_new = optimize(prob, a.B; trace=trace, kwargs...)
     # A_new = A_new / tr(A_new)
-    set_coefficients!(a, A_new)
+    set_coefficients!(a, Hermitian(A_new))
     return cost_KL(nothing, A_new)
 end

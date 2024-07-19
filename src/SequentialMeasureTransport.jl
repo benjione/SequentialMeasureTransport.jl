@@ -39,8 +39,13 @@ export SelfReinforcedSampler
 const PSDdata{T} = AbstractVector{T} where {T<:Number}
 const PSDDataVector{T} = AbstractVector{<:AbstractVector{T}} where {T<:Number}
 
+# function models
 abstract type PSDModel{T} end
 abstract type TraceModel{T} end
+
+# abstract mapping types
+abstract type ConditionalMapping{d,dC,T} end
+const Mapping{d,T} = ConditionalMapping{d,0,T}
 
 include("functions/functions.jl")
 include("PSDModels/models.jl")

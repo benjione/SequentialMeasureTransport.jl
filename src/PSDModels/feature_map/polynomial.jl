@@ -7,8 +7,8 @@ implementation in order to provide orthonormal polynomials,
 optimal weighted sampling, closed form derivatives and integration, etc.
 For orthogonal polynomials, the package ApproxFun is used.
 """
-struct PSDModelPolynomial{d, T<:Number, S<:Union{Nothing, OMF{T}}} <: PSDModelOrthonormal{d, T, S}
-    B::Hermitian{T, <:AbstractMatrix{T}}  # B is the PSD so that f(x) = ∑_ij k(x, x_i) * B * k(x, x_j)
+struct PSDModelPolynomial{d, T<:Number, S<:Union{Nothing, OMF{T}, ConditionalMapping{d, <:Any, T}}} <: PSDModelOrthonormal{d, T, S}
+    B::Hermitian{T, <:AbstractMatrix{T}}
     Φ::FMTensorPolynomial{d, T}
     mapping::S
     function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
@@ -24,7 +24,7 @@ struct PSDModelPolynomial{d, T<:Number, S<:Union{Nothing, OMF{T}}} <: PSDModelOr
     end
     function PSDModelPolynomial(B::Hermitian{T, <:AbstractMatrix{T}},
                                     Φ::FMTensorPolynomial{d, T},
-                                    mapping::Union{Nothing, OMF{T}}
+                                    mapping::Union{Nothing, OMF{T}, ConditionalMapping{d, <:Any, T}}
                         ) where {d, T<:Number}
         new{d, T, typeof(mapping)}(B, Φ, mapping)
     end
@@ -37,6 +37,9 @@ end
                 PSDModelPolynomial(Hermitian(B), Φ, a.mapping)
 
 @inline _tensorizer(a::PSDModelPolynomial) = a.Φ.ten
+
+@inline _remove_mapping(a::PSDModelPolynomial{d, T, <:ConditionalMapping{d, <:Any, T}}) where {d, T<:Number} = 
+    PSDModelPolynomial(a.B, a.Φ)
 
 
 ## Pretty printing
@@ -146,7 +149,7 @@ Integrate the model along a given dimension. The integration constant C gives
 the x value of where it should start. If C is not given, it is assumed to be
 the beginning of the interval.
 """
-function integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d, T<:Number, S}
+function integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d, T<:Number, S<:Union{Nothing, OMF{T}}}
     @assert 1 ≤ dim ≤ d
     if C === nothing
         # use the left endpoint of the original domain,
@@ -156,6 +159,7 @@ function integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d,
     M = SquaredPolynomialMatrix(a.Φ, Int[dim]; C=C)
     return PolynomialTraceModel(a.B, M, a.mapping)
 end
+integral(_::PSDModelPolynomial{<:Any, T, S}, _::Int) where {T<:Number, S<:ConditionalMapping} = throw(error("An SoS function with a mapping cannot be integrated."))
 
 function compiled_integral(a::PSDModelPolynomial{d, T, S}, dim::Int; C=nothing) where {d, T<:Number, S}
     @assert 1 ≤ dim ≤ d
@@ -174,6 +178,37 @@ function tensorize(a::PSDModelPolynomial{d, T}, b::PSDModelPolynomial{d, T}) whe
     # B_new = zeros(T, Φ_new.N, Φ_new.N)
     B_new = kron(b.B, a.B)
     return PSDModelPolynomial(Hermitian(B_new), Φ_new)
+end
+
+moment_tensor(a::PSDModelPolynomial{d, T}) where {d, T<:Number} = moment_tensor(a, moment_tensor(a.Φ))
+function moment_tensor(a::PSDModelPolynomial{d, T}, M::AbstractMatrix{<:AbstractArray{T, d}}) where {d, T<:Number}
+    ret = zeros(T, size(M[1,1]))
+    for i=1:size(M,1), j=i+1:size(M,2)
+        @inbounds ret .+= 2.0 * M[i,j] * a.B[i,j]
+    end
+    for i=1:size(M,1)
+        @inbounds ret .+= M[i,i] * a.B[i,i]
+    end
+    return ret
+end
+
+function get_semialgebraic_domain_constraints(a::PSDModelPolynomial{d, T}) where {d, T<:Number}
+    # D_list = Vector{Vector{SparseMatrixCSC{T}}}(undef, d)
+    D_list = Vector{Vector{Matrix{T}}}(undef, d)
+    coef_list = Vector{Vector{T}}(undef, d)
+    for i=1:d
+        @assert a.Φ.space.spaces[i].a == 0.0
+        @assert a.Φ.space.spaces[i].b == 0.0
+        @assert a.Φ.space.spaces[i].domain.left == 0.0
+        @assert a.Φ.space.spaces[i].domain.right == 1.0 
+        q_1 = Fun(a.Φ.space.spaces[i], [1.0])
+        q_2 = Fun(a.Φ.space.spaces[i], [0.0, 1.0])
+        D = mat_D(a.Φ, [q_1, q_2], i)
+        
+        D_list[i] = D
+        coef_list[i] = [1.0, -1.0]
+    end
+    return D_list, coef_list
 end
 
 import LinearAlgebra: normalize, normalize!
