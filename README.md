@@ -1,6 +1,6 @@
 # SequentialMeasureTransport.jl
 
-Code of the paper [Seqential Transport maps using SoS densities and $\alpha$-divergences](https://arxiv.org/abs/2402.17943)
+Code for the paper [Sequential Transport maps using SoS densities and $\alpha$-divergences](https://arxiv.org/abs/2402.17943)
 
 A more detailed documentation is comming soon.
 
@@ -25,4 +25,4 @@ and so that each map $`\mathcal Q_{\ell}`$ is learned by using
     \left(\mathcal Q_{\ell}\right)_\sharp \mu \approx \mathcal T_{\ell -1}^\sharp \pi^{(\ell)}.
 ```
 
-For know, we only support Knothe-Rosenblatt maps for $`\mathcal Q`$ but plan to allow for also using normalizing flows and be able to mix both.
+For now, we only support Knothe-Rosenblatt maps for $`\mathcal Q`$ but plan to allow for also using normalizing flows and be able to mix both.
