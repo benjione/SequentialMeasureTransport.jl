@@ -1,17 +1,34 @@
 
+
 """
-A mapping acting on a subset of the domain d of dimension dC.
+    abstract type SubsetMapping{d,dC,T,dsub,dCsub} <: ConditionalMapping{d,dC,T}
+
+Abstract type for mappings that
+work on a subspace of dimension ``dsub`` of the input space and ``dCsub`` of the conditional space.
+
+## Parameters
+- `d`: Dimension of the input space.
+- `dC`: Dimension of the conditional space.
+- `T`: Number type used, e.g. Float64.
+- `dsub`: Dimension of the subspace.
+- `dCsub`: Dimension of the conditional subspace.
 """
 abstract type SubsetMapping{d,dC,T,dsub,dCsub} <: ConditionalMapping{d,dC,T} end
 
-"""
-A Sampler is a mapping from a reference distribution to a target distribution,
-while a mapping does not have any definition of a reference or target by itself.
-    T = R_1 ∘ Q_1 ∘ Q_2 ∘ ... ∘ Q_n ∘ R_2^{-1}
-where R_1 is a map to a reference distribution and Q_i are maps on the hypercube [0,1]^d.
-R_2 is a map from the domain of a distribution to the hypercube [0,1]^d.
 
-Can be conditionally, so that p(x, y) is estimated and sampling of p(y | x) is possible.
+"""
+    abstract type AbstractCondSampler{d,dC,T,R1,R2} <: ConditionalMapping{d,dC,T}
+
+A conditional mapping equipped with reference maps `R1` and `R2` from which can be sampled
+and the distribution be evaluated.
+
+## Type Parameters
+- `d`: Dimension of the joint variables.
+- `dC`: Dimension of the conditional variable.
+- `T`: Number type used, e.g. Float64.
+- `R1`: Type of the random variable used for sampling.
+- `R2`: Type of the random variable used for conditioning.
+
 """
 abstract type AbstractCondSampler{d,dC,T,R1,R2} <: ConditionalMapping{d,dC,T} end
 const AbstractSampler{d,T,R1,R2} = AbstractCondSampler{d,0,T,R1,R2} # A sampler is also a Mapping
@@ -80,20 +97,43 @@ function conditional_inverse_log_Jacobian(sampler::ConditionalMapping{<:Any, <:A
 end
 
 """
-Pullback of a conditional mapping.
-x is from x ∼ π_x
+    conditional_pushforward(sampler, z_y, x)
+
+Given ``z_y`` and ``x`` compute the pushforward of ``z_y`` given ``x``.
+If sampler represents a distribution ``p(x, y)`` and ``z_y \\sim \\rho_y``,
+then the pushforward ``y`` is distributed as ``y \\sim p_{Y | X = x}``.
+
+# Arguments
+- `sampler`: A `ConditionalMapping` object representing the conditional mapping.
+- `u`: A `PSDdata` object representing the conditioning data.
+- `x`: A `PSDdata` object representing the input data.
+
+# Returns
+- `y`: Conditional pushforward ``\\mathcal{T}_{\\mathcal{Y}}(z_y | x)``.
+
 """
 function conditional_pushforward(sampler::ConditionalMapping{d,dC,T},
-    u::PSDdata{T},
+    z_y::PSDdata{T},
     x::PSDdata{T}
 ) where {d,T,dC}
     x = marginal_pullback(sampler, x)
-    xu = pushforward(sampler, [x; u])
+    xu = pushforward(sampler, [x; z_y])
     return xu[_d_marg(sampler)+1:d]
 end
+
 """
-Pullback of a conditional mapping.
-x is from x ∼ π_x
+    conditional_pullback(map, y, x)
+
+Given ``(y, x)`` calculate ``z_y`` given ``x``.
+
+# Arguments
+- `map`: A `ConditionalMapping` object representing the conditional mapping.
+- `y`: A `PSDdata` object representing the conditioning data.
+- `x`: A `PSDdata` object representing the input data.
+
+# Returns
+- `y`: Conditional pushforward ``\\mathcal{T}_{\\mathcal{Y}}(z_y | x)``.
+
 """
 function conditional_pullback(sra::ConditionalMapping{d,dC,T},
     y::PSDdata{T},

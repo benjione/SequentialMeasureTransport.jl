@@ -43,8 +43,30 @@ const PSDDataVector{T} = AbstractVector{<:AbstractVector{T}} where {T<:Number}
 abstract type PSDModel{T} end
 abstract type TraceModel{T} end
 
-# abstract mapping types
+"""
+    abstract type ConditionalMapping{d,dC,T}
+
+Abstract type representing a conditional mapping for variables ``(x, y) \\in \\mathcal{R}^d`` and
+``y \\in \\mathcal{R}^{dC}``. Mapping can be either used to map ``(z_x, z_y)`` to ``(x, y)``, or
+given ``x`` to map ``z_y`` to ``y``. Such maps are triangular of the form:
+``
+    \\mathccal{T}(z_x, z_y) = (T_x(z_x), T_y(z_x, z_y)) = (x, y)
+``
+
+- `d`: The dimension of the input space.
+- `dC`: The dimension of the conditioning space.
+- `T`: Number type used, e.g. Float64.
+
+"""
 abstract type ConditionalMapping{d,dC,T} end
+
+"""
+    const Mapping{d,T} = ConditionalMapping{d,0,T}
+
+A `Mapping` type that is an alias for `ConditionalMapping` with `dC = 0`, hence, non conditional.
+This type represents a mapping between two sets of measures.
+
+"""
 const Mapping{d,T} = ConditionalMapping{d,0,T}
 
 include("functions/functions.jl")
