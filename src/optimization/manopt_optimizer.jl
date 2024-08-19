@@ -297,7 +297,8 @@ function optimize(prob::ManoptOptPropblem, A_init;
                 evaluation=Manopt.InplaceEvaluation(),
                 stopping_criterion=stopping_criterion,
                 debug=debug,
-                stepsize=_stepsize)
+                stepsize=_stepsize,
+                memory_size=5)
     else
         throw(error("Algorithm $(prob.algorithm) not implemented."))
         return nothing
