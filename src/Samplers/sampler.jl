@@ -355,6 +355,7 @@ end
 
 include("mappings/ProjectionMapping.jl")
 include("mappings/MarginalMapping.jl")
+include("mappings/BlockDiagonalMapping.jl")
 include("samplers/Sampler.jl")
 include("samplers/PSDModelSampler.jl")
 
