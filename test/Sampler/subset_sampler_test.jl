@@ -124,6 +124,7 @@ end
                     model, bridge, ref_map;
                     subspace_reference_map=subspace_ref_map,
                     to_subspace_reference_map=to_subspace_ref_map, 
+                    optimizer=Hypatia.Optimizer,
                     trace=false)
 
     X_sample = SequentialMeasureTransport.sample(sra_sub, 100)
@@ -182,6 +183,7 @@ end
                     to_subspace_reference_map=to_subspace_ref_map,
                     dC=1,
                     dCsub=1,
+                    optimizer=Hypatia.Optimizer,
                     trace=false)
 
     X_sample = SMT.sample(sra_sub, 100)

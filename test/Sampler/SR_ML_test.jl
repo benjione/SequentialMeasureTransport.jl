@@ -17,7 +17,7 @@
             model,
             bridge,
             ref_map;
-            # optimizer=Hypatia.Optimizer,
+            optimizer=Hypatia.Optimizer,
             trace=false,
         )
         # test densities are close
@@ -42,7 +42,7 @@
             model,
             bridge,
             ref_map;
-            # optimizer=Hypatia.Optimizer,
+            optimizer=Hypatia.Optimizer,
             trace=false,
         )
         # test densities are close
@@ -67,7 +67,7 @@
             model,
             bridge,
             ref_map;
-            # optimizer=Hypatia.Optimizer,
+            optimizer=Hypatia.Optimizer,
             trace=false,
             λ_2 = 0.001,
         )
@@ -96,7 +96,7 @@ end
             model,
             2.0,
             ref_map;
-            # optimizer=Hypatia.Optimizer,
+            optimizer=Hypatia.Optimizer,
             trace=false,
         )
 

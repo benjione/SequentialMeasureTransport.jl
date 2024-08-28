@@ -134,7 +134,7 @@ end
 
 function RandomSubsetProjection(T::Type{<:Number}, d::Int, dsub::Int)
     # X = qr(randn(T, d, d)).Q[:, 1:dsub]
-    X = rand(Stiefel(d, dsub)) .|> T
+    X = rand(Manifolds.Grassmann(d, dsub)) .|> T
     P_tilde = X'
     P = X * X'
     return X, P, P_tilde
@@ -150,8 +150,8 @@ function RandomConditionalSubsetProjection(T::Type{<:Number},
     d_marg_red = dsub - dCsub
     @assert dCsub ≤ dC
     @assert d_marg_red ≤ dx
-    Xm = rand(Stiefel(dx, d_marg_red)) .|> T
-    Xc = rand(Stiefel(dC, dCsub)) .|> T
+    Xm = rand(Manifolds.Grassmann(dx, d_marg_red)) .|> T
+    Xc = rand(Manifolds.Grassmann(dC, dCsub)) .|> T
     # Xm = qr(randn(T, dx, dx)).Q[:, 1:d_marg_red]
     # Xc = qr(randn(T, dC, dC)).Q[:, 1:dCsub]
     X = zeros(T, d, dsub)

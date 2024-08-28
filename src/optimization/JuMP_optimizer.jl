@@ -298,12 +298,12 @@ function _ML_JuMP!(a::PSDModel{T},
     JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
     
     JuMP.@variable(model, t)
-    JuMP.@constraint(model, [t; ex; ones(m)] in JuMP.MOI.RelativeEntropyCone(2*m+1))
+    JuMP.@constraint(model, [t; ex; (1/m)*ones(m)] in JuMP.MOI.RelativeEntropyCone(2*m+1))
     
     # JuMP.@variable(model, t[i=1:m])
     # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
 
-    JuMP.@expression(model, min_func, (1/m)*t)
+    JuMP.@expression(model, min_func, t + tr(B))
     
     if λ_1 > 0.0
         JuMP.add_to_expression!(min_func, λ_1 * nuclearnorm(B))
@@ -449,6 +449,9 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
                 normalization=false,
                 fixed_variables=nothing,
                 marg_constraints=nothing,
+                marg_regularization=nothing,
+                marg_data_regularization=nothing,
+                λ_marg_reg=1.0,
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -499,7 +502,51 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
     # JuMP.@variable(model, t[i=1:m])
     # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
 
-    JuMP.@expression(model, min_func, t - tr(B))
+    if marg_constraints !== nothing
+        for (marg_model, B_marg) in marg_constraints
+            @info "fixing marginal"
+            JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') == B_marg)
+        end
+    end
+
+    if marg_regularization !== nothing
+
+        JuMP.@expression(model, marg_reg[i=1:length(marg_regularization)], 
+                    (Hermitian(marg_regularization[i][1].P * (marg_regularization[i][1].M .* B) * 
+                    marg_regularization[i][1].P') - marg_regularization[i][2]))
+
+        JuMP.@variable(model, t_reg[i=1:length(marg_regularization)])
+        for i=1:length(marg_regularization)
+            JuMP.@constraint(model, [t_reg[i]; vec(marg_reg[i])] in JuMP.MOI.NormSpectralCone(size(marg_regularization[i][2])...))
+        end
+    end
+
+    if marg_data_regularization !== nothing
+        n_marg = length(marg_data_regularization)
+        marg_model = [marg_data_regularization[i][1] for i=1:n_marg]
+        X_i = [marg_data_regularization[i][2] for i=1:n_marg]
+        K_marg = [reduce(hcat, Φ.(Ref(marg_model[i]), X_i[i])) for i=1:n_marg]
+
+        m_marg = length(X_i[1])
+        @assert all(length(X_i[i]) == m_marg for i=2:n_marg)
+        JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], K_marg[j][:,i]' * (marg_model[j].M .* B) * K_marg[j][:,i])
+
+        JuMP.@variable(model, t_marg[j=1:n_marg])
+        for j=1:n_marg
+            JuMP.@constraint(model, [t_marg[j]; ex_marg[j,:]; (1/m_marg)*ones(m_marg)] in JuMP.MOI.RelativeEntropyCone(2*m_marg+1))
+        end
+    end
+
+    if marg_regularization !== nothing
+        JuMP.@expression(model, min_func, t - tr(B) + λ_marg_reg * sum(t_reg))
+    elseif marg_data_regularization !== nothing
+        JuMP.@expression(model, min_func, t - tr(B) + 
+                λ_marg_reg * (sum(t_marg) + sum(tr(marg_data_regularization[i][1].P * (marg_data_regularization[i][1].M .* B) * 
+                marg_data_regularization[i][1].P') for i=1:length(marg_data_regularization))))
+    else
+        JuMP.@expression(model, min_func, t - tr(B))
+    end
+
     if λ_2 > 0.0
         JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
         # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
@@ -520,13 +567,175 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
         JuMP.@constraint(model, tr(B) == 1)
     end
 
+    JuMP.optimize!(model)
+    res_B = Hermitian(T.(JuMP.value(_B)))
+    e_vals, e_vecs = eigen(res_B)
+    e_vals[e_vals .< 0.0] .= 0.0
+    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
+
+    finalize(model)
+    model = nothing
+    GC.gc()
+    return _loss(a.(X))
+end
+
+
+function _OT_JuMP!(a::PSDModel{T}, 
+                X::PSDDataVector{T},
+                Y::Vector{T};
+                # λ_1 = 0.0,
+                λ_2 = 0.0,
+                trace=false,
+                optimizer=nothing,
+                maxit=5000,
+                normalization=false,
+                fixed_variables=nothing,
+                marg_constraints=nothing,
+                marg_regularization=nothing,
+                marg_data_regularization=nothing,
+                λ_marg_reg=1.0,
+            ) where {T<:Number}
+    verbose_solver = trace ? true : false
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+    N = size(a.B, 1)
+    JuMP.@variable(model, _B[1:N, 1:N], PSD)
+    JuMP.set_start_value.(_B, a.B)
+    if typeof(a) <: PSDOrthonormalSubModel
+        @info "fix non marginal variables"
+        JuMP.fix.(_B[map(~, a.M)], a.B[map(~, a.M)], force=true)
+    end
+
+    B = if typeof(a) <: PSDOrthonormalSubModel
+        a.M .* _B
+    else
+        _B
+    end
+
+
+    if fixed_variables !== nothing
+        @info "some variables are fixed"
+        JuMP.fix.(B[fixed_variables], a.B[fixed_variables], force=true)
+        # JuMP.@constraint(model, B[prob.fixed_variables] .== prob.initial[prob.fixed_variables])
+    end
+
+    K = reduce(hcat, Φ.(Ref(a), X))
+
+    m = length(X)
+    JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
+    
+    JuMP.@variable(model, t)
+    JuMP.@constraint(model, [t; Y; ex] in JuMP.MOI.RelativeEntropyCone(2*m+1))
+    
+    # JuMP.@variable(model, t[i=1:m])
+    # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
+
     if marg_constraints !== nothing
         for (marg_model, B_marg) in marg_constraints
             @info "fixing marginal"
             JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') == B_marg)
-            # JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') .≤ (1 + 1e-2) * B_marg)
-            # JuMP.@constraint(model, Hermitian(marg_model.P * (marg_model.M .* B) * marg_model.P') .≥ (1 - 1e-2) * B_marg)
         end
+    end
+
+    if marg_regularization !== nothing
+
+        JuMP.@expression(model, marg_reg[i=1:length(marg_regularization)], 
+                    (Hermitian(marg_regularization[i][1].P * (marg_regularization[i][1].M .* B) * 
+                    marg_regularization[i][1].P') - marg_regularization[i][2]))
+
+        JuMP.@variable(model, t_reg[i=1:length(marg_regularization)])
+        for i=1:length(marg_regularization)
+            JuMP.@constraint(model, [t_reg[i]; vec(marg_reg[i])] in JuMP.MOI.NormSpectralCone(size(marg_regularization[i][2])...))
+        end
+    end
+
+    if marg_data_regularization !== nothing
+        
+        n_marg = length(marg_data_regularization)
+        m_marg = length(marg_data_regularization[1][2])
+        @assert all(length(marg_data_regularization[i][2]) == m_marg for i=1:n_marg)
+        
+        ## derive reduced matrx M
+        quad_points, quad_weights = gausslegendre(20)
+        quad_points = (quad_points .+ 1.0) * 0.5
+        quad_weights = quad_weights * 0.5
+        M(x) = Φ(a, x) * Φ(a, x)'
+        M_list = Matrix{Matrix{T}}(undef, n_marg, m_marg)
+        for (j, marg_struct) in enumerate(marg_data_regularization)
+            e_j = marg_struct[1]
+            e_mj = (ones(2) - e_j)
+            for (i, x) in enumerate(marg_struct[2])
+                fix_x = e_j * x[1]
+                M_list[j, i] = sum(quad_weights .* map(q->M(fix_x + e_mj * q), quad_points))
+            end
+        end
+
+        JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
+        # JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], tr(M_list[j, i] * B))
+        JuMP.@variable(model, t_marg[j=1:n_marg])
+        for j=1:n_marg
+            JuMP.@constraint(model, [t_marg[j]; ex_marg[j,:]; (1/m_marg)*ones(m_marg)] in JuMP.MOI.RelativeEntropyCone(2*m_marg+1))
+        end
+
+
+        # n_marg = length(marg_data_regularization)
+        # marg_model = [marg_data_regularization[i][1] for i=1:n_marg]
+        # X_i = [marg_data_regularization[i][2] for i=1:n_marg]
+        # K_marg = [reduce(hcat, Φ.(Ref(marg_model[i]), X_i[i])) for i=1:n_marg]
+
+        # m_marg = length(X_i[1])
+        # @assert all(length(X_i[i]) == m_marg for i=2:n_marg)
+        # JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], K_marg[j][:,i]' * (marg_model[j].M .* B) * K_marg[j][:,i])
+
+        # JuMP.@variable(model, t_marg[j=1:n_marg])
+        # for j=1:n_marg
+        #     JuMP.@constraint(model, [t_marg[j]; ex_marg[j,:]; (1/m_marg)*ones(m_marg)] in JuMP.MOI.RelativeEntropyCone(2*m_marg+1))
+        # end
+    end
+
+    if marg_regularization !== nothing
+        JuMP.@expression(model, min_func, t - tr(B) + λ_marg_reg * sum(t_reg))
+    elseif marg_data_regularization !== nothing
+        JuMP.@expression(model, min_func, t - tr(B) + 
+                λ_marg_reg * (sum(t_marg) + 2*tr(B)))
+    else
+        JuMP.@expression(model, min_func, t - tr(B))
+    end
+
+    if λ_2 > 0.0
+        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
+        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
+    end
+    if λ_2 == 0.0
+        JuMP.@objective(model, Min, min_func)
+    else
+        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
+    end
+
+
+    # JuMP.@objective(model, Min, min_func);
+
+    # @show t2
+    if normalization
+        # IMPORTANT: only valid for tensorized polynomial maps.
+        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
+        JuMP.@constraint(model, tr(B) == 1)
     end
 
     JuMP.optimize!(model)

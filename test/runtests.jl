@@ -4,6 +4,7 @@ using LinearAlgebra
 using ApproxFun
 using Distributions
 using Test
+using Hypatia
 
 @testset "internal utility test" begin
     include("utils_test.jl")
