@@ -82,6 +82,82 @@ function optimize(prob::JuMPOptProp{T}) where {T<:Number}
     return res_B
 end
 
+# function _interpolate_JuMP!(a::PSDModel{T},
+#                     X::PSDDataVector{T},
+#                     Y::Vector{T};
+#                     λ_1 = 0.0,
+#                     λ_2 = 0.0,
+#                     trace=false,
+#                     optimizer=nothing,
+#                     maxit=5000,) where {T<:Number}
+#     verbose_solver = trace ? true : false
+
+#     if optimizer===nothing
+#         optimizer = con.MOI.OptimizerWithAttributes(
+#             SCS.Optimizer,
+#             "max_iters" => maxit,
+#         )
+#     else
+#         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+#     end
+
+#     model = JuMP.Model(optimizer)
+#     function create_M(PSD_model, x)
+#         m = length(x)
+#         n = size(PSD_model.B)[1]
+#         n = (n*(n+1))÷2
+#         M = zeros(m, n)
+#         for i = 1:m
+#             v = Φ(PSD_model, x[i])
+#             M_i = v*v'
+#             M_i = M_i + M_i' - Diagonal(diag(M_i))
+#             M_i = Hermitian_to_low_vec(M_i)
+#             M[i, :] = M_i
+#         end
+#         return M
+#     end
+
+#     trace && print("Create M....")
+#     t = time()
+#     M = create_M(a, X)
+#     dt = time() - t
+#     trace && print("done! - $(dt)  \n")
+#     # print("Condition number of M is ", cond(M),"\n")
+#     trace && print("Calculate non PSD estimate of B...")
+#     t = time()
+#     res_B_vec = M \ Y
+#     dt = time() - t
+#     trace && print("done! - $(dt) \n")
+#     res_B_vec = reshape(res_B_vec, length(res_B_vec))
+
+
+#     N = size(a.B, 1)
+#     JuMP.@variable(model, B[1:N, 1:N], PSD)
+
+#     JuMP.set_start_value.(B, a.B)
+#     B_red = Hermitian_to_low_vec(B)
+#     JuMP.@variable(model, t)
+#     size_cone = length(B_red)
+ 
+#     JuMP.@constraint(model, [t; B_red - res_B_vec] in JuMP.MOI.SecondOrderCone(size_cone+1))
+#     JuMP.@objective(model, Min, t)
+#     JuMP.optimize!(model)
+
+#     res_B = Hermitian(T.(JuMP.value(B)))
+#     # e_vals, e_vecs = eigen(res_B)
+#     # e_vals[e_vals .< 0.0] .= 0.0
+#     # res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+#     set_coefficients!(a, Hermitian(res_B))
+#     _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
+
+#     finalize(model)
+#     model = nothing
+#     GC.gc()
+#     return _loss(a.(X))
+# end
+
+
+
 
 function _fit_JuMP!(a::PSDModel{T}, 
                 X::PSDDataVector{T}, 

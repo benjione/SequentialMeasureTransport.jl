@@ -164,8 +164,7 @@ end
     X2 = rand(distr2, N2)
     X = hcat(X1, X2)
     T = Float64
-    bridge = DiffusionBrigdingDensity{3}(f, T[1.8, 1.5, 1.3, 1.1, 1.0, 0.8, 0.75, 
-                                            0.6, 0.5, 0.25, 0.18, 0.13,
+    bridge = DiffusionBrigdingDensity{3}(f, T[1.8, 1.0, 0.8, 0.75, 0.5, 0.25, 0.18, 0.13,
                                             0.1, 0.07, 0.05, 0.02, 0.001, 0.007, 
                                             0.005, 0.001, 0.0], T(1.0))
     # ref_map = SequentialMeasureTransport.ReferenceMaps.GaussianReference{3, T}(T(2.5))
