@@ -82,80 +82,274 @@ function optimize(prob::JuMPOptProp{T}) where {T<:Number}
     return res_B
 end
 
-# function _interpolate_JuMP!(a::PSDModel{T},
-#                     X::PSDDataVector{T},
-#                     Y::Vector{T};
-#                     λ_1 = 0.0,
-#                     λ_2 = 0.0,
-#                     trace=false,
-#                     optimizer=nothing,
-#                     maxit=5000,) where {T<:Number}
-#     verbose_solver = trace ? true : false
+function _interpolate_JuMP!(a::PSDModel{T},
+                    X::PSDDataVector{T},
+                    Y::Vector{T};
+                    λ_1 = 0.0,
+                    λ_2 = 0.0,
+                    trace=false,
+                    optimizer=nothing,
+                    maxit=5000,mat_list = nothing,
+                    coef_list = nothing) where {T<:Number}
+    verbose_solver = trace ? true : false
 
-#     if optimizer===nothing
-#         optimizer = con.MOI.OptimizerWithAttributes(
-#             SCS.Optimizer,
-#             "max_iters" => maxit,
-#         )
-#     else
-#         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
-#     end
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
 
-#     model = JuMP.Model(optimizer)
-#     function create_M(PSD_model, x)
-#         m = length(x)
-#         n = size(PSD_model.B)[1]
-#         n = (n*(n+1))÷2
-#         M = zeros(m, n)
-#         for i = 1:m
-#             v = Φ(PSD_model, x[i])
-#             M_i = v*v'
-#             M_i = M_i + M_i' - Diagonal(diag(M_i))
-#             M_i = Hermitian_to_low_vec(M_i)
-#             M[i, :] = M_i
-#         end
-#         return M
-#     end
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+    
+    function create_M(PSD_model, x)
+        m = length(x)
+        n = size(PSD_model.B)[1]
+        n = (n*(n+1))÷2
+        M = zeros(m, n)
+        for i = 1:m
+            v = Φ(PSD_model, x[i])
+            M_i = v*v'
+            M_i = M_i + M_i' - Diagonal(diag(M_i))
+            M_i = Hermitian_to_low_vec(M_i)
+            M[i, :] = M_i
+        end
+        return M
+    end
 
-#     trace && print("Create M....")
-#     t = time()
-#     M = create_M(a, X)
-#     dt = time() - t
-#     trace && print("done! - $(dt)  \n")
-#     # print("Condition number of M is ", cond(M),"\n")
-#     trace && print("Calculate non PSD estimate of B...")
-#     t = time()
-#     res_B_vec = M \ Y
-#     dt = time() - t
-#     trace && print("done! - $(dt) \n")
-#     res_B_vec = reshape(res_B_vec, length(res_B_vec))
+    trace && print("Create M....")
+    t = time()
+    M = create_M(a, X)
+    dt = time() - t
+    trace && print("done! - $(dt)  \n")
+    # print("Condition number of M is ", cond(M),"\n")
+    # trace && print("Calculate non PSD estimate of B...")
+    # t = time()
+    # res_B_vec = M \ Y
+    # dt = time() - t
+    # trace && print("done! - $(dt) \n")
+    # res_B_vec = reshape(res_B_vec, length(res_B_vec))
 
 
-#     N = size(a.B, 1)
-#     JuMP.@variable(model, B[1:N, 1:N], PSD)
+    N = size(a.B, 1)
+    JuMP.@variable(model, B[1:N, 1:N], PSD)
 
-#     JuMP.set_start_value.(B, a.B)
-#     B_red = Hermitian_to_low_vec(B)
-#     JuMP.@variable(model, t)
-#     size_cone = length(B_red)
+    if mat_list !== nothing
+        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        for i=1:length(mat_list)
+            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
+    end
+
+    JuMP.set_start_value.(B, a.B)
+    B_red = Hermitian_to_low_vec(B)
+
+    JuMP.@variable(model, t)
+    size_cone = length(Y)
+
+    if mat_list !== nothing
+        SoS_red = Hermitian_to_low_vec(SoS_comb)
+        JuMP.@constraint(model, [t; M * (B_red + SoS_red) - Y] in JuMP.MOI.SecondOrderCone(size_cone+1))
+    else
+        JuMP.@constraint(model, [t; M * B_red - Y] in JuMP.MOI.SecondOrderCone(size_cone+1))
+    end
+    JuMP.@objective(model, Min, t)
+    JuMP.optimize!(model)
+
+    # res_B = Hermitian(T.(JuMP.value(B)))
+    res_B = if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(B)))
+        res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(B))
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        res_B = res_B1 + res_B2
+        res_B
+    end
+
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
+
+    finalize(model)
+    model = nothing
+    GC.gc()
+    return _loss(a.(X))
+end
+
+function _least_squares_JuMP!(a::PSDModel{T},
+                    X::PSDDataVector{T},
+                    Y::Vector{T};
+                    λ_1 = 0.0,
+                    λ_2 = 0.0,
+                    trace=false,
+                    optimizer=nothing,
+                    maxit=5000,) where {T<:Number}
+    verbose_solver = trace ? true : false
+
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+    
+    function create_M(PSD_model, x)
+        m = length(x)
+        n = size(PSD_model.B)[1]
+        n = (n*(n+1))÷2
+        M = zeros(m, n)
+        for i = 1:m
+            v = Φ(PSD_model, x[i])
+            M_i = v*v'
+            M_i = M_i + M_i' - Diagonal(diag(M_i))
+            M_i = Hermitian_to_low_vec(M_i)
+            M[i, :] = M_i
+        end
+        return M
+    end
+
+    trace && print("Create M....")
+    t = time()
+    M = create_M(a, X)
+    dt = time() - t
+    trace && print("done! - $(dt)  \n")
+    M2 = M' * M
+    Y2 = M' * Y
+    # print("Condition number of M is ", cond(M),"\n")
+    # trace && print("Calculate non PSD estimate of B...")
+    # t = time()
+    # res_B_vec = M \ Y
+    # dt = time() - t
+    # trace && print("done! - $(dt) \n")
+    # res_B_vec = reshape(res_B_vec, length(res_B_vec))
+
+
+    N = size(a.B, 1)
+    JuMP.@variable(model, B[1:N, 1:N], PSD)
+
+    JuMP.set_start_value.(B, a.B)
+    B_red = Hermitian_to_low_vec(B)
+    JuMP.@variable(model, t)
+    size_cone = length(Y2)
  
-#     JuMP.@constraint(model, [t; B_red - res_B_vec] in JuMP.MOI.SecondOrderCone(size_cone+1))
-#     JuMP.@objective(model, Min, t)
-#     JuMP.optimize!(model)
+    JuMP.@constraint(model, [t; M2 * B_red - Y2] in JuMP.MOI.SecondOrderCone(size_cone+1))
+    JuMP.@objective(model, Min, t)
+    JuMP.optimize!(model)
 
-#     res_B = Hermitian(T.(JuMP.value(B)))
-#     # e_vals, e_vecs = eigen(res_B)
-#     # e_vals[e_vals .< 0.0] .= 0.0
-#     # res_B = e_vecs * Diagonal(e_vals) * e_vecs'
-#     set_coefficients!(a, Hermitian(res_B))
-#     _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
+    res_B = Hermitian(T.(JuMP.value(B)))
+    # e_vals, e_vecs = eigen(res_B)
+    # e_vals[e_vals .< 0.0] .= 0.0
+    # res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    set_coefficients!(a, Hermitian(res_B))
+    _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
 
-#     finalize(model)
-#     model = nothing
-#     GC.gc()
-#     return _loss(a.(X))
-# end
+    finalize(model)
+    model = nothing
+    GC.gc()
+    return _loss(a.(X))
+end
 
+function _closest_PSD_JuMP!(A::Hermitian{T}; optimizer=nothing, maxit=10000,
+            mat_list = nothing, coef_list = nothing,
+    ) where {T<:Number}
+
+    if optimizer===nothing
+        optimizer = con.MOI.OptimizerWithAttributes(
+            SCS.Optimizer,
+            "max_iters" => maxit,
+        )
+    else
+        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+    end
+
+    model = JuMP.Model(optimizer)
+    JuMP.set_string_names_on_creation(model, false)
+    if verbose_solver
+        JuMP.unset_silent(model)
+    else
+        JuMP.set_silent(model)
+    end
+
+    N = size(A, 1)
+    JuMP.@variable(model, B[1:N, 1:N], PSD)
+
+    if mat_list !== nothing
+
+        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        for i=1:length(mat_list)
+            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
+    end
+
+    # JuMP.set_start_value.(B, A)
+    # B_red = Hermitian_to_low_vec(B)
+    JuMP.@variable(model, t)
+    # size_cone = length(B_red)
+    # A_vec = Hermitian_to_low_vec(A)
+ 
+    # JuMP.@constraint(model, [t; B_red - res_B_vec] in JuMP.MOI.SecondOrderCone(size_cone+1))
+    if mat_list !== nothing
+        JuMP.@constraint(model, [t; vec(B + SoS_comb - A)] in JuMP.MOI.NormSpectralCone(N, N))
+        # JuMP.@constraint(model, [t; vec(B + SoS_comb - A)] in JuMP.MOI.SecondOrderCone(N^2+1))
+    else
+        JuMP.@constraint(model, [t; vec(B - A)] in JuMP.MOI.NormSpectralCone(N, N))
+    end
+    JuMP.@objective(model, Min, t)
+    JuMP.optimize!(model)
+
+    if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(B)))
+        return res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(B))
+        # res_B1[end,:] .= 0
+        # res_B1[:,end] .= 0
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        # res_B2[:,end-1:end] .= 0
+        # res_B2[end-1:end,:] .= 0
+        res_B = Hermitian(res_B1) + res_B2
+        return res_B
+        return Hermitian(res_B)
+    end
+end
 
 
 
@@ -342,6 +536,8 @@ function _ML_JuMP!(a::PSDModel{T},
                 maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
+                mat_list = nothing,
+                coef_list = nothing
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -361,9 +557,29 @@ function _ML_JuMP!(a::PSDModel{T},
         JuMP.set_silent(model)
     end
     N = size(a.B, 1)
-    JuMP.@variable(model, B[1:N, 1:N], PSD)
+    JuMP.@variable(model, _B[1:N, 1:N], PSD)
+    if isposdef(a.B)
+        JuMP.set_start_value.(_B, a.B)
+    end
 
-    JuMP.set_start_value.(B, a.B)
+    if mat_list !== nothing
+        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        for i=1:length(mat_list)
+            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
+    end
+
+    B = if mat_list !== nothing
+        _B + SoS_comb
+    else
+        _B
+    end
+
     if fixed_variables !== nothing
         throw(@error "fixed variables not supported yet by JuMP interface!")
     end
@@ -371,7 +587,9 @@ function _ML_JuMP!(a::PSDModel{T},
     K = reduce(hcat, Φ.(Ref(a), samples))
 
     m = length(samples)
+
     JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
+
     
     JuMP.@variable(model, t)
     JuMP.@constraint(model, [t; ex; (1/m)*ones(m)] in JuMP.MOI.RelativeEntropyCone(2*m+1))
@@ -379,20 +597,16 @@ function _ML_JuMP!(a::PSDModel{T},
     # JuMP.@variable(model, t[i=1:m])
     # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
 
+
     JuMP.@expression(model, min_func, t + tr(B))
+
     
     if λ_1 > 0.0
         JuMP.add_to_expression!(min_func, λ_1 * nuclearnorm(B))
     end
-    if λ_2 > 0.0
-        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
-        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
-    end
-    if λ_2 == 0.0
-        JuMP.@objective(model, Min, min_func)
-    else
-        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
-    end
+
+    JuMP.@objective(model, Min, min_func)
+
 
 
     # JuMP.@objective(model, Min, min_func);
@@ -405,10 +619,20 @@ function _ML_JuMP!(a::PSDModel{T},
     end
 
     JuMP.optimize!(model)
-    res_B = Hermitian(T.(JuMP.value(B)))
-    e_vals, e_vecs = eigen(res_B)
-    e_vals[e_vals .< 0.0] .= 0.0
-    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    res_B = if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(_B)))
+        res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(_B))
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        res_B = res_B1 + res_B2
+        res_B
+    end
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = -(1.0/length(Z)) * sum(log.(Z))
 
@@ -429,6 +653,8 @@ function _KL_JuMP!(a::PSDModel{T},
                 maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
+                mat_list = nothing,
+                coef_list = nothing,
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -450,6 +676,19 @@ function _KL_JuMP!(a::PSDModel{T},
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
     JuMP.set_start_value.(_B, a.B)
+
+    if mat_list !== nothing
+        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        for i=1:length(mat_list)
+            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
+    end
+
     if typeof(a) <: PSDOrthonormalSubModel
         @info "fix non marginal variables"
         JuMP.fix.(_B[map(~, a.M)], a.B[map(~, a.M)], force=true)
@@ -457,6 +696,8 @@ function _KL_JuMP!(a::PSDModel{T},
 
     B = if typeof(a) <: PSDOrthonormalSubModel
         a.M .* _B
+    elseif mat_list !== nothing
+        _B + SoS_comb
     else
         _B
     end
@@ -469,7 +710,9 @@ function _KL_JuMP!(a::PSDModel{T},
     K = reduce(hcat, Φ.(Ref(a), X))
 
     m = length(X)
+
     JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
+
     
     JuMP.@variable(model, t)
     JuMP.@constraint(model, [t; ex; Y] in JuMP.MOI.RelativeEntropyCone(2*m+1))
@@ -500,10 +743,20 @@ function _KL_JuMP!(a::PSDModel{T},
 
 
     JuMP.optimize!(model)
-    res_B = Hermitian(T.(JuMP.value(_B)))
-    e_vals, e_vecs = eigen(res_B)
-    e_vals[e_vals .< 0.0] .= 0.0
-    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    res_B = if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(_B)))
+        res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(_B))
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        res_B = res_B1 + res_B2
+        res_B
+    end
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
 
@@ -528,6 +781,8 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
                 marg_regularization=nothing,
                 marg_data_regularization=nothing,
                 λ_marg_reg=1.0,
+                mat_list = nothing,
+                coef_list = nothing,
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -548,6 +803,17 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
     end
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
+    if mat_list !== nothing
+        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        for i=1:length(mat_list)
+            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
+    end
     JuMP.set_start_value.(_B, a.B)
     if typeof(a) <: PSDOrthonormalSubModel
         @info "fix non marginal variables"
@@ -556,6 +822,8 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
 
     B = if typeof(a) <: PSDOrthonormalSubModel
         a.M .* _B
+    elseif mat_list !== nothing
+        _B + SoS_comb
     else
         _B
     end
@@ -644,10 +912,20 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
     end
 
     JuMP.optimize!(model)
-    res_B = Hermitian(T.(JuMP.value(_B)))
-    e_vals, e_vecs = eigen(res_B)
-    e_vals[e_vals .< 0.0] .= 0.0
-    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    res_B = if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(_B)))
+        res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(_B))
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        res_B = res_B1 + res_B2
+        res_B
+    end
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
 
@@ -672,6 +950,8 @@ function _OT_JuMP!(a::PSDModel{T},
                 marg_regularization=nothing,
                 marg_data_regularization=nothing,
                 λ_marg_reg=1.0,
+                mat_list = nothing,
+                coef_list = nothing,
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -693,16 +973,24 @@ function _OT_JuMP!(a::PSDModel{T},
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
     JuMP.set_start_value.(_B, a.B)
-    if typeof(a) <: PSDOrthonormalSubModel
-        @info "fix non marginal variables"
-        JuMP.fix.(_B[map(~, a.M)], a.B[map(~, a.M)], force=true)
+    if mat_list !== nothing
+        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        for i=1:length(mat_list)
+            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
     end
 
-    B = if typeof(a) <: PSDOrthonormalSubModel
-        a.M .* _B
+    B = if mat_list !== nothing
+        _B + SoS_comb
     else
         _B
     end
+    
 
 
     if fixed_variables !== nothing
@@ -815,10 +1103,20 @@ function _OT_JuMP!(a::PSDModel{T},
     end
 
     JuMP.optimize!(model)
-    res_B = Hermitian(T.(JuMP.value(_B)))
-    e_vals, e_vecs = eigen(res_B)
-    e_vals[e_vals .< 0.0] .= 0.0
-    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    res_B = if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(_B)))
+        res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(_B))
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        res_B = res_B1 + res_B2
+        res_B
+    end
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
 
@@ -842,6 +1140,8 @@ function _α_divergence_JuMP!(a::PSDModel{T},
                 normalization=false,
                 fixed_variables=nothing,
                 marg_constraints=nothing,
+                mat_list = nothing,
+                coef_list = nothing,
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -861,9 +1161,26 @@ function _α_divergence_JuMP!(a::PSDModel{T},
         JuMP.set_silent(model)
     end
     N = size(a.B, 1)
-    JuMP.@variable(model, B[1:N, 1:N], PSD)
+    JuMP.@variable(model, _B[1:N, 1:N], PSD)
 
-    JuMP.set_start_value.(B, a.B)
+    JuMP.set_start_value.(_B, a.B)
+    if mat_list !== nothing
+        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        for i=1:length(mat_list)
+            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
+    end
+
+    B = if mat_list !== nothing
+        _B + SoS_comb
+    else
+        _B
+    end
     if fixed_variables !== nothing
         throw(@error "fixed variables not supported yet by JuMP interface!")
     end
@@ -915,10 +1232,20 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     end
 
     JuMP.optimize!(model)
-    res_B = Hermitian(T.(JuMP.value(B)))
-    e_vals, e_vecs = eigen(res_B)
-    e_vals[e_vals .< 0.0] .= 0.0
-    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    res_B = if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(_B)))
+        res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(_B))
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        res_B = res_B1 + res_B2
+        res_B
+    end
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = (1.0/length(Z)) * (one(T)/(α*(α-one(T)))) * sum(Z.^(1-α) .* Y.^(α) .- α * Y) + (one(T)/α) * tr(a.B)
 

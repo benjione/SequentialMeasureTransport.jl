@@ -204,7 +204,8 @@ function get_semialgebraic_domain_constraints(a::PSDModelPolynomial{d, T}) where
         q_1 = Fun(a.Φ.space.spaces[i], [1.0])
         q_2 = Fun(a.Φ.space.spaces[i], [0.0, 1.0])
         D = mat_D(a.Φ, [q_1, q_2], i)
-        
+        # D[1][:, end] .= 0
+        # D[2][:, end] .= 0
         D_list[i] = D
         coef_list[i] = [1.0, -1.0]
     end

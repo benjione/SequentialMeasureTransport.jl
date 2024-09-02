@@ -1,7 +1,7 @@
 
 
 
-function _create_vandermonde_matrix(PSD_model::PSDModel{T}, x::AbstractVector{T}) where {T}
+function _create_vandermonde_matrix(PSD_model::PSDModel{T}, x::PSDDataVector{T}) where {T}
     m = length(x)
     n = size(PSD_model.B)[1]
     n = (n*(n+1))÷2
@@ -16,24 +16,37 @@ function _create_vandermonde_matrix(PSD_model::PSDModel{T}, x::AbstractVector{T}
     return M
 end
 
-least_squares_fit!(model, X:::PSDDataVector{T}, Y) where {T} = weighted_least_squares_fit!(model, X, Y, ones(T, length(Y)))
+
+least_squares_fit!(model, X::PSDDataVector{T}, Y; kwargs...) where {T <: Number} = 
+                        weighted_least_squares_fit!(model, X, Y, ones(T, length(Y)); kwargs...)
 
 function weighted_least_squares_fit!(
             model::PSDModel{T},
             X::PSDDataVector{T},
             Y::AbstractVector{T},
             W::AbstractVector{T};
+            kwargs...
         ) where {T<:Number}
     M = _create_vandermonde_matrix(model, X)
-    M2 = W .* (M' * M)
-    Y2 = W .* (M' * Y)
+    M2 = M' * (W .* M)
+    Y2 = M' * (W .* Y)
     B_vec = M2 \ Y2
-    B = low_vec_to_Hermitian(B_vec)
-    
-    ## remove negative eigenvalues
-    U, S, Vt = svd(B)
-    S[S .< 0.0] .= 0.0
-    B_ret = U * diagm(S) * Vt'
+    B = low_vec_to_Symmetric(B_vec)
+    # return B
+    # remove negative eigenvalues
+    # S, U = eigen(B)
+    # S[S .< 0.0] .= 1.0
+    # B_ret = U * Diagonal(S) * inv(U)
+    B_ret = nothing
+    if typeof(model) <: PSDModelPolynomial
+        D, C = get_semialgebraic_domain_constraints(model)
+        B_ret = _closest_PSD_JuMP!(Hermitian(B), mat_list=D, coef_list=C; kwargs...)
+        # B_ret = _closest_PSD_JuMP!(Hermitian(B))
+        # return B_ret
+    else
+        B_ret = _closest_PSD_JuMP!(Hermitian(B); kwargs...)
+    end
+
     set_coefficients!(model, Hermitian(B_ret))
     return nothing
 end

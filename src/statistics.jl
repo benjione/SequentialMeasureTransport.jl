@@ -1,8 +1,9 @@
 module Statistics
 
 using ..SequentialMeasureTransport
+import ..SequentialMeasureTransport as SMT
 using ..SequentialMeasureTransport: PSDDataVector
-using ..SequentialMeasureTransport: PSDModelOrthonormal
+using ..SequentialMeasureTransport: PSDModelOrthonormal, PSDModelPolynomial
 using ..SequentialMeasureTransport: CondSampler
 using ..SequentialMeasureTransport: domain_interval_left, domain_interval_right
 using ..SequentialMeasureTransport: greedy_IRLS
@@ -26,6 +27,10 @@ function ML_fit!(model::PSDModel{T},
         SDP_library=:JuMP,
         kwargs...) where {T<:Number}
     if SDP_library == :JuMP
+        if typeof(model) <: PSDModelPolynomial
+            D, C = SMT.get_semialgebraic_domain_constraints(model)
+            return _ML_JuMP!(model, samples; normalization=true, mat_list=D, coef_list=C, kwargs...)
+        end
         return _ML_JuMP!(model, samples; normalization=true, kwargs...)
     elseif SDP_library == :Manopt
         return _ML_Manopt!(model, samples; kwargs...)
@@ -112,6 +117,10 @@ function α_divergence_fit!(model::PSDModel{T},
     end
     
     if SDP_library == :JuMP
+        if typeof(model) <: PSDModelPolynomial
+            D, C = SMT.get_semialgebraic_domain_constraints(model)
+            return _α_divergence_JuMP!(model, α, X, Y; mat_list=D, coef_list=C, kwargs...)
+        end
         return _α_divergence_JuMP!(model, α, X, Y; kwargs...)
     elseif SDP_library == :Manopt
         return _α_divergence_Manopt!(model, α, X, Y; kwargs...)
@@ -136,6 +145,12 @@ function KL_fit!(model::PSDModel{T},
         Y = Y ./ sum(Y)
     end
     if SDP_library == :JuMP
+        if typeof(model) <: PSDModelPolynomial
+            D, C = SMT.get_semialgebraic_domain_constraints(model)
+            return _KL_JuMP!(model, X, Y; 
+                        normalization=normalization_constraint;
+                        mat_list=D, coef_list=C, kwargs...)
+        end
         return _KL_JuMP!(model, X, Y; 
                         normalization=normalization_constraint, 
                         kwargs...)
@@ -177,6 +192,12 @@ function reversed_KL_fit!(model::PSDModel{T},
         Y = Y ./ sum(Y)
     end
     if SDP_library == :JuMP
+        if typeof(model) <: PSDModelPolynomial
+            D, C = SMT.get_semialgebraic_domain_constraints(model)
+            return _reversed_KL_JuMP!(model, X, Y; 
+                        normalization=normalization_constraint;
+                        mat_list=D, coef_list=C, kwargs...)
+        end
         return _reversed_KL_JuMP!(model, X, Y; 
                         normalization=normalization_constraint, 
                         kwargs...)
