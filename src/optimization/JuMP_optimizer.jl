@@ -952,6 +952,7 @@ function _OT_JuMP!(a::PSDModel{T},
                 λ_marg_reg=1.0,
                 mat_list = nothing,
                 coef_list = nothing,
+                model_for_marginals=nothing,
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -1036,10 +1037,14 @@ function _OT_JuMP!(a::PSDModel{T},
         @assert all(length(marg_data_regularization[i][2]) == m_marg for i=1:n_marg)
         
         ## derive reduced matrx M
-        quad_points, quad_weights = gausslegendre(20)
+        quad_points, quad_weights = gausslegendre(30)
         quad_points = (quad_points .+ 1.0) * 0.5
         quad_weights = quad_weights * 0.5
-        M(x) = Φ(a, x) * Φ(a, x)'
+        M = if model_for_marginals !== nothing
+            (x) -> Φ(model_for_marginals, x) * Φ(model_for_marginals, x)'
+        else
+            (x) -> Φ(a, x) * Φ(a, x)'
+        end
         M_list = Matrix{Matrix{T}}(undef, n_marg, m_marg)
         for (j, marg_struct) in enumerate(marg_data_regularization)
             e_j = marg_struct[1]
