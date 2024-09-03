@@ -21,7 +21,7 @@ using Distributions
         # generate some data
         X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
         Y = f.(X)
-        KL_fit!(model, X, Y, maxit=2000, trace=false)
+        Statistics.KL_fit!(model, X, Y; maxit=2000, trace=false, use_putinar=false)
         normalize!(model)
 
         @test mean((model.(X) .- Y).^2) < 1e-3
@@ -33,7 +33,7 @@ using Distributions
         # generate some data
         X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
         Y = f.(X)
-        KL_fit!(model, X, Y, maxit=2000, trace=false, SDP_library=:Manopt)
+        Statistics.KL_fit!(model, X, Y, maxit=2000, trace=false, SDP_library=:Manopt)
         normalize!(model)
 
         @test mean((model.(X) .- Y).^2) < 1e-3
@@ -45,7 +45,7 @@ using Distributions
         # generate some data
         X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
         Y = f.(X)
-        reversed_KL_fit!(model, X, Y, trace=false)
+        reversed_KL_fit!(model, X, Y, trace=false, use_putinar=false)
         normalize!(model)
 
         @test mean((model.(X) .- Y).^2) < 1e-3
@@ -69,7 +69,8 @@ using Distributions
         # generate some data
         X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
         Y = f.(X)
-        Hellinger_fit!(model, X, Y, maxit=2000, trace=false)
+        Hellinger_fit!(model, X, Y, maxit=2000, 
+                    trace=false, use_putinar=false, optimizer=Hypatia.Optimizer)
         normalize!(model)
 
         @test mean((model.(X) .- Y).^2) < 1e-3
@@ -82,7 +83,8 @@ using Distributions
             # generate some data
             X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
             Y = f.(X)
-            α_divergence_fit!(model, 0.5, X, Y, maxit=2000, trace=false)
+            α_divergence_fit!(model, 0.5, X, Y, maxit=2000, trace=false, 
+                        use_putinar=false, optimizer=Hypatia.Optimizer)
             normalize!(model)
 
             @test mean((model.(X) .- Y).^2) < 1e-3
@@ -93,7 +95,7 @@ using Distributions
             # generate some data
             X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
             Y = f.(X)
-            α_divergence_fit!(model, 2.0, X, Y, maxit=2000, trace=false)
+            α_divergence_fit!(model, 2.0, X, Y, maxit=2000, trace=false, use_putinar=false)
             normalize!(model)
 
             @test mean((model.(X) .- Y).^2) < 1e-3
@@ -104,7 +106,7 @@ using Distributions
             # generate some data
             X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
             Y = f.(X)
-            α_divergence_fit!(model, 10.0, X, Y, maxit=2000, trace=false)
+            α_divergence_fit!(model, 10.0, X, Y, maxit=2000, trace=false, use_putinar=false)
             normalize!(model)
 
             @test mean((model.(X) .- Y).^2) < 1e-3
@@ -115,7 +117,7 @@ using Distributions
             # generate some data
             X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
             Y = f.(X)
-            α_divergence_fit!(model, -1.0, X, Y, maxit=2000, trace=false)
+            α_divergence_fit!(model, -1.0, X, Y, maxit=2000, trace=false, use_putinar=false)
             normalize!(model)
 
             @test mean((model.(X) .- Y).^2) < 1e-3

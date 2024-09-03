@@ -25,9 +25,10 @@ Maximum likelihood fit of a PSD model to the samples.
 function ML_fit!(model::PSDModel{T}, 
         samples::PSDDataVector{T};
         SDP_library=:JuMP,
+        use_putinar=true,
         kwargs...) where {T<:Number}
     if SDP_library == :JuMP
-        if typeof(model) <: PSDModelPolynomial
+        if use_putinar && (typeof(model) <: PSDModelPolynomial)
             D, C = SMT.get_semialgebraic_domain_constraints(model)
             return _ML_JuMP!(model, samples; normalization=true, mat_list=D, coef_list=C, kwargs...)
         end
@@ -110,6 +111,7 @@ function α_divergence_fit!(model::PSDModel{T},
         Y::AbstractVector{T};
         data_normalization=true,
         SDP_library=:JuMP,
+        use_putinar=true,
         kwargs...
     ) where {T<:Number}
     if data_normalization
@@ -117,7 +119,7 @@ function α_divergence_fit!(model::PSDModel{T},
     end
     
     if SDP_library == :JuMP
-        if typeof(model) <: PSDModelPolynomial
+        if use_putinar && (typeof(model) <: PSDModelPolynomial)
             D, C = SMT.get_semialgebraic_domain_constraints(model)
             return _α_divergence_JuMP!(model, α, X, Y; mat_list=D, coef_list=C, kwargs...)
         end
@@ -139,16 +141,17 @@ function KL_fit!(model::PSDModel{T},
         normalization_constraint=false,
         SDP_library=:JuMP,
         data_normalization=false,
+        use_putinar=true,
         kwargs...) where {T<:Number}
     # Helps some solvers, such as SCS, not needed with Hypatia
     if data_normalization
         Y = Y ./ sum(Y)
     end
     if SDP_library == :JuMP
-        if typeof(model) <: PSDModelPolynomial
+        if use_putinar && (typeof(model) <: PSDModelPolynomial)
             D, C = SMT.get_semialgebraic_domain_constraints(model)
-            return _KL_JuMP!(model, X, Y; 
-                        normalization=normalization_constraint;
+            return _KL_JuMP!(model, X, Y;
+                        normalization=normalization_constraint,
                         mat_list=D, coef_list=C, kwargs...)
         end
         return _KL_JuMP!(model, X, Y; 
@@ -186,16 +189,17 @@ function reversed_KL_fit!(model::PSDModel{T},
         normalization_constraint=false,
         SDP_library=:JuMP,
         data_normalization=true,
+        use_putinar=true,
         kwargs...) where {T<:Number}
     # Helps some solvers, such as SCS, not needed with Hypatia
     if data_normalization
         Y = Y ./ sum(Y)
     end
     if SDP_library == :JuMP
-        if typeof(model) <: PSDModelPolynomial
+        if use_putinar && (typeof(model) <: PSDModelPolynomial)
             D, C = SMT.get_semialgebraic_domain_constraints(model)
             return _reversed_KL_JuMP!(model, X, Y; 
-                        normalization=normalization_constraint;
+                        normalization=normalization_constraint,
                         mat_list=D, coef_list=C, kwargs...)
         end
         return _reversed_KL_JuMP!(model, X, Y; 

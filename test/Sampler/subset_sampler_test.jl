@@ -183,7 +183,7 @@ end
                     dC=1,
                     dCsub=1,
                     optimizer=Hypatia.Optimizer,
-                    trace=true)
+                    trace=false)
 
     X_sample = SMT.sample(sra_sub, 100)
     @test all([length(x) == 3 for x in X_sample])

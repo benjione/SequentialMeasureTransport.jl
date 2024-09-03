@@ -40,6 +40,11 @@ end
 
 @inline _valid_index(index::NTuple{<:Any, Int}) = all(i->i>0, index)
 
+function check_in_tensorizer(t::DownwardClosedTensorizer{d}, 
+        index::NTuple{d, Int}) where {d}
+    return index in t.index_list
+end
+
 function check_in_outer_margin(t::DownwardClosedTensorizer{d}, 
         index::NTuple{d, Int}) where {d}
     delta(i) = begin

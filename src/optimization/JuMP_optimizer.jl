@@ -1247,7 +1247,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
         res_B
     end
     set_coefficients!(a, Hermitian(res_B))
-    _loss(Z) = (1.0/length(Z)) * (one(T)/(α*(α-one(T)))) * sum(Z.^(1-α) .* Y.^(α) .- α * Y) + (one(T)/α) * tr(a.B)
+    _loss(Z) = (1.0/length(Z)) * (one(T)/(α*(α-one(T)))) * sum(Z.^(one(T)-α) .* Y.^(α) .- α * Y) + (one(T)/α) * tr(a.B)
 
     finalize(model)
     model = nothing

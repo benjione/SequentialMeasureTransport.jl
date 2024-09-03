@@ -343,7 +343,7 @@ function mat_D(Φ::FMTensorPolynomial{d, T}, q_list, dim::Int) where {d, T}
     @inline δ(i::Int, j::Int) = i == j ? 1 : 0
     @inline δ(i, j, not_dim) = mapreduce(k->k==not_dim ? true : i[k]==j[k],*, 1:d)
     D_list = [spzeros(T, Φ.N, Φ.N) for _=1:length(q_list)]
-    j_ignore = []
+    # j_ignore = []
     highest_order_dim = maximum([σ_inv(Φ, j)[dim] for j=1:Φ.N])
     for i=1:Φ.N
         ind_i = σ_inv(Φ, i)
@@ -353,10 +353,12 @@ function mat_D(Φ::FMTensorPolynomial{d, T}, q_list, dim::Int) where {d, T}
         out_of_order = false
         for Φ_new in Φ_new_list
             new_vec = Φ_new.coefficients
-            @show length(new_vec)
-            @show highest_order_dim
-            if length(new_vec) > highest_order_dim
-                out_of_order = true
+            for j=1:length(new_vec)
+                ind_i_tmp = (ind_i[1:dim-1]..., j, ind_i[dim+1:end]...)
+                if !check_in_tensorizer(Φ.ten, ind_i_tmp)
+                    out_of_order = true
+                    # break
+                end
             end
         end
         if out_of_order
