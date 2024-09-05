@@ -253,7 +253,26 @@ function _least_squares_JuMP!(a::PSDModel{T},
 
 
     N = size(a.B, 1)
-    JuMP.@variable(model, B[1:N, 1:N], PSD)
+    JuMP.@variable(model, _B[1:N, 1:N], PSD)
+    if mat_list !== nothing
+        N_SoS_comb = [size(m[1], 2) for m in mat_list]
+        D = []
+        for i=1:length(mat_list)
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            push!(D, _D)
+        end
+        JuMP.@expression(model, SoS_comb, sum(
+                                            sum(
+                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
+                                            for k=1:length(coef_list[i])) 
+                                        for i=1:length(mat_list)))
+    end
+
+    B = if mat_list !== nothing
+        _B + SoS_comb
+    else
+        _B
+    end
 
     JuMP.set_start_value.(B, a.B)
     B_red = Hermitian_to_low_vec(B)
@@ -264,10 +283,20 @@ function _least_squares_JuMP!(a::PSDModel{T},
     JuMP.@objective(model, Min, t)
     JuMP.optimize!(model)
 
-    res_B = Hermitian(T.(JuMP.value(B)))
-    # e_vals, e_vecs = eigen(res_B)
-    # e_vals[e_vals .< 0.0] .= 0.0
-    # res_B = e_vecs * Diagonal(e_vals) * e_vecs'
+    res_B = if mat_list === nothing
+        res_B = Hermitian(T.(JuMP.value(_B)))
+        res_B
+    else
+        D = JuMP.value.(D)
+        res_B1 = T.(JuMP.value(_B))
+        res_B2 = sum(
+                    sum(
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
+                    for k=1:length(coef_list[i])) 
+                for i=1:length(mat_list))
+        res_B = res_B1 + res_B2
+        res_B
+    end
     set_coefficients!(a, Hermitian(res_B))
     _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
 
@@ -302,14 +331,15 @@ function _closest_PSD_JuMP!(A::Hermitian{T}; optimizer=nothing, maxit=10000,
     JuMP.@variable(model, B[1:N, 1:N], PSD)
 
     if mat_list !== nothing
-
-        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        N_SoS_comb = [size(m[1], 2) for m in mat_list]
+        D = []
         for i=1:length(mat_list)
-            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            push!(D, _D)
         end
         JuMP.@expression(model, SoS_comb, sum(
                                             sum(
-                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
                                             for k=1:length(coef_list[i])) 
                                         for i=1:length(mat_list)))
     end
@@ -340,7 +370,7 @@ function _closest_PSD_JuMP!(A::Hermitian{T}; optimizer=nothing, maxit=10000,
         # res_B1[:,end] .= 0
         res_B2 = sum(
                     sum(
-                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
                     for k=1:length(coef_list[i])) 
                 for i=1:length(mat_list))
         # res_B2[:,end-1:end] .= 0
@@ -563,13 +593,15 @@ function _ML_JuMP!(a::PSDModel{T},
     end
 
     if mat_list !== nothing
-        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        N_SoS_comb = [size(m[1], 2) for m in mat_list]
+        D = []
         for i=1:length(mat_list)
-            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            push!(D, _D)
         end
         JuMP.@expression(model, SoS_comb, sum(
                                             sum(
-                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
                                             for k=1:length(coef_list[i])) 
                                         for i=1:length(mat_list)))
     end
@@ -627,7 +659,7 @@ function _ML_JuMP!(a::PSDModel{T},
         res_B1 = T.(JuMP.value(_B))
         res_B2 = sum(
                     sum(
-                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
                     for k=1:length(coef_list[i])) 
                 for i=1:length(mat_list))
         res_B = res_B1 + res_B2
@@ -678,13 +710,15 @@ function _KL_JuMP!(a::PSDModel{T},
     JuMP.set_start_value.(_B, a.B)
 
     if mat_list !== nothing
-        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        N_SoS_comb = [size(m[1], 2) for m in mat_list]
+        D = []
         for i=1:length(mat_list)
-            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            push!(D, _D)
         end
         JuMP.@expression(model, SoS_comb, sum(
                                             sum(
-                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
                                             for k=1:length(coef_list[i])) 
                                         for i=1:length(mat_list)))
     end
@@ -751,7 +785,7 @@ function _KL_JuMP!(a::PSDModel{T},
         res_B1 = T.(JuMP.value(_B))
         res_B2 = sum(
                     sum(
-                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
                     for k=1:length(coef_list[i])) 
                 for i=1:length(mat_list))
         res_B = res_B1 + res_B2
@@ -804,13 +838,15 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
     if mat_list !== nothing
-        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        N_SoS_comb = [size(m[1], 2) for m in mat_list]
+        D = []
         for i=1:length(mat_list)
-            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            push!(D, _D)
         end
         JuMP.@expression(model, SoS_comb, sum(
                                             sum(
-                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
                                             for k=1:length(coef_list[i])) 
                                         for i=1:length(mat_list)))
     end
@@ -920,7 +956,7 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
         res_B1 = T.(JuMP.value(_B))
         res_B2 = sum(
                     sum(
-                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
                     for k=1:length(coef_list[i])) 
                 for i=1:length(mat_list))
         res_B = res_B1 + res_B2
@@ -975,13 +1011,17 @@ function _OT_JuMP!(a::PSDModel{T},
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
     JuMP.set_start_value.(_B, a.B)
     if mat_list !== nothing
-        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        N_SoS_comb = [size(m[1], 2) for m in mat_list]
+        # JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        D = []
         for i=1:length(mat_list)
-            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            # JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            push!(D, _D)
         end
         JuMP.@expression(model, SoS_comb, sum(
                                             sum(
-                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
                                             for k=1:length(coef_list[i])) 
                                         for i=1:length(mat_list)))
     end
@@ -1116,7 +1156,7 @@ function _OT_JuMP!(a::PSDModel{T},
         res_B1 = T.(JuMP.value(_B))
         res_B2 = sum(
                     sum(
-                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
                     for k=1:length(coef_list[i])) 
                 for i=1:length(mat_list))
         res_B = res_B1 + res_B2
