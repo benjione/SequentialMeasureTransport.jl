@@ -163,7 +163,6 @@ end
         model,
         bridge,
         ref_map;
-        optimizer=Hypatia.Optimizer,
         trace=false,
         dC=1,
     )

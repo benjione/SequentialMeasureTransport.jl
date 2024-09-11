@@ -15,13 +15,11 @@ struct JuMPOptProp{T} <: OptProp{T}
             optimizer=nothing,
             fixed_variables=nothing,
             normalization=false,
-            maxit::Int=5000,
             marg_constraints = nothing,
         ) where {T<:Number}
         if optimizer === nothing
             optimizer = con.MOI.OptimizerWithAttributes(
-                SCS.Optimizer,
-                "max_iters" => maxit,
+                Hypatia.Optimizer,
             )
         else
             @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -82,21 +80,23 @@ function optimize(prob::JuMPOptProp{T}) where {T<:Number}
     return res_B
 end
 
-function _interpolate_JuMP!(a::PSDModel{T},
+_least_squares_JuMP!(a::PSDModel{T}, X::PSDDataVector{T}, Y::Vector{T}; kwargs...) where {T<:Number} = 
+                        _least_squares_JuMP!(a, X, Y, ones(T, length(Y)); kwargs...)
+
+function _least_squares_JuMP!(a::PSDModel{T},
                     X::PSDDataVector{T},
-                    Y::Vector{T};
+                    Y::Vector{T},
+                    W::Vector{T};
                     λ_1 = 0.0,
                     λ_2 = 0.0,
                     trace=false,
-                    optimizer=nothing,
-                    maxit=5000,mat_list = nothing,
+                    optimizer=nothing,mat_list = nothing,
                     coef_list = nothing) where {T<:Number}
     verbose_solver = trace ? true : false
 
     if optimizer===nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
+            Hypatia.Optimizer,
         )
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -130,13 +130,6 @@ function _interpolate_JuMP!(a::PSDModel{T},
     M = create_M(a, X)
     dt = time() - t
     trace && print("done! - $(dt)  \n")
-    # print("Condition number of M is ", cond(M),"\n")
-    # trace && print("Calculate non PSD estimate of B...")
-    # t = time()
-    # res_B_vec = M \ Y
-    # dt = time() - t
-    # trace && print("done! - $(dt) \n")
-    # res_B_vec = reshape(res_B_vec, length(res_B_vec))
 
 
     N = size(a.B, 1)
@@ -160,11 +153,12 @@ function _interpolate_JuMP!(a::PSDModel{T},
     JuMP.@variable(model, t)
     size_cone = length(Y)
 
+    W_sq_root = sqrt.(W)
     if mat_list !== nothing
         SoS_red = Hermitian_to_low_vec(SoS_comb)
-        JuMP.@constraint(model, [t; M * (B_red + SoS_red) - Y] in JuMP.MOI.SecondOrderCone(size_cone+1))
+        JuMP.@constraint(model, [t; W_sq_root .* (M * (B_red + SoS_red) - Y)] in JuMP.MOI.SecondOrderCone(size_cone+1))
     else
-        JuMP.@constraint(model, [t; M * B_red - Y] in JuMP.MOI.SecondOrderCone(size_cone+1))
+        JuMP.@constraint(model, [t; W_sq_root .* (M * B_red - Y)] in JuMP.MOI.SecondOrderCone(size_cone+1))
     end
     JuMP.@objective(model, Min, t)
     JuMP.optimize!(model)
@@ -194,126 +188,123 @@ function _interpolate_JuMP!(a::PSDModel{T},
     return _loss(a.(X))
 end
 
-function _least_squares_JuMP!(a::PSDModel{T},
-                    X::PSDDataVector{T},
-                    Y::Vector{T};
-                    λ_1 = 0.0,
-                    λ_2 = 0.0,
-                    trace=false,
-                    optimizer=nothing,
-                    maxit=5000,) where {T<:Number}
-    verbose_solver = trace ? true : false
+# function _least_squares_JuMP!(a::PSDModel{T},
+#                     X::PSDDataVector{T},
+#                     Y::Vector{T};
+#                     λ_1 = 0.0,
+#                     λ_2 = 0.0,
+#                     trace=false,
+#                     optimizer=nothing,) where {T<:Number}
+#     verbose_solver = trace ? true : false
 
-    if optimizer===nothing
-        optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
-        )
-    else
-        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
-    end
+#     if optimizer===nothing
+#         optimizer = con.MOI.OptimizerWithAttributes(
+#             Hypatia.Optimizer,
+#         )
+#     else
+#         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
+#     end
 
-    model = JuMP.Model(optimizer)
-    JuMP.set_string_names_on_creation(model, false)
-    if verbose_solver
-        JuMP.unset_silent(model)
-    else
-        JuMP.set_silent(model)
-    end
+#     model = JuMP.Model(optimizer)
+#     JuMP.set_string_names_on_creation(model, false)
+#     if verbose_solver
+#         JuMP.unset_silent(model)
+#     else
+#         JuMP.set_silent(model)
+#     end
     
-    function create_M(PSD_model, x)
-        m = length(x)
-        n = size(PSD_model.B)[1]
-        n = (n*(n+1))÷2
-        M = zeros(m, n)
-        for i = 1:m
-            v = Φ(PSD_model, x[i])
-            M_i = v*v'
-            M_i = M_i + M_i' - Diagonal(diag(M_i))
-            M_i = Hermitian_to_low_vec(M_i)
-            M[i, :] = M_i
-        end
-        return M
-    end
+#     function create_M(PSD_model, x)
+#         m = length(x)
+#         n = size(PSD_model.B)[1]
+#         n = (n*(n+1))÷2
+#         M = zeros(m, n)
+#         for i = 1:m
+#             v = Φ(PSD_model, x[i])
+#             M_i = v*v'
+#             M_i = M_i + M_i' - Diagonal(diag(M_i))
+#             M_i = Hermitian_to_low_vec(M_i)
+#             M[i, :] = M_i
+#         end
+#         return M
+#     end
 
-    trace && print("Create M....")
-    t = time()
-    M = create_M(a, X)
-    dt = time() - t
-    trace && print("done! - $(dt)  \n")
-    M2 = M' * M
-    Y2 = M' * Y
-    # print("Condition number of M is ", cond(M),"\n")
-    # trace && print("Calculate non PSD estimate of B...")
-    # t = time()
-    # res_B_vec = M \ Y
-    # dt = time() - t
-    # trace && print("done! - $(dt) \n")
-    # res_B_vec = reshape(res_B_vec, length(res_B_vec))
+#     trace && print("Create M....")
+#     t = time()
+#     M = create_M(a, X)
+#     dt = time() - t
+#     trace && print("done! - $(dt)  \n")
+#     M2 = M' * M
+#     Y2 = M' * Y
+#     # print("Condition number of M is ", cond(M),"\n")
+#     # trace && print("Calculate non PSD estimate of B...")
+#     # t = time()
+#     # res_B_vec = M \ Y
+#     # dt = time() - t
+#     # trace && print("done! - $(dt) \n")
+#     # res_B_vec = reshape(res_B_vec, length(res_B_vec))
 
 
-    N = size(a.B, 1)
-    JuMP.@variable(model, _B[1:N, 1:N], PSD)
-    if mat_list !== nothing
-        N_SoS_comb = [size(m[1], 2) for m in mat_list]
-        D = []
-        for i=1:length(mat_list)
-            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
-            push!(D, _D)
-        end
-        JuMP.@expression(model, SoS_comb, sum(
-                                            sum(
-                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
-                                            for k=1:length(coef_list[i])) 
-                                        for i=1:length(mat_list)))
-    end
+#     N = size(a.B, 1)
+#     JuMP.@variable(model, _B[1:N, 1:N], PSD)
+#     if mat_list !== nothing
+#         N_SoS_comb = [size(m[1], 2) for m in mat_list]
+#         D = []
+#         for i=1:length(mat_list)
+#             _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+#             push!(D, _D)
+#         end
+#         JuMP.@expression(model, SoS_comb, sum(
+#                                             sum(
+#                                                 coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
+#                                             for k=1:length(coef_list[i])) 
+#                                         for i=1:length(mat_list)))
+#     end
 
-    B = if mat_list !== nothing
-        _B + SoS_comb
-    else
-        _B
-    end
+#     B = if mat_list !== nothing
+#         _B + SoS_comb
+#     else
+#         _B
+#     end
 
-    JuMP.set_start_value.(B, a.B)
-    B_red = Hermitian_to_low_vec(B)
-    JuMP.@variable(model, t)
-    size_cone = length(Y2)
+#     JuMP.set_start_value.(B, a.B)
+#     B_red = Hermitian_to_low_vec(B)
+#     JuMP.@variable(model, t)
+#     size_cone = length(Y2)
  
-    JuMP.@constraint(model, [t; M2 * B_red - Y2] in JuMP.MOI.SecondOrderCone(size_cone+1))
-    JuMP.@objective(model, Min, t)
-    JuMP.optimize!(model)
+#     JuMP.@constraint(model, [t; M2 * B_red - Y2] in JuMP.MOI.SecondOrderCone(size_cone+1))
+#     JuMP.@objective(model, Min, t)
+#     JuMP.optimize!(model)
 
-    res_B = if mat_list === nothing
-        res_B = Hermitian(T.(JuMP.value(_B)))
-        res_B
-    else
-        D = JuMP.value.(D)
-        res_B1 = T.(JuMP.value(_B))
-        res_B2 = sum(
-                    sum(
-                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
-                    for k=1:length(coef_list[i])) 
-                for i=1:length(mat_list))
-        res_B = res_B1 + res_B2
-        res_B
-    end
-    set_coefficients!(a, Hermitian(res_B))
-    _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
+#     res_B = if mat_list === nothing
+#         res_B = Hermitian(T.(JuMP.value(_B)))
+#         res_B
+#     else
+#         D = JuMP.value.(D)
+#         res_B1 = T.(JuMP.value(_B))
+#         res_B2 = sum(
+#                     sum(
+#                         coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
+#                     for k=1:length(coef_list[i])) 
+#                 for i=1:length(mat_list))
+#         res_B = res_B1 + res_B2
+#         res_B
+#     end
+#     set_coefficients!(a, Hermitian(res_B))
+#     _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
 
-    finalize(model)
-    model = nothing
-    GC.gc()
-    return _loss(a.(X))
-end
+#     finalize(model)
+#     model = nothing
+#     GC.gc()
+#     return _loss(a.(X))
+# end
 
-function _closest_PSD_JuMP!(A::Hermitian{T}; optimizer=nothing, maxit=10000,
+function _closest_PSD_JuMP!(A::Hermitian{T}; optimizer=nothing,
             mat_list = nothing, coef_list = nothing,
     ) where {T<:Number}
 
     if optimizer===nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
+            Hypatia.Optimizer,
         )
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -386,171 +377,15 @@ end
 function _fit_JuMP!(a::PSDModel{T}, 
                 X::PSDDataVector{T}, 
                 Y::Vector{T},
-                weights::Vector{T};
+                W::Vector{T};
                 λ_1 = 0.0,
                 λ_2 = 0.0,
-                optim_threading=false, # only for problem setup
                 trace=false,
                 optimizer=nothing,
-                maxit=5000,
-                normalization=false,
-                fixed_variables=nothing,
+                mat_list = nothing,
+                coef_list = nothing,
             ) where {T<:Number}
-    verbose_solver = trace ? true : false
-    if optimizer===nothing
-        optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
-        )
-    else
-        @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
-    end
-
-    model = JuMP.Model(optimizer)
-    JuMP.set_string_names_on_creation(model, false)
-    if verbose_solver
-        JuMP.unset_silent(model)
-    else
-        JuMP.set_silent(model)
-    end
-    N = size(a.B, 1)
-    JuMP.@variable(model, B[1:N, 1:N], PSD)
-
-    JuMP.set_start_value.(B, a.B)
-    if fixed_variables !== nothing
-        throw(@error "fixed variables not supported yet by JuMP interface!")
-    end
-
-    K = reduce(hcat, Φ.(Ref(a), X))
-
-    _K_tmp = similar(K)
-    for i=1:N
-        _K_tmp[i, :] = K[i,:] .* weights
-    end
-    kv1_f(j, l) = begin
-        ret = zero(T)
-        @inbounds @fastmath @simd for i=1:length(Y)
-            ret += K[j,i] * K[j,i] * K[l,i] * _K_tmp[l, i]
-        end
-        return ret
-    end
-    kv2_f(j::Int, l::Int, j2::Int, l2::Int) = begin
-        ret = zero(T)
-        @inbounds @fastmath @simd for i=1:length(Y)
-            ret += K[j,i] * K[l,i] * K[j2,i] * _K_tmp[l2,i]
-        end
-        return ret
-    end
-    kv_f(j, l) = begin
-        ret = zero(T)
-        @inbounds @fastmath @simd for i=1:length(Y)
-            ret += K[j,i] * _K_tmp[l,i] * Y[i]
-        end
-        return ret
-    end
-
-    JuMP.@expression(
-        model, 
-        ex, 
-        # sum( j!=l ? 2.0 * _K_vec1[j, l] * B[j, l]^2 : 0.0 for j=1:N, l=1:N)
-        + sum(kv1_f(j, j) * B[j, j]^2 for j=1:N)
-        - 2.0 * sum( 
-            kv_f(j, l) * B[j, l] for j=1:N, l=1:N
-        ) 
-    )
-    # use the lock also when not threading, performance overhead should be small
-    if optim_threading
-        lk = Threads.ReentrantLock()
-        Threads.@threads for j=1:N
-            for l=1:(j-1)
-                coeff_vec = Vector{T}(undef, N)
-                for j2=1:N
-                    coeff_vec[j2] = 4.0 * kv2_f(j, l, j2, j2)
-                end
-                coeff1 = 4.0 * kv1_f(j, l)
-                coeff2 = 2.0 * kv2_f(j, j, l, l)
-                lock(lk) do
-                    JuMP.add_to_expression!(ex, sum(coeff_vec[i] * B[j, l] * B[i,i] for i=1:N))
-                    JuMP.add_to_expression!(ex, coeff1 * B[j, l]^2)
-                    JuMP.add_to_expression!(ex, coeff2 * B[j, j] * B[l, l])
-                end
-                for l2=1:(l-1)
-                    coeff_vec[l2] = 8.0 * kv2_f(j, l, j, l2)
-                end
-                if (l-1)>0
-                    lock(lk) do
-                        JuMP.add_to_expression!(ex, sum(coeff_vec[i] * B[j, l] * B[j, i] for i=1:(l-1)))
-                    end
-                end
-                for j2=1:(j-1), l2=1:(j2-1)
-                    coeff = 8.0 * kv2_f(j, l, j2, l2)
-                    lock(lk) do
-                        JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, l2])
-                    end
-                end
-            end
-        end
-    else
-        for j=1:N
-            for l=1:(j-1)
-                coeff = 4.0 * kv1_f(j, l)
-                JuMP.add_to_expression!(ex, coeff * B[j, l]^2)
-            end
-
-            for j2=1:(j-1)
-                coeff = 2.0 * kv2_f(j, j, j2, j2)
-                JuMP.add_to_expression!(ex, coeff * B[j, j] * B[j2, j2])
-            end
-
-            for l=1:(j-1)
-                for j2=1:N
-                    coeff = 4.0 * kv2_f(j, l, j2, j2)
-                    JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, j2])
-                end
-                for l2=1:(l-1)
-                    coeff = 8.0 * kv2_f(j, l, j, l2)
-                    JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j, l2])
-                end
-                for j2=1:(j-1), l2=1:(j2-1)
-                    coeff = 8.0 * kv2_f(j, l, j2, l2)
-                    JuMP.add_to_expression!(ex, coeff * B[j, l] * B[j2, l2])
-                end
-            end
-        end
-    end
-
-    if λ_1 > 0.0
-        JuMP.add_to_expression!(ex, λ_1 * nuclearnorm(B))
-    end
-    if λ_2 > 0.0
-        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
-        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
-    end
-    if λ_2 == 0.0
-        JuMP.@objective(model, Min, ex)
-    else
-        JuMP.@objective(model, Min, ex + λ_2 * norm_B)
-    end
-
-    # @show t2
-    if normalization
-        # IMPORTANT: only valid for tensorized polynomial maps.
-        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
-        JuMP.@constraint(model, tr(B) == 1)
-    end
-
-    JuMP.optimize!(model)
-    res_B = Hermitian(T.(JuMP.value(B)))
-    e_vals, e_vecs = eigen(res_B)
-    e_vals[e_vals .< 0.0] .= 0.0
-    res_B = e_vecs * Diagonal(e_vals) * e_vecs'
-    set_coefficients!(a, Hermitian(res_B))
-    _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2 .* weights)
-
-    finalize(model)
-    model = nothing
-    GC.gc()
-    return _loss(a.(X))
+    return _least_squares_JuMP!(a, X, Y, W; λ_1=λ_1, λ_2=λ_2, trace=trace, optimizer=optimizer, mat_list=mat_list, coef_list=coef_list)
 end
 
 
@@ -563,7 +398,6 @@ function _ML_JuMP!(a::PSDModel{T},
                 λ_2 = 0.0,
                 trace=false,
                 optimizer=nothing,
-                maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
                 mat_list = nothing,
@@ -572,8 +406,7 @@ function _ML_JuMP!(a::PSDModel{T},
     verbose_solver = trace ? true : false
     if optimizer===nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
+            Hypatia.Optimizer,
         )
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -682,7 +515,6 @@ function _KL_JuMP!(a::PSDModel{T},
                 λ_2 = 0.0,
                 trace=false,
                 optimizer=nothing,
-                maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
                 mat_list = nothing,
@@ -691,8 +523,7 @@ function _KL_JuMP!(a::PSDModel{T},
     verbose_solver = trace ? true : false
     if optimizer===nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
+            Hypatia.Optimizer,
         )
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -808,7 +639,6 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
                 λ_2 = 0.0,
                 trace=false,
                 optimizer=nothing,
-                maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
                 marg_constraints=nothing,
@@ -821,8 +651,7 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
     verbose_solver = trace ? true : false
     if optimizer===nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
+            Hypatia.Optimizer,
         )
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -979,7 +808,6 @@ function _OT_JuMP!(a::PSDModel{T},
                 λ_2 = 0.0,
                 trace=false,
                 optimizer=nothing,
-                maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
                 marg_constraints=nothing,
@@ -993,8 +821,7 @@ function _OT_JuMP!(a::PSDModel{T},
     verbose_solver = trace ? true : false
     if optimizer===nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
+            Hypatia.Optimizer,
         )
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -1181,7 +1008,6 @@ function _α_divergence_JuMP!(a::PSDModel{T},
                 λ_2 = 0.0,
                 trace=false,
                 optimizer=nothing,
-                maxit=5000,
                 normalization=false,
                 fixed_variables=nothing,
                 marg_constraints=nothing,
@@ -1191,8 +1017,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     verbose_solver = trace ? true : false
     if optimizer===nothing
         optimizer = con.MOI.OptimizerWithAttributes(
-            SCS.Optimizer,
-            "max_iters" => maxit,
+            Hypatia.Optimizer,
         )
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
@@ -1210,13 +1035,17 @@ function _α_divergence_JuMP!(a::PSDModel{T},
 
     JuMP.set_start_value.(_B, a.B)
     if mat_list !== nothing
-        JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        N_SoS_comb = [size(m[1], 2) for m in mat_list]
+        # JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
+        D = []
         for i=1:length(mat_list)
-            JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            # JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
+            push!(D, _D)
         end
         JuMP.@expression(model, SoS_comb, sum(
                                             sum(
-                                                coef_list[i][k] * mat_list[i][k] * D[i,:,:] * mat_list[i][k]'
+                                                coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
                                             for k=1:length(coef_list[i])) 
                                         for i=1:length(mat_list)))
     end
@@ -1285,7 +1114,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
         res_B1 = T.(JuMP.value(_B))
         res_B2 = sum(
                     sum(
-                        coef_list[i][k] * mat_list[i][k] * T.(D[i,:,:]) * mat_list[i][k]'
+                        coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
                     for k=1:length(coef_list[i])) 
                 for i=1:length(mat_list))
         res_B = res_B1 + res_B2

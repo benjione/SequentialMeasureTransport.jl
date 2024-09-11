@@ -124,7 +124,6 @@ end
                     model, bridge, ref_map;
                     subspace_reference_map=subspace_ref_map,
                     to_subspace_reference_map=to_subspace_ref_map, 
-                    optimizer=Hypatia.Optimizer,
                     trace=false)
 
     X_sample = SequentialMeasureTransport.sample(sra_sub, 100)
@@ -182,7 +181,6 @@ end
                     to_subspace_reference_map=to_subspace_ref_map,
                     dC=1,
                     dCsub=1,
-                    optimizer=Hypatia.Optimizer,
                     trace=false)
 
     X_sample = SMT.sample(sra_sub, 100)
@@ -319,7 +317,6 @@ end
                             ϵ=1e-6, λ_2=0.0, λ_1=0.0,
                             algebraic_base=2.0,
                             N_sample=1000,
-                            # optimizer=Hypatia.Optimizer
                 )
         sra_marg = SequentialMeasureTransport.MarginalMapping{3, 0}(sra, [1,2])
         pdf_func = SequentialMeasureTransport.pushforward(sra_marg, x->1.0)
