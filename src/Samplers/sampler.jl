@@ -356,6 +356,10 @@ end
 include("mappings/ProjectionMapping.jl")
 include("mappings/MarginalMapping.jl")
 include("mappings/BlockDiagonalMapping.jl")
+
+include("triangular_maps/TriangularMap.jl")
+include("triangular_maps/ATM.jl")
+
 include("samplers/Sampler.jl")
 include("samplers/PSDModelSampler.jl")
 

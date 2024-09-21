@@ -9,6 +9,7 @@ const OUTPUT_DIR   = joinpath(@__DIR__, "src/literated")
 
 examples = [
   "1D_density_estimation_single_map.jl",
+  "1D_density_from_data.jl",
 ]
 
 
@@ -29,7 +30,9 @@ makedocs(sitename="SequentialMeasureTransport.jl",
             "Home" => "index.md",
             "Mathematical Background" => "man/math_background.md",
             "Examples" => [
-                "1D Density Estimation" => "literated/1D_density_estimation_single_map.md",
+                "1D Density Estimation from Distribution" => "literated/1D_density_estimation_single_map.md",
+                "1D Density Estimation from Data" => "literated/1D_density_from_data.md",
+                # "Optimal Transport" => "literated/optimal_transport.md",
             ],
             "API" => [
                 "SequentialMeasureTransport" => "api/SMT.md",
@@ -37,4 +40,8 @@ makedocs(sitename="SequentialMeasureTransport.jl",
             ]
         ],
         # modules = [SequentialMeasureTransport],
-        )
+)
+
+deploydocs(
+  repo = "github.com/benjione/SequentialMeasureTransport.jl.git",
+)

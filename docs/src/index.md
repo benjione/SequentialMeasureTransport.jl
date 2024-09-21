@@ -9,3 +9,8 @@ It comes with functionalities to create compositions of those, $\mathcal T_{\ell
 ```
 
 For a more detailed introduction of transport maps, see .
+
+## Related packages
+
+- [MParT](https://measuretransport.github.io/MParT/index.html), a package for triangular parameterization of transport maps.
+- [DIRT](https://github.com/DeepTransport/deep-tensor), a matlab package for deep inverse Rosenblatt transport, also see [here](https://arxiv.org/abs/2106.04170)
