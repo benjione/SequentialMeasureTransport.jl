@@ -19,20 +19,25 @@ struct ATM{d, dC, T<:Number} <: AbstractTriangularMap{d, dC, T}
 end
 
 
-@inline MonotoneMap(sampler::ATM{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = map(sampler, x, k, sampler.coeff[k])
+@inline MonotoneMap(sampler::ATM{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = MonotoneMap(sampler, x, k, sampler.coeff[k])
 function MonotoneMap(sampler::ATM{d, <:Any, T}, x::PSDdata{T}, k::Int, coeff) where {d, T<:Number}
     f_part(z) = sampler.f[k]([x[1:k-1]; z])
-    f_partial(z) = ForwarDiff.gradient(f_part, z)
+    f_partial(z) = FD.derivative(f_part, z)
     int_f(z) = sampler.g(dot(coeff, f_partial(z)))
-    int_x, int_w = gausslegendre(20)
+    int_x, int_w = gausslegendre(100)
+    int_x .= int_x * 0.5 .+ 0.5
+    int_x .= int_x * x[k]
+    int_w .= int_w * 0.5
+    int_w .*= x[k] 
+
     int_part = sum(int_w .* int_f.(int_x))
     return dot(coeff, sampler.f[k]([x[1:k-1]; 0])) + int_part
 end
 
-@inline ∂k_MonotoneMap(sampler::ATM{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = jacobian(sampler, x, k, sampler.coeff[k])
+@inline ∂k_MonotoneMap(sampler::ATM{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = ∂k_MonotoneMap(sampler, x, k, sampler.coeff[k])
 function ∂k_MonotoneMap(sampler::ATM{d, <:Any, T}, x::PSDdata{T}, k::Int, coeff) where {d, T<:Number}
     f_part(z) = sampler.f[k]([x[1:k-1]; z])
-    f_partial(z) = ForwarDiff.gradient(f_part, z)
+    f_partial(z) = FD.derivative(f_part, z)
     int_f(z) = sampler.g(dot(coeff, f_partial(z)))
     return int_f(x[k])
 end

@@ -146,13 +146,20 @@ end
 
 function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T2}) where {d, T<:Number, T2}
     @assert length(x) == d
-    A = zeros(T2, p.highest_order+1, d)
-    poly(k,i) = begin
-        l = ApproxFun.leftendpoint(p.space.spaces[i].domain)
-        r = ApproxFun.rightendpoint(p.space.spaces[i].domain)
-        ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], (x[i]-l)/(r-l) * 2.0 - 1.0)
+    # A = zeros(T2, p.highest_order+1, d)
+    # poly(k,i) = begin
+    #     l = ApproxFun.leftendpoint(p.space.spaces[i].domain)
+    #     r = ApproxFun.rightendpoint(p.space.spaces[i].domain)
+    #     ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], (x[i]-l)/(r-l) * 2.0 - 1.0)
+    # end
+    # map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
+
+
+    A = Array{T2}(undef, p.highest_order+1, d)
+    @inbounds for i=1:d
+        A[:, i] = ApproxFun.ApproxFunOrthogonalPolynomials.forwardrecurrence(T2, p.space.spaces[i], 0:p.highest_order, ApproxFun.tocanonical(p.space.spaces[i], x[i]))
+        A[:, i] .*= p.normal_factor[i]
     end
-    map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
 
     @inline Ψ(k) = mapreduce(j->A[k[j], j], *, 1:d)
     map(i -> Ψ(σ_inv(p, i)), 1:p.N)
