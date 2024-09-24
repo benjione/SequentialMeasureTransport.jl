@@ -258,8 +258,7 @@ end
         model = PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 1)
 
         custom_fit!(model, X, Y; kwargs...) = SMT._α_divergence_Manopt!(model, 2.0, 
-                        X, Y; trace=true, 
-                            maxit=50)
+                        X, Y; trace=true)
 
         sra = SelfReinforcedSampler(
                             f,
@@ -305,8 +304,7 @@ end
                             custom_fit=custom_fit!,
                             trace=true,
                             λ_2 = 0.0,
-                            λ_1 = 0.0,
-                            maxit=1000,
+                            λ_1 = 0.0
                         )
         for _=1:10
             x = SMT.sample(sra)

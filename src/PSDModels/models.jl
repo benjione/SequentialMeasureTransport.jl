@@ -1,6 +1,9 @@
 include("kernel/PSDModelKernel.jl")
 include("feature_map/PSDModelFM.jl")
 
+# least squares methods
+include("least_squares/least_squares.jl")
+
 # optimization algorithms acting on SequentialMeasureTransport
 include("optimization.jl")
 

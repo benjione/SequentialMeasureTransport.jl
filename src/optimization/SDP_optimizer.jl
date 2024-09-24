@@ -1,5 +1,4 @@
 import Convex as con
-import SCS
 
 struct SDPOptProp{T} <: OptProp{T}
     initial::AbstractMatrix{T}
@@ -19,8 +18,7 @@ struct SDPOptProp{T} <: OptProp{T}
         ) where {T<:Number}
         if optimizer === nothing
             optimizer = con.MOI.OptimizerWithAttributes(
-                SCS.Optimizer,
-                "max_iters" => maxit,
+                Hypatia.Optimizer,
             )
         else
             @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."

@@ -124,13 +124,14 @@ end
         k = MaternKernel(ν=0.5)
         model = PSDModel(k, X)
 
-        fit!(model, X, Y, λ_1=1e-4, λ_2=0.0, maxit=2000)
+        fit!(model, X, Y, λ_1=1e-4, λ_2=0.0)
 
         domx = collect(range(-1, 1, length=1000))
         @test norm(model.(domx) - f.(domx))/norm(f.(domx)) < 1.5e-1
 
     end
 end
+
 
 @testset "gradient" begin
     f(x) = 2*(x-0.5)^2 * (x+0.5)^2
@@ -141,7 +142,7 @@ end
     X = [[x] for x in X]
 
     k = MaternKernel(ν=0.5)
-    model = PSDModel(X, Y, k; solver=:gradient_descent)
+    model = PSDModel(X, Y, k; solver=:gradient_descent, optimizer=SCS.Optimizer)
 
     for x in rand(100).- 0.5
         @test isapprox(gradient(model, [x])[1], ∇f(x), atol=3e-1, rtol=2e-1)

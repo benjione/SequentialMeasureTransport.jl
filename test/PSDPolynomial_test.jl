@@ -18,7 +18,7 @@
             X = [(rand(2) * 2 .- 1) for i in 1:200]
             Y = f.(X)
 
-            fit!(model, X, Y, maxit=2000)
+            fit!(model, X, Y)
             model_marginalized = marginalize_orth_measure(model, 1)
             model_marginalized2 = marginalize(model, 1)
             @test model_marginalized2.B ≈ model_marginalized.B
@@ -33,7 +33,7 @@
             X = [(rand(2) * 2 .- 1) for i in 1:200]
             Y = f.(X)
 
-            fit!(model, X, Y, maxit=2000)
+            fit!(model, X, Y)
             model_marginalized = marginalize_orth_measure(model, 1)
             model_marginalized2 = marginalize(model, 1)
             @test model_marginalized2.B ≈ model_marginalized.B
@@ -52,7 +52,7 @@ end
         X = collect(range(-1, 1, length=100))
         X = [[x] for x in X]
         Y = f.(X)
-        fit!(model, X, Y, maxit=1000, λ_1=1e-5, λ_2=0.0)
+        fit!(model, X, Y, λ_1=1e-5, λ_2=0.0)
 
         int_model = integral(model, 1; C=0.0)
         @test norm(int_model.(X) .- f_int.(X))/norm(f_int.(X)) < 1e-2
@@ -66,7 +66,7 @@ end
         X = collect(range(-1, 1, length=100))
         X = [[x] for x in X]
         Y = f.(X)
-        fit!(model, X, Y, maxit=1000, λ_1=1e-5, λ_2=0.0)
+        fit!(model, X, Y, λ_1=1e-5, λ_2=0.0)
 
         int_model = integral(model, 1; C=-1.0)
         int_model2 = integral(model, 1)
@@ -120,7 +120,7 @@ end
         X = [[x] for x in X]
         model = PSDModel(Legendre(-15..15), :trivial, 30)
         loss(Z) = -1/length(Z) * sum(log.(Z))
-        minimize!(model, loss, X, maxit=5000, normalization_constraint=true)
+        minimize!(model, loss, X, normalization_constraint=true)
         domx = collect(range(-15, 15, length=2000))
         @test norm(model.(domx) .- pdf.(domx))/norm(pdf.(domx)) < 1e-1
     end
@@ -131,7 +131,7 @@ end
         X = [[x] for x in X]
         model = PSDModel(Legendre(-15..15), :downward_closed, 30)
         loss(Z) = -1/length(Z) * sum(log.(Z))
-        minimize!(model, loss, X, maxit=5000, normalization_constraint=true)
+        minimize!(model, loss, X, normalization_constraint=true)
         domx = collect(range(-15, 15, length=2000))
         @test norm(model.(domx) .- pdf.(domx))/norm(pdf.(domx)) < 1e-1
     end
@@ -158,7 +158,7 @@ end
             X = [(rand(2) * 2 .- 1) for i in 1:200]
             Y = f.(X)
 
-            fit!(model, X, Y, maxit=2000)
+            fit!(model, X, Y)
             normalize_orth_measure!(model)
             @test tr(model.B) ≈ 1.0
 
@@ -176,7 +176,7 @@ end
         X = [(rand(2) * 2 .- 1) for i in 1:200]
         Y = f.(X)
 
-        fit!(model, X, Y, maxit=2000)
+        fit!(model, X, Y)
         model_perm = SequentialMeasureTransport.permute_indices(model, [2,1])
         for i=1:100
             x = (rand(2) .- 0.5) * 30.0
@@ -193,7 +193,7 @@ end
         X = [(rand(2) * 2 .- 1) for i in 1:200]
         Y = f.(X)
 
-        fit!(model, X, Y, maxit=2000)
+        fit!(model, X, Y)
         model_poly = SequentialMeasureTransport.compile(model)
         for i=1:100
             x = (rand(2) .- 0.5) * 30.0

@@ -146,13 +146,20 @@ end
 
 function (p::FMTensorPolynomial{d, T})(x::AbstractVector{T2}) where {d, T<:Number, T2}
     @assert length(x) == d
-    A = zeros(T2, p.highest_order+1, d)
-    poly(k,i) = begin
-        l = ApproxFun.leftendpoint(p.space.spaces[i].domain)
-        r = ApproxFun.rightendpoint(p.space.spaces[i].domain)
-        ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], (x[i]-l)/(r-l) * 2.0 - 1.0)
+    # A = zeros(T2, p.highest_order+1, d)
+    # poly(k,i) = begin
+    #     l = ApproxFun.leftendpoint(p.space.spaces[i].domain)
+    #     r = ApproxFun.rightendpoint(p.space.spaces[i].domain)
+    #     ApproxFun.clenshaw(p.space.spaces[i], T[zeros(T, k);p.normal_factor[i][k+1]], (x[i]-l)/(r-l) * 2.0 - 1.0)
+    # end
+    # map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
+
+
+    A = Array{T2}(undef, p.highest_order+1, d)
+    @inbounds for i=1:d
+        A[:, i] = ApproxFun.ApproxFunOrthogonalPolynomials.forwardrecurrence(T2, p.space.spaces[i], 0:p.highest_order, ApproxFun.tocanonical(p.space.spaces[i], x[i]))
+        A[:, i] .*= p.normal_factor[i]
     end
-    map!(t->poly(t...), A, collect(Iterators.product(0:p.highest_order, 1:d)))
 
     @inline Ψ(k) = mapreduce(j->A[k[j], j], *, 1:d)
     map(i -> Ψ(σ_inv(p, i)), 1:p.N)
@@ -343,24 +350,32 @@ function mat_D(Φ::FMTensorPolynomial{d, T}, q_list, dim::Int) where {d, T}
     @inline δ(i::Int, j::Int) = i == j ? 1 : 0
     @inline δ(i, j, not_dim) = mapreduce(k->k==not_dim ? true : i[k]==j[k],*, 1:d)
     D_list = [spzeros(T, Φ.N, Φ.N) for _=1:length(q_list)]
-    j_ignore = []
+    # j_ignore = []
+    highest_order_dim = maximum([σ_inv(Φ, j)[dim] for j=1:Φ.N])
     for i=1:Φ.N
         ind_i = σ_inv(Φ, i)
         Φ_i = Fun(Φ.space.spaces[dim], [zeros(ind_i[dim]-1); Φ.normal_factor[dim][ind_i[dim]]])
         Φ_new_list = [Φ_i * q for q in q_list]
         # Φ_new = Φ_i * q
-        # out_of_order = false
-        # for Φ_new in Φ_new_list
-        #     new_vec = Φ_new.coefficients
-        #     if length(new_vec) > Φ.highest_order+1
-        #         out_of_order = true
-        #     end
-        # end
-        # if out_of_order
-        #     continue
-        # end
+        out_of_order = false
+        for Φ_new in Φ_new_list
+            new_vec = Φ_new.coefficients
+            for j=1:length(new_vec)
+                ind_i_tmp = (ind_i[1:dim-1]..., j, ind_i[dim+1:end]...)
+                if !check_in_tensorizer(Φ.ten, ind_i_tmp)
+                    out_of_order = true
+                    # break
+                end
+            end
+        end
+        if out_of_order
+            continue
+        end
         for (D, Φ_new) in zip(D_list, Φ_new_list)
             new_vec = Φ_new.coefficients
+            # if Φ.highest_order+1 < length(new_vec)
+            #     continue
+            # end
             new_vec = new_vec[1:minimum([Φ.highest_order+1, length(new_vec)])]
             new_vec ./= Φ.normal_factor[dim][1:length(new_vec)]
             for j=1:Φ.N
@@ -368,8 +383,8 @@ function mat_D(Φ::FMTensorPolynomial{d, T}, q_list, dim::Int) where {d, T}
                 if δ(ind_i, ind_j, dim)
                     if length(new_vec) ≥ ind_j[dim] && new_vec[ind_j[dim]] ≠ 0
                         D[j, i] = new_vec[ind_j[dim]]
-                    elseif length(new_vec) < ind_j[dim]
-                        push!(j_ignore, j)
+                    # elseif length(new_vec) < ind_j[dim]
+                    #     push!(j_ignore, j)
                     end
                 end
             end

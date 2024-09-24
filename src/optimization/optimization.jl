@@ -1,5 +1,6 @@
 abstract type OptProp{T} end
 
+import Hypatia
 include("SDP_optimizer.jl")
 include("JuMP_optimizer.jl")
 include("manopt_optimizer.jl")

@@ -67,9 +67,9 @@ function SelfReinforcedSampler(
     elseif approx_method == :KL
         (m,x,y) -> KL_fit!(m, x, y; kwargs...)
     elseif approx_method == :custom
-        @info "Using custom fit method!"
         @assert typeof(custom_fit) <: Function
-        (m,x,y) -> custom_fit(m, x, y; kwargs...)
+        @info "Using custom fit method! Optional arguments for fitting method are ignored."
+        (m,x,y) -> custom_fit(m, x, y)
     elseif approx_method == :adaptive
         (m,x,y,g) -> custom_fit(m, x, y, g; broadcasted_target=broadcasted_tar_pdf, kwargs...)
     else
