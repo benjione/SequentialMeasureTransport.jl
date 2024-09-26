@@ -13,6 +13,7 @@ using ..SequentialMeasureTransport: _α_divergence_JuMP!, _α_divergence_Manopt!
 using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
+using SparseArrays
 
 export ML_fit!, Chi2_fit!, TV_fit!, KL_fit!, Hellinger_fit!, α_divergence_fit!
 export reversed_KL_fit!
@@ -221,6 +222,53 @@ function reversed_KL_fit!(model::PSDModel{T},
             normalization_constraint=false,
             λ_1 = 1.0,
             kwargs...)
+    end
+end
+
+function entropic_OT!(model::PSDModelOrthonormal{d2, T},
+        cost::Function,
+        p::Function,
+        q::Function,
+        ϵ::T,
+        XY::PSDDataVector{T};
+        preconditioner::Union{SMT.ConditionalMapping{d2, T}, Nothing}=nothing,
+        use_putinar=true,
+        kwargs...) where {d2, T<:Number}
+    @assert d2 % 2 == 0
+    d = d2 ÷ 2
+    reverse_KL_cost = begin
+        _cost = let cost=cost, ϵ=ϵ, p=p, q=q
+            x -> exp(-cost(x)/ϵ) * p(x[1:d]) * q(x[d+1:end])
+        end
+        if preconditioner === nothing
+            _cost
+        else
+            pullback(preconditioner, _cost)
+        end
+    end
+    ξ = map(x->reverse_KL_cost(x), XY)
+    model_for_marg = if preconditioner === nothing
+        model
+    else
+        _add_mapping(model, preconditioner)
+    end
+    X = [x[1:d] for x in XY]
+    Y = [x[d+1:end] for x in XY]
+    p_X = map(p, X)
+    q_Y = map(q, Y)
+    e_X = [ones(T, d); zeros(T, d)]
+    e_Y = [zeros(T, d); ones(T, d)]
+    if use_putinar && (typeof(model) <: PSDModelPolynomial)
+        D, C = SMT.get_semialgebraic_domain_constraints(model)
+        return SMT._OT_JuMP!(model, XY, ξ; mat_list=D, coef_list=C, 
+                model_for_marginals=model_for_marg,
+                marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
+                kwargs...)
+    else
+        return SMT._OT_JuMP!(model, XY, ξ; 
+                model_for_marginals=model_for_marg,
+                marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
+                kwargs...)
     end
 end
 

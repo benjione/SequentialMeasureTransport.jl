@@ -91,7 +91,8 @@ function _least_squares_JuMP!(a::PSDModel{T},
                     λ_2 = 0.0,
                     trace=false,
                     optimizer=nothing,mat_list = nothing,
-                    coef_list = nothing) where {T<:Number}
+                    coef_list = nothing,
+                    set_start_value = true) where {T<:Number}
     verbose_solver = trace ? true : false
 
     if optimizer===nothing
@@ -147,7 +148,9 @@ function _least_squares_JuMP!(a::PSDModel{T},
                                         for i=1:length(mat_list)))
     end
 
-    JuMP.set_start_value.(B, a.B)
+    if set_start_value
+        JuMP.set_start_value.(B, a.B)
+    end
     B_red = Hermitian_to_low_vec(B)
 
     JuMP.@variable(model, t)
@@ -401,7 +404,8 @@ function _ML_JuMP!(a::PSDModel{T},
                 normalization=false,
                 fixed_variables=nothing,
                 mat_list = nothing,
-                coef_list = nothing
+                coef_list = nothing,
+                set_start_value = true
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -421,7 +425,7 @@ function _ML_JuMP!(a::PSDModel{T},
     end
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
-    if isposdef(a.B)
+    if isposdef(a.B) && set_start_value == true
         JuMP.set_start_value.(_B, a.B)
     end
 
@@ -519,6 +523,7 @@ function _KL_JuMP!(a::PSDModel{T},
                 fixed_variables=nothing,
                 mat_list = nothing,
                 coef_list = nothing,
+                set_start_value = true
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -538,7 +543,9 @@ function _KL_JuMP!(a::PSDModel{T},
     end
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
-    JuMP.set_start_value.(_B, a.B)
+    if set_start_value
+        JuMP.set_start_value.(_B, a.B)
+    end
 
     if mat_list !== nothing
         N_SoS_comb = [size(m[1], 2) for m in mat_list]
@@ -647,6 +654,7 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
                 λ_marg_reg=1.0,
                 mat_list = nothing,
                 coef_list = nothing,
+                set_start_value = true
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -679,7 +687,9 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
                                             for k=1:length(coef_list[i])) 
                                         for i=1:length(mat_list)))
     end
-    JuMP.set_start_value.(_B, a.B)
+    if set_start_value
+        JuMP.set_start_value.(_B, a.B)
+    end
     if typeof(a) <: PSDOrthonormalSubModel
         @info "fix non marginal variables"
         JuMP.fix.(_B[map(~, a.M)], a.B[map(~, a.M)], force=true)
@@ -804,8 +814,6 @@ end
 function _OT_JuMP!(a::PSDModel{T}, 
                 X::PSDDataVector{T},
                 Y::Vector{T};
-                # λ_1 = 0.0,
-                λ_2 = 0.0,
                 trace=false,
                 optimizer=nothing,
                 normalization=false,
@@ -813,10 +821,12 @@ function _OT_JuMP!(a::PSDModel{T},
                 marg_constraints=nothing,
                 marg_regularization=nothing,
                 marg_data_regularization=nothing,
-                λ_marg_reg=1.0,
+                α_marg=2.0,
+                λ_marg_reg=1e3,
                 mat_list = nothing,
                 coef_list = nothing,
                 model_for_marginals=nothing,
+                set_start_value = true
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -836,7 +846,9 @@ function _OT_JuMP!(a::PSDModel{T},
     end
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
-    JuMP.set_start_value.(_B, a.B)
+    if set_start_value
+        JuMP.set_start_value.(_B, a.B)
+    end
     if mat_list !== nothing
         N_SoS_comb = [size(m[1], 2) for m in mat_list]
         # JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
@@ -859,8 +871,6 @@ function _OT_JuMP!(a::PSDModel{T},
         _B
     end
     
-
-
     if fixed_variables !== nothing
         @info "some variables are fixed"
         JuMP.fix.(B[fixed_variables], a.B[fixed_variables], force=true)
@@ -874,9 +884,6 @@ function _OT_JuMP!(a::PSDModel{T},
     
     JuMP.@variable(model, t)
     JuMP.@constraint(model, [t; Y; ex] in JuMP.MOI.RelativeEntropyCone(2*m+1))
-    
-    # JuMP.@variable(model, t[i=1:m])
-    # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
 
     if marg_constraints !== nothing
         for (marg_model, B_marg) in marg_constraints
@@ -885,24 +892,8 @@ function _OT_JuMP!(a::PSDModel{T},
         end
     end
 
-    if marg_regularization !== nothing
-
-        JuMP.@expression(model, marg_reg[i=1:length(marg_regularization)], 
-                    (Hermitian(marg_regularization[i][1].P * (marg_regularization[i][1].M .* B) * 
-                    marg_regularization[i][1].P') - marg_regularization[i][2]))
-
-        JuMP.@variable(model, t_reg[i=1:length(marg_regularization)])
-        for i=1:length(marg_regularization)
-            JuMP.@constraint(model, [t_reg[i]; vec(marg_reg[i])] in JuMP.MOI.NormSpectralCone(size(marg_regularization[i][2])...))
-        end
-    end
-
-    if marg_data_regularization !== nothing
-        
-        n_marg = length(marg_data_regularization)
-        m_marg = length(marg_data_regularization[1][2])
-        @assert all(length(marg_data_regularization[i][2]) == m_marg for i=1:n_marg)
-        
+    if (marg_data_regularization !== nothing || marg_regularization !== nothing)
+      
         ## derive reduced matrx M
         quad_points, quad_weights = gausslegendre(30)
         quad_points = (quad_points .+ 1.0) * 0.5
@@ -912,8 +903,20 @@ function _OT_JuMP!(a::PSDModel{T},
         else
             (x) -> Φ(a, x) * Φ(a, x)'
         end
+        
+        marg_reg = if marg_regularization !== nothing
+            marg_regularization
+        else
+            marg_data_regularization
+        end
+
+        n_marg = length(marg_reg)
+        m_marg = length(marg_reg[1][2])
+        @assert all(length(marg_reg[i][2]) == m_marg for i=1:n_marg)
+
         M_list = Matrix{Matrix{T}}(undef, n_marg, m_marg)
-        for (j, marg_struct) in enumerate(marg_data_regularization)
+
+        for (j, marg_struct) in enumerate(marg_reg)
             e_j = marg_struct[1]
             e_mj = (ones(2) - e_j)
             for (i, x) in enumerate(marg_struct[2])
@@ -922,50 +925,41 @@ function _OT_JuMP!(a::PSDModel{T},
             end
         end
 
-        JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
-        # JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], tr(M_list[j, i] * B))
-        JuMP.@variable(model, t_marg[j=1:n_marg])
-        for j=1:n_marg
-            JuMP.@constraint(model, [t_marg[j]; ex_marg[j,:]; (1/m_marg)*ones(m_marg)] in JuMP.MOI.RelativeEntropyCone(2*m_marg+1))
+        if marg_data_regularization !== nothing
+            JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
+            # JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], tr(M_list[j, i] * B))
+            JuMP.@variable(model, t_marg[j=1:n_marg])
+            for j=1:n_marg
+                JuMP.@constraint(model, [t_marg[j]; ex_marg[j,:]; (1/m_marg)*ones(m_marg)] in JuMP.MOI.RelativeEntropyCone(2*m_marg+1))
+            end
+        else
+            JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
+            JuMP.@variable(model, t_marg[j=1:n_marg])
+            JuMP.@variable(model, r[j=1:n_marg, i=1:m_marg])
+            @assert α_marg != 1 || α_marg != 0
+            if 0 < α_marg < 1
+                JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [marg_reg[j][3][i]; ex_marg[j, i]; r[j, i]] in JuMP.MOI.PowerCone(α_marg))
+            elseif α_marg > 1
+                JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; ex_marg[j, i]; marg_reg[j][3][i]] in JuMP.MOI.PowerCone(1/α_marg))
+            else
+                JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; one(T); marg_reg[j][3][i]^(α_marg/(1-α_marg)) * ex_marg[j, i]] in JuMP.MOI.PowerCone(1/(1-α_marg)))
+            end
+            JuMP.@constraint(model, [j=1:n_marg], t_marg[j] == (1/m) * sum(r[j,:]))
         end
 
-
-        # n_marg = length(marg_data_regularization)
-        # marg_model = [marg_data_regularization[i][1] for i=1:n_marg]
-        # X_i = [marg_data_regularization[i][2] for i=1:n_marg]
-        # K_marg = [reduce(hcat, Φ.(Ref(marg_model[i]), X_i[i])) for i=1:n_marg]
-
-        # m_marg = length(X_i[1])
-        # @assert all(length(X_i[i]) == m_marg for i=2:n_marg)
-        # JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], K_marg[j][:,i]' * (marg_model[j].M .* B) * K_marg[j][:,i])
-
-        # JuMP.@variable(model, t_marg[j=1:n_marg])
-        # for j=1:n_marg
-        #     JuMP.@constraint(model, [t_marg[j]; ex_marg[j,:]; (1/m_marg)*ones(m_marg)] in JuMP.MOI.RelativeEntropyCone(2*m_marg+1))
-        # end
     end
 
     if marg_regularization !== nothing
-        JuMP.@expression(model, min_func, t - tr(B) + λ_marg_reg * sum(t_reg))
-    elseif marg_data_regularization !== nothing
         JuMP.@expression(model, min_func, t - tr(B) + 
-                λ_marg_reg * (sum(t_marg) + 2*tr(B)))
+                λ_marg_reg * ((one(T)/(α_marg*(α_marg-one(T)))) * sum(t_marg) + (one(T)/α_marg) * 2 * tr(B)))
+    elseif (marg_data_regularization) !== nothing
+        JuMP.@expression(model, min_func, t - tr(B) + 
+                λ_marg_reg * (sum(t_marg) + 2 * tr(B)))
     else
         JuMP.@expression(model, min_func, t - tr(B))
     end
 
-    if λ_2 > 0.0
-        JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
-        # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
-    end
-    if λ_2 == 0.0
-        JuMP.@objective(model, Min, min_func)
-    else
-        JuMP.@objective(model, Min, min_func + λ_2 * norm_B)
-    end
-
-
-    # JuMP.@objective(model, Min, min_func);
+    JuMP.@objective(model, Min, min_func)
 
     # @show t2
     if normalization
@@ -1013,6 +1007,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
                 marg_constraints=nothing,
                 mat_list = nothing,
                 coef_list = nothing,
+                set_start_value = true
             ) where {T<:Number}
     verbose_solver = trace ? true : false
     if optimizer===nothing
@@ -1033,7 +1028,9 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     N = size(a.B, 1)
     JuMP.@variable(model, _B[1:N, 1:N], PSD)
 
-    JuMP.set_start_value.(_B, a.B)
+    if set_start_value
+        JuMP.set_start_value.(_B, a.B)
+    end
     if mat_list !== nothing
         N_SoS_comb = [size(m[1], 2) for m in mat_list]
         # JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
