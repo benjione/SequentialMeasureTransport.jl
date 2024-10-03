@@ -822,7 +822,7 @@ function _OT_JuMP!(a::PSDModel{T},
                 marg_regularization=nothing,
                 marg_data_regularization=nothing,
                 α_marg=2.0,
-                λ_marg_reg=1e3,
+                λ_marg_reg=1e5,
                 mat_list = nothing,
                 coef_list = nothing,
                 model_for_marginals=nothing,
@@ -836,6 +836,9 @@ function _OT_JuMP!(a::PSDModel{T},
     else
         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
     end
+
+    d = length(X[1])
+    _d = d ÷ 2
 
     model = JuMP.Model(optimizer)
     JuMP.set_string_names_on_creation(model, false)
@@ -895,9 +898,11 @@ function _OT_JuMP!(a::PSDModel{T},
     if (marg_data_regularization !== nothing || marg_regularization !== nothing)
       
         ## derive reduced matrx M
-        quad_points, quad_weights = gausslegendre(30)
+        quad_points, quad_weights = gausslegendre(50)
         quad_points = (quad_points .+ 1.0) * 0.5
         quad_weights = quad_weights * 0.5
+        
+
         M = if model_for_marginals !== nothing
             (x) -> Φ(model_for_marginals, x) * Φ(model_for_marginals, x)'
         else
@@ -918,10 +923,17 @@ function _OT_JuMP!(a::PSDModel{T},
 
         for (j, marg_struct) in enumerate(marg_reg)
             e_j = marg_struct[1]
-            e_mj = (ones(2) - e_j)
+            e_mj = collect(1:d) .∉ Ref(e_j)
+            e_mj = collect(1:d)[e_mj]
+            _perm = [e_j; e_mj]
+            @inline _assemble(x, y) = permute!([x; y], _perm)
             for (i, x) in enumerate(marg_struct[2])
-                fix_x = e_j * x[1]
-                M_list[j, i] = sum(quad_weights .* map(q->M(fix_x + e_mj * q), quad_points))
+                res = zeros(T, size(M(rand(d))))
+                for k in Iterators.product([1:length(quad_points) for _ in 1:_d]...)
+                    res += prod(quad_weights[[k...]]) * M(_assemble(x, quad_points[[k...]]))
+                end
+                M_list[j, i] = res
+                # M_list[j, i] = sum(quad_weights .* map(q->M(_assemble(x, q)), quad_points))
             end
         end
 

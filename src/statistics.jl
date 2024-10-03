@@ -231,43 +231,95 @@ function entropic_OT!(model::PSDModelOrthonormal{d2, T},
         q::Function,
         ϵ::T,
         XY::PSDDataVector{T};
-        preconditioner::Union{SMT.ConditionalMapping{d2, T}, Nothing}=nothing,
+        X=nothing, Y=nothing,
+        preconditioner::Union{<:SMT.ConditionalMapping{d2, 0, T}, Nothing}=nothing,
+        reference::Union{<:SMT.ReferenceMap{d2, 0, T}, Nothing}=nothing,
         use_putinar=true,
+        use_preconditioner_cost=false,
+        λ_marg=nothing,
         kwargs...) where {d2, T<:Number}
     @assert d2 % 2 == 0
     d = d2 ÷ 2
     reverse_KL_cost = begin
-        _cost = let cost=cost, ϵ=ϵ, p=p, q=q
-            x -> exp(-cost(x)/ϵ) * p(x[1:d]) * q(x[d+1:end])
+        _cost = if use_preconditioner_cost
+            let cost=cost, ϵ=ϵ, prec=preconditioner
+                x -> exp(-cost(x)/ϵ ) * pdf(prec, x)
+            end
+        else
+            let cost=cost, ϵ=ϵ, p=p, q=q
+                x -> exp(-cost(x)/ϵ) * p(x[1:d]) * q(x[d+1:end])
+            end
+        end
+        if reference !== nothing
+            _cost = SMT.pushforward(reference, _cost)
         end
         if preconditioner === nothing
             _cost
         else
-            pullback(preconditioner, _cost)
+            SMT.pullback(preconditioner, _cost)
         end
     end
+
     ξ = map(x->reverse_KL_cost(x), XY)
+    if λ_marg === nothing
+        ## estimate the order of the reverse KL cost to find an acceptable λ_marg
+        ## to do that, we calculate KL(U||reverse_KL_cost) where U is the distribution of XY
+        _order_rev_KL = -sum(log.(ξ)) / length(ξ)
+        λ_marg = 1e5 * _order_rev_KL
+        @info "Estimated order of the reverse KL cost: $_order_rev_KL \n 
+                Setting λ_marg to $λ_marg"
+    end
+
     model_for_marg = if preconditioner === nothing
         model
     else
-        _add_mapping(model, preconditioner)
+        SMT._add_mapping(model, preconditioner)
     end
-    X = [x[1:d] for x in XY]
-    Y = [x[d+1:end] for x in XY]
-    p_X = map(p, X)
-    q_Y = map(q, Y)
-    e_X = [ones(T, d); zeros(T, d)]
-    e_Y = [zeros(T, d); ones(T, d)]
+    if X === nothing
+        X = [x[1:d] for x in XY]
+    end
+    if Y === nothing
+        Y = [x[d+1:end] for x in XY]
+    end
+    
+
+    _p, _q = if reference !== nothing
+        _p = SMT.pushforward(reference[1:d], p)
+        _q = SMT.pushforward(reference[d+1:end], q)
+        _p, _q
+    else
+        p, q
+    end
+
+    ## if there is a reference, only now, we
+    ## pushforward the samples
+    if reference !== nothing
+        _XY_marg = SMT.pushforward.(Ref(reference), [[x;y] for (x, y) in zip(X, Y)])
+        X = [x[1:d] for x in _XY_marg]
+        Y = [x[d+1:end] for x in _XY_marg]
+    end
+    
+    ## evaluate the marginals on the original samples
+    p_X = map(_p, X)
+    q_Y = map(_q, Y)
+    # e_X = diagm([ones(T, d); zeros(T, d)])[:, 1:d]
+    # e_Y = diagm([zeros(T, d); ones(T, d)])[:, d+1:end]
+    e_X = collect(1:d)
+    e_Y = collect(d+1:d2)
+    # @show e_X
+    # @show e_Y
     if use_putinar && (typeof(model) <: PSDModelPolynomial)
         D, C = SMT.get_semialgebraic_domain_constraints(model)
         return SMT._OT_JuMP!(model, XY, ξ; mat_list=D, coef_list=C, 
                 model_for_marginals=model_for_marg,
                 marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
+                λ_marg_reg=λ_marg,
                 kwargs...)
     else
         return SMT._OT_JuMP!(model, XY, ξ; 
                 model_for_marginals=model_for_marg,
                 marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
+                λ_marg_reg=λ_marg,
                 kwargs...)
     end
 end
