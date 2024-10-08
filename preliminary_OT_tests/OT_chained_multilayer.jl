@@ -31,7 +31,7 @@ q = Normal(0.5, 0.2)
 smp_list = SMT.ConditionalMapping{2, 0, Float64}[]
 # λ_marg_list = 1e12 * ones(20)
 
-for k=1:1
+for k=1:2
     XY = rand(2, 2000)
     X = rand(1, 1000)
     Y = rand(1, 1000)
@@ -63,7 +63,7 @@ for k=1:1
 end
 
 rng = 0.0:0.01:1.0
-_smp = SMT.CondSampler([smp_list[1:1]...], nothing)
+_smp = SMT.CondSampler([smp_list[1:2]...], nothing)
 contourf(rng, rng, (x, y) -> pdf(_smp, [x, y]), alpha=1.0, label="transported model")
 
 M_sink = compute_Sinkhorn(rng, x->pdf(p, x)[1], 

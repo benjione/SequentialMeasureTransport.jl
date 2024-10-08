@@ -191,115 +191,6 @@ function _least_squares_JuMP!(a::PSDModel{T},
     return _loss(a.(X))
 end
 
-# function _least_squares_JuMP!(a::PSDModel{T},
-#                     X::PSDDataVector{T},
-#                     Y::Vector{T};
-#                     λ_1 = 0.0,
-#                     λ_2 = 0.0,
-#                     trace=false,
-#                     optimizer=nothing,) where {T<:Number}
-#     verbose_solver = trace ? true : false
-
-#     if optimizer===nothing
-#         optimizer = con.MOI.OptimizerWithAttributes(
-#             Hypatia.Optimizer,
-#         )
-#     else
-#         @info "optimizer is given, optimizer parameters are ignored. If you want to set them, use MOI.OptimizerWithAttributes."
-#     end
-
-#     model = JuMP.Model(optimizer)
-#     JuMP.set_string_names_on_creation(model, false)
-#     if verbose_solver
-#         JuMP.unset_silent(model)
-#     else
-#         JuMP.set_silent(model)
-#     end
-    
-#     function create_M(PSD_model, x)
-#         m = length(x)
-#         n = size(PSD_model.B)[1]
-#         n = (n*(n+1))÷2
-#         M = zeros(m, n)
-#         for i = 1:m
-#             v = Φ(PSD_model, x[i])
-#             M_i = v*v'
-#             M_i = M_i + M_i' - Diagonal(diag(M_i))
-#             M_i = Hermitian_to_low_vec(M_i)
-#             M[i, :] = M_i
-#         end
-#         return M
-#     end
-
-#     trace && print("Create M....")
-#     t = time()
-#     M = create_M(a, X)
-#     dt = time() - t
-#     trace && print("done! - $(dt)  \n")
-#     M2 = M' * M
-#     Y2 = M' * Y
-#     # print("Condition number of M is ", cond(M),"\n")
-#     # trace && print("Calculate non PSD estimate of B...")
-#     # t = time()
-#     # res_B_vec = M \ Y
-#     # dt = time() - t
-#     # trace && print("done! - $(dt) \n")
-#     # res_B_vec = reshape(res_B_vec, length(res_B_vec))
-
-
-#     N = size(a.B, 1)
-#     JuMP.@variable(model, _B[1:N, 1:N], PSD)
-#     if mat_list !== nothing
-#         N_SoS_comb = [size(m[1], 2) for m in mat_list]
-#         D = []
-#         for i=1:length(mat_list)
-#             _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
-#             push!(D, _D)
-#         end
-#         JuMP.@expression(model, SoS_comb, sum(
-#                                             sum(
-#                                                 coef_list[i][k] * mat_list[i][k] * D[i] * mat_list[i][k]'
-#                                             for k=1:length(coef_list[i])) 
-#                                         for i=1:length(mat_list)))
-#     end
-
-#     B = if mat_list !== nothing
-#         _B + SoS_comb
-#     else
-#         _B
-#     end
-
-#     JuMP.set_start_value.(B, a.B)
-#     B_red = Hermitian_to_low_vec(B)
-#     JuMP.@variable(model, t)
-#     size_cone = length(Y2)
- 
-#     JuMP.@constraint(model, [t; M2 * B_red - Y2] in JuMP.MOI.SecondOrderCone(size_cone+1))
-#     JuMP.@objective(model, Min, t)
-#     JuMP.optimize!(model)
-
-#     res_B = if mat_list === nothing
-#         res_B = Hermitian(T.(JuMP.value(_B)))
-#         res_B
-#     else
-#         D = JuMP.value.(D)
-#         res_B1 = T.(JuMP.value(_B))
-#         res_B2 = sum(
-#                     sum(
-#                         coef_list[i][k] * mat_list[i][k] * T.(D[i]) * mat_list[i][k]'
-#                     for k=1:length(coef_list[i])) 
-#                 for i=1:length(mat_list))
-#         res_B = res_B1 + res_B2
-#         res_B
-#     end
-#     set_coefficients!(a, Hermitian(res_B))
-#     _loss(Z) = (1.0/length(Z)) * sum((Z .- Y).^2)
-
-#     finalize(model)
-#     model = nothing
-#     GC.gc()
-#     return _loss(a.(X))
-# end
 
 function _closest_PSD_JuMP!(A::Hermitian{T}; optimizer=nothing,
             mat_list = nothing, coef_list = nothing,
@@ -812,6 +703,8 @@ end
 
 
 function _OT_JuMP!(a::PSDModel{T}, 
+                cost::Function,
+                ϵ::T,
                 X::PSDDataVector{T},
                 Y::Vector{T};
                 trace=false,
@@ -880,6 +773,22 @@ function _OT_JuMP!(a::PSDModel{T},
         # JuMP.@constraint(model, B[prob.fixed_variables] .== prob.initial[prob.fixed_variables])
     end
 
+    ## cost function part
+    crate_M(x) = Φ(a, x) * Φ(a, x)'
+    quad_points, quad_weights = gausslegendre(30)
+    quad_points = (quad_points .+ 1.0) * 0.5
+    quad_weights = quad_weights * 0.5
+
+
+    res = zeros(T, size(crate_M(rand(d))))
+    for k in Iterators.product([1:length(quad_points) for _ in 1:d]...)
+        _x = quad_points[[k...]]
+        res += prod(quad_weights[[k...]]) * crate_M(_x) * cost(_x)
+    end
+
+    JuMP.@expression(model, cost_part, tr(B * res))
+
+    ## Entropy regularization part
     K = reduce(hcat, Φ.(Ref(a), X))
 
     m = length(X)
@@ -903,7 +812,7 @@ function _OT_JuMP!(a::PSDModel{T},
         quad_weights = quad_weights * 0.5
         
 
-        M = if model_for_marginals !== nothing
+        M_marginals = if model_for_marginals !== nothing
             (x) -> Φ(model_for_marginals, x) * Φ(model_for_marginals, x)'
         else
             (x) -> Φ(a, x) * Φ(a, x)'
@@ -928,9 +837,9 @@ function _OT_JuMP!(a::PSDModel{T},
             _perm = [e_j; e_mj]
             @inline _assemble(x, y) = permute!([x; y], _perm)
             for (i, x) in enumerate(marg_struct[2])
-                res = zeros(T, size(M(rand(d))))
+                res = zeros(T, size(M_marginals(rand(d))))
                 for k in Iterators.product([1:length(quad_points) for _ in 1:_d]...)
-                    res += prod(quad_weights[[k...]]) * M(_assemble(x, quad_points[[k...]]))
+                    res += prod(quad_weights[[k...]]) * M_marginals(_assemble(x, quad_points[[k...]]))
                 end
                 M_list[j, i] = res
                 # M_list[j, i] = sum(quad_weights .* map(q->M(_assemble(x, q)), quad_points))
@@ -956,19 +865,19 @@ function _OT_JuMP!(a::PSDModel{T},
             else
                 JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; one(T); marg_reg[j][3][i]^(α_marg/(1-α_marg)) * ex_marg[j, i]] in JuMP.MOI.PowerCone(1/(1-α_marg)))
             end
-            JuMP.@constraint(model, [j=1:n_marg], t_marg[j] == (1/m) * sum(r[j,:]))
+            JuMP.@constraint(model, [j=1:n_marg], t_marg[j] == (1/m_marg) * sum(r[j,:]))
         end
 
     end
 
     if marg_regularization !== nothing
-        JuMP.@expression(model, min_func, t - tr(B) + 
+        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B)) + 
                 λ_marg_reg * ((one(T)/(α_marg*(α_marg-one(T)))) * sum(t_marg) + (one(T)/α_marg) * 2 * tr(B)))
     elseif (marg_data_regularization) !== nothing
-        JuMP.@expression(model, min_func, t - tr(B) + 
+        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B)) + 
                 λ_marg_reg * (sum(t_marg) + 2 * tr(B)))
     else
-        JuMP.@expression(model, min_func, t - tr(B))
+        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B)))
     end
 
     JuMP.@objective(model, Min, min_func)

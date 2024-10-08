@@ -24,14 +24,14 @@ q = Normal(0.5, 0.2)
 # model = SMT.PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 4)
 # _smp = SMT.Sampler(model)
 smp_list = SMT.ConditionalMapping{2, 0, Float64}[]
-ϵ_list = [1.0, 0.5, 0.3, 0.15, 0.08]
+ϵ_list = [0.8, 0.5, 0.3, 0.2, 0.1]
 
-for k=1:5
-    XY = rand(2, 1500)
-    X = rand(1, 500)
-    Y = rand(1, 500)
+for k=1:1
+    XY = rand(2, 2000)
+    X = rand(1, 1000)
+    Y = rand(1, 1000)
 
-    model = SMT.PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 4)
+    model = SMT.PSDModel(Legendre(0.0..1.0)^2, :downward_closed, 5)
 
     prec = if k > 1
         SMT.CondSampler(smp_list[1:k-1], nothing)
@@ -52,12 +52,18 @@ for k=1:5
     push!(smp_list, SMT.Sampler(model))
 end
 
-rng = 0.0:0.01:1.0
-_smp = SMT.CondSampler(smp_list[1:4], nothing)
+
+
+rng = 0.01:0.01:0.99
+_smp = SMT.CondSampler(smp_list[1:1], nothing)
 contourf(rng, rng, (x, y) -> pdf(_smp, [x, y]), alpha=1.0, label="transported model")
 
+
+contourf(rng, rng, (x, y)->c([x, y]))
+contourf(rng, rng, (x, y)->c(SMT.pushforward(_smp, [x, y])))
+
 M_sink = compute_Sinkhorn(rng, x->pdf(p, x)[1], 
-            x->pdf(q, x)[1], c, 0.15)
+            x->pdf(q, x)[1], c, 0.1)
 contourf(rng, rng, M_sink')
 
 contour(

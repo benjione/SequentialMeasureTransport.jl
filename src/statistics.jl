@@ -241,31 +241,49 @@ function entropic_OT!(model::PSDModelOrthonormal{d2, T},
     @assert d2 % 2 == 0
     d = d2 ÷ 2
     reverse_KL_cost = begin
-        _cost = if use_preconditioner_cost
-            let cost=cost, ϵ=ϵ, prec=preconditioner
-                x -> exp(-cost(x)/ϵ ) * pdf(prec, x)
+        _rev_KL_density = if use_preconditioner_cost
+            let prec=preconditioner
+                x -> pdf(prec, x)
             end
         else
-            let cost=cost, ϵ=ϵ, p=p, q=q
-                x -> exp(-cost(x)/ϵ) * p(x[1:d]) * q(x[d+1:end])
+            let p=p, q=q
+                x -> p(x[1:d]) * q(x[d+1:end])
             end
         end
         if reference !== nothing
-            _cost = SMT.pushforward(reference, _cost)
+            _rev_KL_density = SMT.pushforward(reference, _rev_KL_density)
         end
         if preconditioner === nothing
-            _cost
+            _rev_KL_density
         else
-            SMT.pullback(preconditioner, _cost)
+            SMT.pullback(preconditioner, _rev_KL_density)
+        end
+    end
+
+    cost_pb = begin
+        _cost = let cost=cost, ϵ=ϵ, p=p, q=q
+                x -> cost(x)
+        end
+        if reference !== nothing
+            _cost = SMT.pushforward(reference, _cost)
+        else
+            _cost
+        end
+    end
+
+    if preconditioner !== nothing
+        cost_pb = let cost_pb=cost_pb
+            x -> cost_pb(SMT.pushforward(preconditioner, x))
         end
     end
 
     ξ = map(x->reverse_KL_cost(x), XY)
+    ξ2 = map(x->cost_pb(x), XY)
     if λ_marg === nothing
         ## estimate the order of the reverse KL cost to find an acceptable λ_marg
         ## to do that, we calculate KL(U||reverse_KL_cost) where U is the distribution of XY
-        _order_rev_KL = -sum(log.(ξ)) / length(ξ)
-        λ_marg = 1e5 * _order_rev_KL
+        _order_rev_KL = (sum(ξ2) - ϵ * sum(log.(ξ))) / length(ξ)
+        λ_marg = 1e4 * _order_rev_KL
         @info "Estimated order of the reverse KL cost: $_order_rev_KL \n 
                 Setting λ_marg to $λ_marg"
     end
@@ -310,13 +328,13 @@ function entropic_OT!(model::PSDModelOrthonormal{d2, T},
     # @show e_Y
     if use_putinar && (typeof(model) <: PSDModelPolynomial)
         D, C = SMT.get_semialgebraic_domain_constraints(model)
-        return SMT._OT_JuMP!(model, XY, ξ; mat_list=D, coef_list=C, 
+        return SMT._OT_JuMP!(model, cost_pb, ϵ, XY, ξ; mat_list=D, coef_list=C, 
                 model_for_marginals=model_for_marg,
                 marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
                 λ_marg_reg=λ_marg,
                 kwargs...)
     else
-        return SMT._OT_JuMP!(model, XY, ξ; 
+        return SMT._OT_JuMP!(model, cost_pb, ϵ, XY, ξ; 
                 model_for_marginals=model_for_marg,
                 marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
                 λ_marg_reg=λ_marg,
