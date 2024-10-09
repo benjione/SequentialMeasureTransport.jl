@@ -775,7 +775,7 @@ function _OT_JuMP!(a::PSDModel{T},
 
     ## cost function part
     crate_M(x) = Φ(a, x) * Φ(a, x)'
-    quad_points, quad_weights = gausslegendre(30)
+    quad_points, quad_weights = gausslegendre(50)
     quad_points = (quad_points .+ 1.0) * 0.5
     quad_weights = quad_weights * 0.5
 

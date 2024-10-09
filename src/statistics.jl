@@ -241,27 +241,28 @@ function entropic_OT!(model::PSDModelOrthonormal{d2, T},
     @assert d2 % 2 == 0
     d = d2 ÷ 2
     reverse_KL_cost = begin
-        _rev_KL_density = if use_preconditioner_cost
-            let prec=preconditioner
-                x -> pdf(prec, x)
+        if use_preconditioner_cost
+            let p=p, q=q
+                # x -> pdf(prec, x)
+                x->p(x[1:d]) * q(x[d+1:end])
             end
         else
-            let p=p, q=q
+            _rev_KL_density = let p=p, q=q
                 x -> p(x[1:d]) * q(x[d+1:end])
             end
-        end
-        if reference !== nothing
-            _rev_KL_density = SMT.pushforward(reference, _rev_KL_density)
-        end
-        if preconditioner === nothing
-            _rev_KL_density
-        else
-            SMT.pullback(preconditioner, _rev_KL_density)
+            if reference !== nothing
+                _rev_KL_density = SMT.pushforward(reference, _rev_KL_density)
+            end
+            if preconditioner === nothing
+                _rev_KL_density
+            else
+                SMT.pullback(preconditioner, _rev_KL_density)
+            end
         end
     end
 
     cost_pb = begin
-        _cost = let cost=cost, ϵ=ϵ, p=p, q=q
+        _cost = let cost=cost
                 x -> cost(x)
         end
         if reference !== nothing
@@ -283,7 +284,7 @@ function entropic_OT!(model::PSDModelOrthonormal{d2, T},
         ## estimate the order of the reverse KL cost to find an acceptable λ_marg
         ## to do that, we calculate KL(U||reverse_KL_cost) where U is the distribution of XY
         _order_rev_KL = (sum(ξ2) - ϵ * sum(log.(ξ))) / length(ξ)
-        λ_marg = 1e4 * _order_rev_KL
+        λ_marg = 10.0*_order_rev_KL
         @info "Estimated order of the reverse KL cost: $_order_rev_KL \n 
                 Setting λ_marg to $λ_marg"
     end
