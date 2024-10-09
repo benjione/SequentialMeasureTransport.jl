@@ -77,3 +77,21 @@ plot!(rng, x->pdf(p, x)[1])
 
 plot(rng, x->right_pdf(_smp, x))
 plot!(rng, x->pdf(q, x)[1])
+
+
+distance_list = []
+distance_chained_list = []
+for k=1:length(smp_list)
+    _smp = SMT.CondSampler(smp_list[1:k], nothing)
+    push!(distance_chained_list, compute_Sinkhorn_distance(c, _smp, N=5000))
+    M_sink = compute_Sinkhorn(rng, x->pdf(p, x)[1], 
+                                    x->pdf(q, x)[1], c, ϵ_list[k])
+    push!(distance_list, compute_Sinkhorn_distance(c, M_sink, rng))
+end
+
+plot(ϵ_list, distance_list, label="Sinkhorn distance using Sinhorn algorithm", 
+                xscale=:log10, linewidth=2) 
+plot!(ϵ_list, distance_chained_list, label="Sinkhorn distance using Sequential measure transport", linewidth=2)
+scatter!(ϵ_list, distance_chained_list, label=nothing)
+xlabel!("ϵ")
+ylabel!("Sinkhorn distance")
