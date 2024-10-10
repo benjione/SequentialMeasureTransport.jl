@@ -1,5 +1,6 @@
 using LinearAlgebra
 using FastGaussQuadrature
+using ImageFiltering
 
 function compute_Sinkhorn(rng, left_marg_d, right_marg_d, c, ϵ; iter=200)
     M_epsilon = [exp(-c([x,y])/ϵ) for x in rng, y in rng]
@@ -16,6 +17,39 @@ function compute_Sinkhorn(rng, left_marg_d, right_marg_d, c, ϵ; iter=200)
     #     M_epsilon[i, j] *= 1/(left_marg_d([ii]) * right_marg_d([jj]))
     # end
     return M_epsilon
+end
+
+"""
+Implemented as in:
+    Justin Solomon, Fernando de Goes, Gabriel Peyré, Marco Cuturi, 
+    Adrian Butscher, Andy Nguyen, Tao Du, and Leonidas Guibas. 2015. 
+    Convolutional wasserstein distances: efficient optimal transportation 
+    on geometric domains. ACM Trans. Graph. 34, 4, Article 66 (August 2015), 
+    11 pages. https://doi.org/10.1145/2766963
+"""
+function compute_Sinkhorn_Wasserstein_barycenter(rng, 
+                                list_marg::Vector{Function},
+                                weights::Vector{T},
+                                ϵ; iter=200) where {T<:Number}
+    v = ones(length(list_marg), length(rng))
+    w = ones(length(list_marg), length(rng))
+    d = ones(length(list_marg), length(rng))
+    marg_vec = [list_marg[i](x) for i in 1:length(list_marg), x in rng]
+    a = 1 / length(rng)^2
+    mu = ones(length(rng))
+    for _=1:iter
+        mu .= 1.0
+        for i=1:length(list_marg)
+            w[i, :] .= marg_vec[i, :] ./ imfilter(a * v[i, :], Kernel.gaussian((ϵ,)))
+            d[i, :] .= v[i, :] .* imfilter(a * w[i, :], Kernel.gaussian((ϵ,)))
+            mu .= mu .* (w[i, :].^ weights[i]) 
+        end
+
+        for i=1:length(list_marg)
+            v[i, :] .= (v[i, :] .* mu) ./ d[i, :]
+        end
+    end
+    return mu
 end
 
 
