@@ -21,7 +21,28 @@ p = MixtureModel(Normal[
 ])
 q = Normal(0.5, 0.2)
 
+rng = 0.0:0.001:1.0
+@time res = compute_Sinkhorn_Wasserstein_barycenter(rng, [x->pdf(p, x)[1], x->pdf(q, x)[1]], 
+                [0.5, 0.5], c, 0.05)
 
+ϵ = 0.01
+plot(rng, compute_Sinkhorn_Wasserstein_barycenter(rng, [x->pdf(p, x)[1], x->pdf(q, x)[1]], 
+                [1.0, 0.0], c, ϵ))
+
+plot!(rng, compute_Sinkhorn_Wasserstein_barycenter(rng, [x->pdf(p, x)[1], x->pdf(q, x)[1]], 
+                [0.8, 0.2], c, ϵ))
+
+plot!(rng, compute_Sinkhorn_Wasserstein_barycenter(rng, [x->pdf(p, x)[1], x->pdf(q, x)[1]], 
+                [0.6, 0.4], c, ϵ))
+
+plot!(rng, compute_Sinkhorn_Wasserstein_barycenter(rng, [x->pdf(p, x)[1], x->pdf(q, x)[1]], 
+                [0.4, 0.6], c, ϵ))
+
+plot!(rng, compute_Sinkhorn_Wasserstein_barycenter(rng, [x->pdf(p, x)[1], x->pdf(q, x)[1]], 
+                [0.2, 0.8], c, ϵ))
+
+plot!(rng, compute_Sinkhorn_Wasserstein_barycenter(rng, [x->pdf(p, x)[1], x->pdf(q, x)[1]], 
+                [0.0, 1.0], c, ϵ))
 ### First, we work on the bounded domain [0, 1]^2
 
 ϵ = 0.5

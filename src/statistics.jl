@@ -343,6 +343,25 @@ function entropic_OT!(model::PSDModelOrthonormal{d2, T},
     end
 end
 
+function Wasserstein_Barycenter(model::PSDModelOrthonormal{d2, T},
+                        measures::AbstractVector{<:Function},
+                        weights::AbstractVector{T},
+                        ϵ::T,
+                        XY::PSDDataVector{T};
+                        X=nothing, Y=nothing,
+                        preconditioner::Union{<:SMT.ConditionalMapping{d2, 0, T}, Nothing}=nothing,
+                        reference::Union{<:SMT.ReferenceMap{d2, 0, T}, Nothing}=nothing,
+                        use_putinar=true,
+                        use_preconditioner_cost=false,
+                        λ_marg=nothing,
+                        kwargs...
+            ) where {d2, T<:Number}
+    d = d2 * (length(measures) + 1)
+
+
+
+end
+
 function conditional_expectation(model::PSDModelOrthonormal{d, T}, 
     dim::Int) where {d, T<:Number}
     if d==1

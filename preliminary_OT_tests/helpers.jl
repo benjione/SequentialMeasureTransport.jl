@@ -19,8 +19,36 @@ function compute_Sinkhorn(rng, left_marg_d, right_marg_d, c, ϵ; iter=200)
     return M_epsilon
 end
 
+function compute_Sinkhorn(rng, left_array::AbstractVector{T}, right_array::AbstractVector{T}, 
+                            c, ϵ; iter=200, domain_size=1.0) where {T<:Number}
+    M_epsilon = zeros(length(rng), length(rng))
+    for (i, x) in enumerate(rng), (j, y) in enumerate(rng)
+        M_epsilon[i, j] = exp(-c(SA[x...],SA[y...])/ϵ)
+    end
+    proj_mat = ones(size(M_epsilon, 1))
+    left_margin(M) = M * proj_mat
+    right_margin(M) = M' * proj_mat
+    for _=1:iter
+        M_epsilon .= diagm(left_array ./ left_margin(M_epsilon)) * M_epsilon
+        M_epsilon .= M_epsilon * diagm(right_array ./ right_margin(M_epsilon))
+    end
+    M_epsilon = length(rng)^2 * M_epsilon / (sum(M_epsilon) * domain_size^2)
+    # for (i, ii) in enumerate(rng), (j, jj) in enumerate(rng)
+    #     M_epsilon[i, j] *= 1/(left_marg_d([ii]) * right_marg_d([jj]))
+    # end
+    return M_epsilon
+end
+
+function Barycentric_map_from_sinkhorn(M_sink, left_marg_vec, right_marg_vec, i)
+    res = SA[0.0, 0.0, 0.0]
+    for j in 1:length(right_marg_vec)
+        res += M_sink[i, j] * right_marg_vec[j]
+    end
+    return (1/left_marg_vec[i]) * res
+end
+
 """
-Implemented as in:
+Implemented for 1D distributions as in:
     Justin Solomon, Fernando de Goes, Gabriel Peyré, Marco Cuturi, 
     Adrian Butscher, Andy Nguyen, Tao Du, and Leonidas Guibas. 2015. 
     Convolutional wasserstein distances: efficient optimal transportation 
