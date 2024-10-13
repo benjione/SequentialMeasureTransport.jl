@@ -6,6 +6,8 @@ module ReferenceMaps
     Reference maps are diagonal maps used to work on domains of choice, while keeping the
     density estimation in [0, 1]. The reference map is defined as a map from the uniform
     distribution on [0, 1]^d to a domain of choice.
+
+    R_♯ ρ = U
 """
 
 import ..SequentialMeasureTransport as SMT
@@ -33,6 +35,16 @@ Attention!
 
 Using any of the functions with dim(x) < d will take a marginal distribution and pdf.
 """
+
+
+"""
+Get a reference maps on the subspace of dimension, e.g. [3:4]
+"""
+function Base.getindex(m::ReferenceMap{d, dC, T}, I) where {d, dC, T}
+    throw(error("Not implemented"))
+end
+
+Base.lastindex(m::ReferenceMap{d}) where {d} = d
 
 ### Interface for ReferenceMaps
 @inline function Distributions.pdf(Rmap::ReferenceMap{<:Any, <:Any, T}, 

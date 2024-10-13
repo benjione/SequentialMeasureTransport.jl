@@ -11,6 +11,17 @@ struct AlgebraicReference{d, dC, T} <: ReferenceMap{d, dC, T}
     end
 end
 
+function Base.getindex(m::AlgebraicReference{d, dC, T}, I) where {d, dC, T}
+    vars = collect(I)
+    if length(vars) == 0
+        return nothing
+    end
+    d_new = length(vars)
+    dC_new = length(intersect(d-dC+1:d, vars))
+    # @assert setdiff(1:d-dC, vars) == 1:dC_new
+    return AlgebraicReference{d_new, dC_new, T}()
+end
+
 function _pushforward(m::AlgebraicReference{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number}
     return ((x./sqrt.(1 .+ x.^2)).+1.0)/2.0
 end

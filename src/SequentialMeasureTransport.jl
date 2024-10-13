@@ -86,4 +86,8 @@ include("Samplers/sampler.jl")
 include("statistics.jl")
 using .Statistics
 
+# methods to create Optimal Transport plans and more
+include("OptimalTransport.jl")
+using .OptimalTransport
+
 end # module PositiveSemidefiniteModels

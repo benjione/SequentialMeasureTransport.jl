@@ -41,6 +41,8 @@ end
 @inline _remove_mapping(a::PSDModelPolynomial{d, T, <:ConditionalMapping{d, <:Any, T}}) where {d, T<:Number} = 
     PSDModelPolynomial(a.B, a.Φ)
 
+@inline _add_mapping(a::PSDModelPolynomial{d, T, Nothing}, mapping::ConditionalMapping{d, <:Any, T}) where {d, T<:Number} = 
+    PSDModelPolynomial(a.B, a.Φ, mapping)
 
 ## Pretty printing
 function Base.show(io::IO, a::PSDModelPolynomial{d, T, S}) where {d, T, S}

@@ -13,6 +13,7 @@ using ..SequentialMeasureTransport: _α_divergence_JuMP!, _α_divergence_Manopt!
 using LinearAlgebra
 using FastGaussQuadrature: gausslegendre
 using Distributions: pdf
+using SparseArrays
 
 export ML_fit!, Chi2_fit!, TV_fit!, KL_fit!, Hellinger_fit!, α_divergence_fit!
 export reversed_KL_fit!
@@ -223,6 +224,7 @@ function reversed_KL_fit!(model::PSDModel{T},
             kwargs...)
     end
 end
+
 
 function conditional_expectation(model::PSDModelOrthonormal{d, T}, 
     dim::Int) where {d, T<:Number}
