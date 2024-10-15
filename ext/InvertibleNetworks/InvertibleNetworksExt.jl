@@ -15,6 +15,8 @@ struct InvertibleNetworksMapping{d, dC, T, NT} <: SMT.ConditionalMapping{d, dC, 
     end
 end
 
+SMT.Sampler(network, forward, inverse, d, T; dC=0) = InvertibleNetworksMapping{d, dC, T}(network, forward, inverse)
+
 function SMT.pushforward(m::InvertibleNetworksMapping{<:Any, <:Any, T}, x::SMT.PSDdata{T}) where {T <: Number}
     y = m.forward(reshape(x, 1, 1, length(x), 1))[1]
     return reshape(y, length(y))

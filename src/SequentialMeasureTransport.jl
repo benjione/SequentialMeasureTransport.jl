@@ -1,6 +1,6 @@
 module SequentialMeasureTransport
 
-using LinearAlgebra, SparseArrays
+using LinearAlgebra, SparseArrays, StaticArrays
 using KernelFunctions: Kernel, kernelmatrix
 using DomainSets
 using FastGaussQuadrature: gausslegendre

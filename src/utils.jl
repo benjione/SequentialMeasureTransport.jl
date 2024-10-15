@@ -63,3 +63,17 @@ unslice_matrix(A::Vector{Vector{T}}) where {T<:Number} = reduce(hcat, A)
 ## norm utilitys
 
 nuclearnorm(A::AbstractMatrix) = tr(A)
+
+
+### macro
+macro _StaticArrayAppend(A, a::Int, b::Int, z)
+    str = "SA[ "
+
+    for i = a:1:b
+        str = "$str $A[$i], "
+    end
+    str = "$str $z]"
+    # return str
+    expr = Meta.parse(str)
+    return esc(expr)
+end

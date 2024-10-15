@@ -48,10 +48,14 @@ end
 function _pullback_first_n(sampler::AbstractTriangularMap{d, <:Any, T}, 
                     u::PSDdata{T},
                     n::Int) where {d, T<:Number}
-    x = zeros(T, n)
+    x = Vector{T}(undef, n)
     u = @view u[sampler.variable_ordering[1:n]]
     for k=1:n
-        x[k] = find_zero(z->MonotoneMap(sampler, [z; x[1:k-1]], k) - u[k], zero(T))
+        func(z) = begin
+            @inbounds x[k] = z
+            return MonotoneMap(sampler, x[1:k], k) - @inbounds u[k]
+        end
+        @inbounds x[k] = find_zero(func, zero(T))
     end
     return invpermute!(x, sampler.variable_ordering[1:n])
 end
