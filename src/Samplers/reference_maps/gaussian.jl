@@ -34,17 +34,20 @@ end
 
 function SMT.pushforward(
         m::GaussianReference{d, <:Any, T}, 
-        x::PSDdata{T}
-    ) where {d, T<:Number}
+        x::PSDdata{T2}
+    ) where {d, T<:Number, T2<:Number}
     @assert length(x) == d
-    return 0.5 * (1 .+ erf.(x ./ (m.σ * sqrt(2))))
+    res = copy(x)
+    res ./= (m.σ * sqrt(2))
+    map!(z->0.5 * (1 + erf(z)), res, res)
+    return res
 end
 
 
 function SMT.pullback(
         m::GaussianReference{d, <:Any, T}, 
-        u::PSDdata{T}
-    ) where {d, T<:Number}
+        u::PSDdata{T2}
+    ) where {d, T<:Number, T2<:Number}
     @assert length(u) == d
     return sqrt(2) * m.σ * erfcinv.(2.0 .- 2*u)
 end
@@ -52,8 +55,8 @@ end
 
 function SMT.Jacobian(
         m::GaussianReference{d, <:Any, T}, 
-        x::PSDdata{T}
-    ) where {d, T<:Number}
+        x::PSDdata{T2}
+    ) where {d, T<:Number, T2<:Number}
     @assert length(x) == d
     return mapreduce(xi->Distributions.pdf(Distributions.Normal(0, m.σ), xi), *, x)
 end

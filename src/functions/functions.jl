@@ -1,6 +1,6 @@
 
 # Tensorized functions
-include("TensorFunction.jl")
+include("tensor_functions/TensorFunction.jl")
 
 # extra special functions needed
 include("squared_polynomial.jl")
