@@ -110,7 +110,7 @@ end
 ### Functions common to all Tensorizers
 
 @inline σ(t::DownwardClosedTensorizer, i) = @error "not implemented for this tensorizer"
-@inline σ_inv(t::DownwardClosedTensorizer, i) = t.index_list[i]
+@inline σ_inv(t::DownwardClosedTensorizer, i::Int) = t.index_list[i]
 @inline max_N(t::DownwardClosedTensorizer) = length(t.index_list)
 
 function reduce_dim(t::DownwardClosedTensorizer{d}, dim::Int) where {d}

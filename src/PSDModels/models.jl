@@ -110,6 +110,7 @@ function (a::PSDModel{T})(x::PSDdata{T}, B::AbstractMatrix) where {T<:Number}
     return dot(v, B, v)
 end
 
+
 function set_coefficients!(a::PSDModel{T}, B::Hermitian{T}) where {T<:Number}
     a.B .= B
 end

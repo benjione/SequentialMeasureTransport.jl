@@ -9,15 +9,19 @@ ATTENTION:
     where T_i is the i-th map in the sampler.
 """
 struct CondSampler{d, dC, T, R1, R2} <: AbstractCondSampler{d, dC, T, R1, R2}
-    samplers::Vector{<:ConditionalMapping{d, dC, T}}   # defined on [0, 1]^d
-    R1_map::R1   # reference map from reference distribution to uniform on [0, 1]^d
-    R2_map::R2   # distribution from domain of pi to [0, 1]^d
+    samplers::Vector{<:ConditionalMapping{d, dC, T}}   # defined on internal domain
+    internal_domain::ProductDomain{<:AbstractVector{T}}
+    internal_measure::Distributions.Product{Distributions.Continuous}
+    R1_map::R1   # reference map from reference (domain, distribution) to internal (domain, distribution)
+    R2_map::R2   # distribution from target (domain, distribution) to internal (domain, distribution)
     function CondSampler(
         samplers::Vector{<:ConditionalMapping{d, dC, T}},
         R1_map::Union{<:ReferenceMap{d, dC, T}, Nothing},
         R2_map::Union{<:ReferenceMap{d, dC, T}, Nothing}
     ) where {d, T<:Number, dC}
-        new{d, dC, T, typeof(R1_map), typeof(R2_map)}(samplers, R1_map, R2_map)
+        internal_domain = ProductDomain([UnitInterval() for _=1:d])
+        internal_measure = Distributions.product_distribution([Distributions.Uniform(0.0, 1.0) for _=1:d])
+        new{d, dC, T, typeof(R1_map), typeof(R2_map)}(samplers, internal_domain, internal_measure, R1_map, R2_map)
     end
     function CondSampler(
         samplers::Vector{<:ConditionalMapping},
