@@ -775,16 +775,22 @@ function _OT_JuMP!(a::PSDModel{T},
 
     ## cost function part
     crate_M(x) = Φ(a, x) * Φ(a, x)'
-    quad_points, quad_weights = gausslegendre(50)
+    quad_points, quad_weights = gausslegendre(15)
     quad_points = (quad_points .+ 1.0) * 0.5
     quad_weights = quad_weights * 0.5
 
-
-    res = zeros(T, size(crate_M(rand(d))))
-    for k in Iterators.product([1:length(quad_points) for _ in 1:d]...)
-        _x = quad_points[[k...]]
-        res += prod(quad_weights[[k...]]) * crate_M(_x) * cost(_x)
-    end
+    @info "create cost matrix"
+    # res = zeros(T, size(crate_M(rand(d))))
+    # for k in Iterators.product([1:length(quad_points) for _ in 1:d]...)
+    #     _x = quad_points[[k...]]
+    #     res .+= prod(quad_weights[[k...]]) * crate_M(_x) * cost(_x)
+    # end
+    _t1 = time()
+    res = foldxl(+ , Iterators.product([1:length(quad_points) for _ in 1:d]...) |> 
+                Zip(Transducers.Map(k->@inbounds quad_points[[k...]]), Transducers.Map(k->prod(@inbounds quad_weights[[k...]]))) |> 
+                Transducers.Map((x) -> x[2] * crate_M(x[1]) * cost(x[1])), init=zeros(T, size(crate_M(rand(d)))))
+    _t2 = time() - _t1
+    @info "done! - $(_t2)  \n"
 
     JuMP.@expression(model, cost_part, tr(B * res))
 
@@ -806,8 +812,9 @@ function _OT_JuMP!(a::PSDModel{T},
 
     if (marg_data_regularization !== nothing || marg_regularization !== nothing)
       
+        @info "marginal constraints"
         ## derive reduced matrx M
-        quad_points, quad_weights = gausslegendre(50)
+        quad_points, quad_weights = gausslegendre(20)
         quad_points = (quad_points .+ 1.0) * 0.5
         quad_weights = quad_weights * 0.5
         
@@ -837,11 +844,11 @@ function _OT_JuMP!(a::PSDModel{T},
             _perm = [e_j; e_mj]
             @inline _assemble(x, y) = permute!([x; y], _perm)
             for (i, x) in enumerate(marg_struct[2])
-                res = zeros(T, size(M_marginals(rand(d))))
+                M_list[j, i] = zeros(T, size(M_marginals(rand(d))))
                 for k in Iterators.product([1:length(quad_points) for _ in 1:_d]...)
-                    res += prod(quad_weights[[k...]]) * M_marginals(_assemble(x, quad_points[[k...]]))
+                    M_list[j, i] .+= prod(quad_weights[[k...]]) * M_marginals(_assemble(x, quad_points[[k...]]))
                 end
-                M_list[j, i] = res
+                # M_list[j, i] = res
                 # M_list[j, i] = sum(quad_weights .* map(q->M(_assemble(x, q)), quad_points))
             end
         end

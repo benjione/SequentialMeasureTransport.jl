@@ -7,6 +7,31 @@ using Distributions
 using FastGaussQuadrature: gausslegendre
 
 
+
+function compute_Sinkhorn_distance(c, 
+            smp::SMT.CondSampler{d}; 
+            N=10000) where {d}
+    _d = d ÷ 2
+    X = rand(smp, N)
+    return mapreduce(x -> c(x[1:_d], x[_d+1:end]), +, X) / N
+end
+
+function Barycentric_Projection_map(smp::SMT.CondSampler{d},
+                marginal::Function;
+                N=1000) where {d, T}
+    _d = d ÷ 2
+    x_i, w_i = gausslegendre(15)
+    x_i .= (x_i .+ 1) ./ 2
+    w_i .= w_i ./ 2
+    ret_func = let smp=smp, marginal=marginal, _d=_d, x_i=x_i, w_i=w_i
+        x -> begin
+            mx = marginal(x)
+            sum(w_i .* x_i .* map(y->pdf(smp, [x; y]), x_i)) / mx
+        end
+    end
+    return ret_func
+end
+
 function entropic_OT!(model::SMT.PSDModelOrthonormal{d2, T},
         cost::Function,
         p::Function,

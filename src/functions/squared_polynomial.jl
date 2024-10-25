@@ -33,27 +33,32 @@ function (a::SquaredPolynomialMatrix{d, T, S, FunType})(x::PSDdata{T}) where {d,
     vec = _eval(a.Φ, x, a.int_dim)::Vector{T}
     M = (vec * vec')::Matrix{T}
     eval_Fun = Vector{Symmetric{T, Matrix{T}}}(undef, length(a.int_dim))
+    ind_j_list = NTuple{d, Int}[σ_inv(a.Φ, j) for j=1:size(M, 2)]
+    
     for k_index=1:length(a.int_dim)
         @inbounds k = a.int_dim[k_index]
         tmp_mat = Matrix{T}(undef, size(a.int_Fun[k_index]))
-        @inbounds for i=1:size(a.int_Fun[k_index], 1), j=i:size(a.int_Fun[k_index], 2)
-            tmp_mat[i, j] = a.int_Fun[k_index][i, j](x[k])
+        for i=1:size(a.int_Fun[k_index], 1)
+            for j=i:size(a.int_Fun[k_index], 2)
+                @inbounds tmp_mat[i, j] = a.int_Fun[k_index][i, j](x[k])
+            end
         end
         # no need to save as symmetric, since read in this order as well.
         @inbounds eval_Fun[k_index] = Symmetric(tmp_mat)
     end
 
-    ind_j_list = NTuple{d, Int}[σ_inv(a.Φ, j) for j=1:size(M, 2)]
     for i = 1:size(M, 1)
         @inbounds ind_i = ind_j_list[i]
         for j = i:size(M, 2)
             @inbounds ind_j = ind_j_list[j]
-            @inbounds for k_index=1:length(a.int_dim)
-                k = a.int_dim[k_index]
-                i1 = ind_i[k]
-                i2 = ind_j[k]
-                M[i, j] *= eval_Fun[k_index][i1, i2]::T
+            mult_fac = one(T)
+            for k_index=1:length(a.int_dim)
+                @inbounds k = a.int_dim[k_index]
+                @inbounds i1 = ind_i[k]
+                @inbounds i2 = ind_j[k]
+                @inbounds mult_fac *= eval_Fun[k_index][i1, i2]
             end
+            @inbounds M[i, j] *= mult_fac
         end
     end
     return Symmetric(M)
