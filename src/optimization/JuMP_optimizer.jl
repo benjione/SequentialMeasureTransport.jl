@@ -714,6 +714,7 @@ function _OT_JuMP!(a::PSDModel{T},
                 marg_constraints=nothing,
                 marg_regularization=nothing,
                 marg_data_regularization=nothing,
+                marg_div_mode=:divergence,
                 α_marg=2.0,
                 λ_marg_reg=1e5,
                 mat_list = nothing,
@@ -775,7 +776,7 @@ function _OT_JuMP!(a::PSDModel{T},
 
     ## cost function part
     crate_M(x) = Φ(a, x) * Φ(a, x)'
-    quad_points, quad_weights = gausslegendre(15)
+    quad_points, quad_weights = gausslegendre(60)
     quad_points = (quad_points .+ 1.0) * 0.5
     quad_weights = quad_weights * 0.5
 
@@ -814,7 +815,7 @@ function _OT_JuMP!(a::PSDModel{T},
       
         @info "marginal constraints"
         ## derive reduced matrx M
-        quad_points, quad_weights = gausslegendre(20)
+        quad_points, quad_weights = gausslegendre(100)
         quad_points = (quad_points .+ 1.0) * 0.5
         quad_weights = quad_weights * 0.5
         
@@ -837,7 +838,11 @@ function _OT_JuMP!(a::PSDModel{T},
 
         M_list = Matrix{Matrix{T}}(undef, n_marg, m_marg)
 
+        ## Importance sampling weights
+        W_list = Matrix{T}(undef, n_marg, m_marg)
+
         for (j, marg_struct) in enumerate(marg_reg)
+            W_list[j, :] = marg_struct[4]
             e_j = marg_struct[1]
             e_mj = collect(1:d) .∉ Ref(e_j)
             e_mj = collect(1:d)[e_mj]
@@ -861,20 +866,25 @@ function _OT_JuMP!(a::PSDModel{T},
                 JuMP.@constraint(model, [t_marg[j]; ex_marg[j,:]; (1/m_marg)*ones(m_marg)] in JuMP.MOI.RelativeEntropyCone(2*m_marg+1))
             end
         else
-            JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
-            JuMP.@variable(model, t_marg[j=1:n_marg])
-            JuMP.@variable(model, r[j=1:n_marg, i=1:m_marg])
-            @assert α_marg != 1 || α_marg != 0
-            if 0 < α_marg < 1
-                JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [marg_reg[j][3][i]; ex_marg[j, i]; r[j, i]] in JuMP.MOI.PowerCone(α_marg))
-            elseif α_marg > 1
-                JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; ex_marg[j, i]; marg_reg[j][3][i]] in JuMP.MOI.PowerCone(1/α_marg))
-            else
-                JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; one(T); marg_reg[j][3][i]^(α_marg/(1-α_marg)) * ex_marg[j, i]] in JuMP.MOI.PowerCone(1/(1-α_marg)))
-            end
-            JuMP.@constraint(model, [j=1:n_marg], t_marg[j] == (1/m_marg) * sum(r[j,:]))
+            if marg_div_mode == :divergence
+                JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
+                JuMP.@variable(model, t_marg[j=1:n_marg])
+                JuMP.@variable(model, r[j=1:n_marg, i=1:m_marg])
+                @assert α_marg != 1 || α_marg != 0
+                if 0 < α_marg < 1
+                    JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [marg_reg[j][3][i]; ex_marg[j, i]; r[j, i]] in JuMP.MOI.PowerCone(α_marg))
+                elseif α_marg > 1
+                    JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; ex_marg[j, i]; marg_reg[j][3][i]] in JuMP.MOI.PowerCone(1/α_marg))
+                else
+                    JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; one(T); marg_reg[j][3][i]^(α_marg/(1-α_marg)) * ex_marg[j, i]] in JuMP.MOI.PowerCone(1/(1-α_marg)))
+                end
+                JuMP.@constraint(model, [j=1:n_marg], t_marg[j] == (1/m_marg) * sum(W_list[j, :] .* r[j,:]))
+            elseif marg_div_mode == :mse
+                JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
+                JuMP.@variable(model, t_marg[j=1:n_marg])
+                JuMP.@constraint(model, [j=1:n_marg], [t_marg[j]; (1/m_marg) * sqrt.(W_list[j, :]) .* (ex_marg[j, :] - marg_reg[j][3])] in JuMP.MOI.SecondOrderCone(1+m_marg))
+            end 
         end
-
     end
 
     if marg_regularization !== nothing

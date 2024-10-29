@@ -16,9 +16,46 @@ function compute_Sinkhorn_distance(c,
     return mapreduce(x -> c(x[1:_d], x[_d+1:end]), +, X) / N
 end
 
+
+function _left_pdf(sampler::SMT.ConditionalMapping{d}, x) where {d}
+    p, w = gausslegendre(15)
+    ## scale to [0, 1]
+    p .= (p .+ 1) ./ 2
+    w .= w ./ 2
+    _d = d ÷ 2
+    @assert length(x) == _d
+    res = 0.0
+    for k in Iterators.product([1:length(p) for _ in 1:_d]...)
+        res += prod(w[[k...]]) .* pdf(sampler, [x; p[[k...]]])
+    end
+    return res
+    # return sum(w .* [pdf(sampler, [x, y]) for y in p])
+end
+
+
+function _right_pdf(sampler::SMT.ConditionalMapping{d}, x) where {d}
+    p, w = gausslegendre(15)
+    ## scale to [0, 1]
+    p .= (p .+ 1) ./ 2
+    w .= w ./ 2
+    _d = d ÷ 2
+    @assert length(x) == _d
+    res = 0.0
+    for k in Iterators.product([1:length(p) for _ in 1:_d]...)
+        res += prod(w[[k...]]) .* pdf(sampler, [p[[k...]]; x])
+    end
+    return res
+    # return sum(w .* [pdf(sampler, [x, y]) for y in p])
+end
+
+function Barycentric_Projection_map(smp::SMT.CondSampler{d};
+                N=1000) where {d}
+    return Barycentric_Projection_map(smp, x->_left_pdf(smp, x); N=N)
+end
+
 function Barycentric_Projection_map(smp::SMT.CondSampler{d},
                 marginal::Function;
-                N=1000) where {d, T}
+                N=1000) where {d}
     _d = d ÷ 2
     x_i, w_i = gausslegendre(15)
     x_i .= (x_i .+ 1) ./ 2
@@ -39,6 +76,7 @@ function entropic_OT!(model::SMT.PSDModelOrthonormal{d2, T},
         ϵ::T,
         XY::PSDDataVector{T};
         X=nothing, Y=nothing,
+        WX = nothing, WY = nothing,
         preconditioner::Union{<:SMT.ConditionalMapping{d2, 0, T}, Nothing}=nothing,
         reference::Union{<:SMT.ReferenceMap{d2, 0, T}, Nothing}=nothing,
         use_putinar=true,
@@ -90,7 +128,7 @@ function entropic_OT!(model::SMT.PSDModelOrthonormal{d2, T},
         ## estimate the order of the reverse KL cost to find an acceptable λ_marg
         ## to do that, we calculate KL(U||reverse_KL_cost) where U is the distribution of XY
         _order_rev_KL = (sum(ξ2) - ϵ * sum(log.(ξ))) / length(ξ)
-        λ_marg = 10.0*_order_rev_KL
+        λ_marg = 1.0*_order_rev_KL
         @info "Estimated order of the reverse KL cost: $_order_rev_KL \n 
                 Setting λ_marg to $λ_marg"
     end
@@ -122,6 +160,13 @@ function entropic_OT!(model::SMT.PSDModelOrthonormal{d2, T},
         X = [x[1:d] for x in _XY_marg]
         Y = [x[d+1:end] for x in _XY_marg]
     end
+
+    if WX === nothing
+        WX = ones(T, length(X))
+    end
+    if WY === nothing
+        WY = ones(T, length(Y))
+    end
     
     ## evaluate the marginals on the original samples
     p_X = map(_p, X)
@@ -132,13 +177,13 @@ function entropic_OT!(model::SMT.PSDModelOrthonormal{d2, T},
         D, C = SMT.get_semialgebraic_domain_constraints(model)
         return SMT._OT_JuMP!(model, cost_pb, ϵ, XY, ξ; mat_list=D, coef_list=C, 
                 model_for_marginals=model_for_marg,
-                marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
+                marg_regularization = [(e_X, X, p_X, WX), (e_Y, Y, q_Y, WY)],
                 λ_marg_reg=λ_marg,
                 kwargs...)
     else
         return SMT._OT_JuMP!(model, cost_pb, ϵ, XY, ξ; 
                 model_for_marginals=model_for_marg,
-                marg_regularization = [(e_X, X, p_X), (e_Y, Y, q_Y)],
+                marg_regularization = [(e_X, X, p_X, WX), (e_Y, Y, q_Y, WY)],
                 λ_marg_reg=λ_marg,
                 kwargs...)
     end
