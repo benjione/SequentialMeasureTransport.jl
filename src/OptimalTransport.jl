@@ -48,9 +48,16 @@ function _right_pdf(sampler::SMT.ConditionalMapping{d}, x) where {d}
     # return sum(w .* [pdf(sampler, [x, y]) for y in p])
 end
 
-function Barycentric_Projection_map(smp::SMT.CondSampler{d};
-                N=1000) where {d}
-    return Barycentric_Projection_map(smp, x->_left_pdf(smp, x); N=N)
+function Barycentric_Projection_map(smp::SMT.CondSampler{d, dC};
+                N=1000) where {d, dC}
+    if dC == 0
+        return Barycentric_Projection_map(smp, x->_left_pdf(smp, x); N=N)
+    else
+        ret_func = let smp=smp, N=N
+            x -> sum(SMT.conditional_sample(smp, x, N, threading=true))[1] / N
+        end
+        return ret_func
+    end
 end
 
 function Barycentric_Projection_map(smp::SMT.CondSampler{d},
@@ -77,14 +84,25 @@ function entropic_OT!(model::SMT.PSDModelOrthonormal{d2, T},
         XY::PSDDataVector{T};
         X=nothing, Y=nothing,
         WX = nothing, WY = nothing,
-        preconditioner::Union{<:SMT.ConditionalMapping{d2, 0, T}, Nothing}=nothing,
-        reference::Union{<:SMT.ReferenceMap{d2, 0, T}, Nothing}=nothing,
+        preconditioner::Union{<:SMT.ConditionalMapping{d2, <:Any, T}, Nothing}=nothing,
+        reference::Union{<:SMT.ReferenceMap{d2, <:Any, T}, Nothing}=nothing,
         use_putinar=true,
         use_preconditioner_cost=false,
         λ_marg=nothing,
+        marg_integration_mode=nothing,
         kwargs...) where {d2, T<:Number}
     @assert d2 % 2 == 0
     d = d2 ÷ 2
+
+
+    if marg_integration_mode === nothing
+        if preconditioner === nothing
+            marg_integration_mode = :quadrature
+        else
+            marg_integration_mode = :conditional_MC
+        end
+    end
+
     reverse_KL_cost = begin
         if use_preconditioner_cost
             let p=p, q=q
@@ -173,17 +191,33 @@ function entropic_OT!(model::SMT.PSDModelOrthonormal{d2, T},
     q_Y = map(_q, Y)
     e_X = collect(1:d)
     e_Y = collect(d+1:d2)
+    marg_reg = [(e_X, X, p_X, WX), (e_Y, Y, q_Y, WY)]
+    marg_constr = nothing
+    
+
+    marg_cond_distr = if marg_integration_mode == :conditional_MC
+        [(x, nr) -> SMT.conditional_sample(prec, x, nr, threading=true),
+            (x, nr) -> SMT.marginal_sample(prec, nr, threading=true),]
+    else
+        nothing
+    end
+    
+
     if use_putinar && (typeof(model) <: SMT.PSDModelPolynomial)
         D, C = SMT.get_semialgebraic_domain_constraints(model)
         return SMT._OT_JuMP!(model, cost_pb, ϵ, XY, ξ; mat_list=D, coef_list=C, 
                 model_for_marginals=model_for_marg,
-                marg_regularization = [(e_X, X, p_X, WX), (e_Y, Y, q_Y, WY)],
+                marg_regularization = marg_reg,
+                marg_constraints = marg_constr,
+                marg_conditional_distr=marg_cond_distr,
                 λ_marg_reg=λ_marg,
                 kwargs...)
     else
         return SMT._OT_JuMP!(model, cost_pb, ϵ, XY, ξ; 
                 model_for_marginals=model_for_marg,
-                marg_regularization = [(e_X, X, p_X, WX), (e_Y, Y, q_Y, WY)],
+                marg_regularization = marg_reg,
+                marg_constraints = marg_constr,
+                marg_conditional_distr=marg_cond_distr,
                 λ_marg_reg=λ_marg,
                 kwargs...)
     end

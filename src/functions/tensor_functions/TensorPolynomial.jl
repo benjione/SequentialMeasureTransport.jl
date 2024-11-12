@@ -98,7 +98,11 @@ function trivial_TensorPolynomial(T::Type{<:Number},
                                 space::TensorSpace, 
                                 N::Int)
     d = length(space.spaces)
+    if N^(1/d) - floor(N^(1/d)) > 1e-12
+        throw(ArgumentError("N must be a perfect power of d"))
+    end
     ten = TrivialTensorizer(d, N)
+    ten = trivial_to_downward_closed(ten)
     high_order = highest_order(ten)-1
     normal_factor = set_normalization_factors(T, space, high_order)
     return FMTensorPolynomial{d, T}(space, normal_factor, N, ten, high_order)

@@ -178,18 +178,38 @@ struct ManoptOptPropblem
     grad_cost!::_grad_struct        # struct of gradient of cost function together with field grad_A for euclidean gradient
     grad_cost_M!                        # gradient of cost function on Manifold, only in place version
     algorithm::Symbol                   # algorithm used, by default Riemannian steepest descent
+    use_putinar::Bool
+    D
+    C
     function ManoptOptPropblem(M::Manifolds.AbstractManifold, cost_func, grad_cost!::_grad_struct)
-        new(M, cost_func, grad_cost!, nothing, :gradient_descent)
+        ManoptOptPropblem(M, cost_func, grad_cost!, :gradient_descent)
     end
     function ManoptOptPropblem(M::Manifolds.AbstractManifold, cost_func, grad_cost!::_grad_struct, algorithm::Symbol)
-        new(M, cost_func, grad_cost!, nothing, algorithm)
+        ManoptOptPropblem(M, cost_func, grad_cost!, nothing, algorithm)
     end
     function ManoptOptPropblem(M::Manifolds.AbstractManifold, cost_func, grad_cost!::_grad_struct, grad_cost_M!, algorithm::Symbol)
-        new(M, cost_func, grad_cost!, grad_cost_M!, algorithm)
+        ManoptOptPropblem(M, cost_func, grad_cost!, grad_cost_M!, algorithm, false, nothing, nothing)
+    end
+    function ManoptOptPropblem(M::Manifolds.AbstractManifold, cost_func, grad_cost!::_grad_struct, grad_cost_M!, algorithm::Symbol, use_putinar::Bool, D, C)
+        new(M, cost_func, grad_cost!, grad_cost_M!, algorithm, use_putinar, D, C)
     end
 end
 
-function ManoptOptPropblem(cost_func, grad_cost!::_grad_struct, N::Int; algorithm=:gradient_descent)
+function ManoptOptPropblem(cost_func, grad_cost!::_grad_struct, N::Int;
+                    algorithm=:gradient_descent,
+                    use_putinar=false,
+                    D=nothing, C=nothing)
+    if use_putinar
+        @assert D !== nothing "D must be provided for putinar"
+        @assert C !== nothing "C must be provided for putinar"
+        M = Manifolds.SymmetricPositiveDefinite(N)
+        N_SoS_comb = [size(m[1], 2) for m in D]
+        M_comb = [Manifolds.SymmetricPositiveDefinite(N_SoS) for N_SoS in N_SoS_comb]
+        M = foldl(×, M_comb, init=M)
+        return ManoptOptPropblem(
+            M, cost_func, grad_cost!, nothing, algorithm, use_putinar, D, C
+        )
+    end
     M = Manifolds.SymmetricPositiveDefinite(N)
     ManoptOptPropblem(M, cost_func, grad_cost!, algorithm)
 end
@@ -204,7 +224,7 @@ function _p_to_A!(A, M, p, D_list, coef_list)
     A .= p[M, 1]
     for (i, (D, C)) in enumerate(zip(D_list, coef_list))
         for (_D, c) in zip(D, C)
-            A .+= c * _D' * p[M, i+1] * _D
+            A .+= c * _D * p[M, i+1] * _D'
         end
     end
     return nothing
@@ -217,14 +237,19 @@ function _p_to_A(M, p, D_list, coef_list)
 end
 
 function _grad_A_to_grad_p!(grad_p, M, grad_A, D_list, coef_list)
-    grad_p[M, 1] .= grad_A
+    grad_p[M, 1] = grad_A
     for (i, (D, C)) in enumerate(Iterators.zip(D_list, coef_list))
-        grad_p[M, i+1] .= 0.0
+        mat = zeros(size(grad_p[M, i+1])...)
         for (_D, c) in Iterators.zip(D, C)
-            grad_p[M, i+1] .+= c * _D * _D'
+            mat .+= c * _D' * grad_A * _D
         end
-        grad_p[M, i+1] .= grad_A * grad_p[M, i+1]
+        grad_p[M, i+1] = mat
     end
+    return nothing
+end
+
+function _grad_p_cost_M!(prob::ManoptOptPropblem, M, grad_p, p, D_list, coef_list)
+    _grad_p_cost_M!(prob.grad_cost!, M, grad_p, p, D_list, coef_list)
     return nothing
 end
 
@@ -242,10 +267,20 @@ function optimize(prob::ManoptOptPropblem, A_init;
             custom_stopping_criterion=nothing,
             stepsize=nothing)
     M = prob.M
-    cost_func = prob.cost_func
-    grad_cost_M! = if prob.grad_cost_M! === nothing
+    cost_func = if prob.use_putinar
+        let prob=prob
+            (M, A) -> prob.cost_func(M, _p_to_A(M, A, prob.D, prob.C))
+        end
+    else
+        prob.cost_func
+    end
+    grad_cost_M! = if prob.grad_cost_M! === nothing && prob.use_putinar == false
         let prob=prob
             (M, grad_A, A) -> _grad_cost_M!(prob, M, grad_A, A)
+        end
+    elseif prob.grad_cost_M! === nothing && prob.use_putinar == true
+        let prob=prob, D=prob.D, C=prob.C
+            (M, grad_A, A) -> _grad_p_cost_M!(prob, M, grad_A, A, D, C)
         end
     else
         prob.grad_cost_M!
@@ -254,7 +289,7 @@ function optimize(prob::ManoptOptPropblem, A_init;
     debug = if trace
             [:Iteration,(:Change, "|Δp|: %1.9f |"), 
             (:Cost, " F(x): %1.11f | "), 
-            (:Stepsize, " s: %f | "), 5, "\n", :Stop]
+            (:Stepsize, " s: %f | "), 1, "\n", :Stop]
     else
         []
     end
@@ -296,9 +331,12 @@ function optimize(prob::ManoptOptPropblem, A_init;
         Manopt.quasi_Newton!(M, cost_func, grad_cost_M!, A_sol,
                 evaluation=Manopt.InplaceEvaluation(),
                 stopping_criterion=stopping_criterion,
+                # cautious_update=true,
+                # direction_update=Manopt.InverseSR1(),
                 debug=debug,
                 stepsize=_stepsize,
-                memory_size=5)
+                # memory_size=5
+                )
     else
         throw(error("Algorithm $(prob.algorithm) not implemented."))
         return nothing

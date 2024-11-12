@@ -1,6 +1,3 @@
-
-
-
 abstract type AbstractTriangularMap{d, dC, T} <: ConditionalMapping{d,dC,T} end
 
 """
@@ -12,22 +9,34 @@ abstract type AbstractTriangularMap{d, dC, T} <: ConditionalMapping{d,dC,T} end
     The map is defned as Q(x)_k = Q(x_k | x_{<k}) and the jacobian as ∂_k Q(x)_k = ∂_k Q(x_k | x_{<k})
     where x_{<k} = [x_1, ..., x_{k-1}]
 """
-struct TriangularMap{d, dC, T<:Number} <: ConditionalMapping{d,dC,T}
-    MonotoneMap::Vector{Function}                  # Q(x_k | x_{<k})
-    jacobian::Vector{Function}             # ∂_k Q(x_k | x_{<k})
-    variable_ordering::Vector{Int}          # variable ordering for the model
-    function TriangularSampler(map::Vector{Function}, 
+struct TriangularMap{d, dC, T<:Number} <: AbstractTriangularMap{d,dC,T}
+    MonotoneMap::Vector{Function}       # Q(x_k | x_{<k})
+    jacobian::Vector{Function}          # ∂_k Q(x_k | x_{<k})
+    variable_ordering::Vector{Int}      # variable ordering for the model
+    in_dom::Vector{Tuple{<:Number, <:Number}}
+    out_dom::Vector{Tuple{<:Number, <:Number}}
+    function TriangularMap{T}(
+            map::Vector{Function}, 
             jacobian::Vector{Function},
-                            variable_ordering::Vector{Int}, dC::Int)
+            variable_ordering::Vector{Int}, 
+            dC::Int,
+            in_dom::Vector{<:Tuple{<:Number, <:Number}},
+            out_dom::Vector{<:Tuple{<:Number, <:Number}}
+        ) where {T<:Number}
         d = length(map)
         @assert dC < d
         # check that the last {dC} variables are the last ones in the ordering
         @assert issetequal(variable_ordering[(d-dC+1):d], (d-dC+1):d)
         
-        new{d, dC, T}(map, jacobian, variable_ordering)
+        new{d, dC, T}(map, jacobian, variable_ordering, in_dom, out_dom)
     end
-    function TriangularSampler(map::Vector{Function}, jacobian::Vector{Function}, variable_ordering::Vector{Int})
-        TriangularSampler(map, jacobian, variable_ordering, 0)
+    function TriangularMap{T}(map::Vector{Function}, 
+                    jacobian::Vector{Function}, 
+                    variable_ordering::Vector{Int},
+                    in_dom::Vector{<:Tuple{<:Number, <:Number}},
+                    out_dom::Vector{<:Tuple{<:Number, <:Number}}
+            ) where {T<:Number}
+        TriangularMap{T}(map, jacobian, variable_ordering, 0, in_dom, out_dom)
     end
 end
 
@@ -55,7 +64,11 @@ function _pullback_first_n(sampler::AbstractTriangularMap{d, <:Any, T},
             @inbounds x[k] = z
             return MonotoneMap(sampler, x[1:k], k) - @inbounds u[k]
         end
-        @inbounds x[k] = find_zero(func, zero(T))
+        if sampler.out_dom[k] == (-Inf, Inf)
+            @inbounds x[k] = find_zero(func, zero(T))
+        else
+            @inbounds x[k] = find_zero(func, sampler.out_dom[k])
+        end
     end
     return invpermute!(x, sampler.variable_ordering[1:n])
 end

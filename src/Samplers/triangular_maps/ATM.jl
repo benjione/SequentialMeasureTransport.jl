@@ -7,17 +7,39 @@ struct PolynomialATM{d, dC, T<:Number} <: AbstractTriangularMap{d, dC, T}
     coeff::Vector{<:Vector{T}}
     g::Function
     variable_ordering::Vector{Int}
+    in_dom::Vector{Tuple{<:Number, <:Number}}
+    out_dom::Vector{Tuple{<:Number, <:Number}}
     function PolynomialATM(f::Vector{<:TensorFunction{<:Any, T}}, g::Function, variable_ordering::Vector{Int}, dC::Int) where {T<:Number}
         d = length(f)
         coeff = Vector{Vector{T}}(undef, d)
         for k=1:d
             coeff[k] = randn(T, length(f[k](rand(k))))
         end
-        new{d, dC, T}(f, coeff, g, variable_ordering)
+        in_dom = [(-Inf, Inf) for _ in 1:d]
+        out_dom = [(-Inf, Inf) for _ in 1:d]
+        PolynomialATM(f, coeff, g, variable_ordering, in_dom, out_dom, dC)
+    end
+    function PolynomialATM(f::Vector{<:TensorFunction{<:Any, T}}, 
+                coeff::Vector{<:Vector{T}}, g::Function,     
+                variable_ordering::Vector{Int}, 
+                in_dom::Vector{<:Tuple{<:Number, <:Number}},
+                out_dom::Vector{<:Tuple{<:Number, <:Number}},
+                dC::Int,
+            ) where {T<:Number}
+        d = length(f)
+        new{d, dC, T}(f, coeff, g, variable_ordering, in_dom, out_dom)
     end
     function PolynomialATM(f::Vector{<:TensorFunction}, g::Function, variable_ordering::Vector{Int})
         PolynomialATM(f, g, variable_ordering, 0)
     end
+end
+
+function first_k_maps(sampler::PolynomialATM{d, dC, T}, k::Int) where {d, dC, T<:Number} 
+    ord = sampler.variable_ordering[1:k]
+    dC_new = k - (d - dC) > 0 ? k - (d - dC) : 0
+    PolynomialATM(sampler.f[ord], sampler.coeff[ord], sampler.g, 1:k |> collect, 
+                    sampler.in_dom[ord], 
+                    sampler.out_dom[ord], dC_new)
 end
 
 int_x, int_w = gausslegendre(50)
@@ -108,6 +130,8 @@ struct PolynomialCouplingATM{d, dC, T} <: AbstractTriangularMap{d, dC, T}
     g::Function
     # poly_measure::Function
     variable_ordering::Vector{Int}
+    in_dom::Vector{Tuple{<:Number, <:Number}}
+    out_dom::Vector{Tuple{<:Number, <:Number}}
 end
 
 function PolynomialCouplingATM(f1, f2, g, variable_ordering)
@@ -117,7 +141,9 @@ function PolynomialCouplingATM(f1, f2, g, variable_ordering)
     # for k=1:d
     #     coeff[k] = randn(Float64, 2, length(f1[k](rand(k))))
     # end
-    PolynomialCouplingATM{d, 0, Float64}(f1, f2, coeff, g, variable_ordering)
+    in_dom = [(-Inf, Inf) for _ in 1:d]
+    out_dom = [(-Inf, Inf) for _ in 1:d]
+    PolynomialCouplingATM{d, 0, Float64}(f1, f2, coeff, g, variable_ordering, in_dom, out_dom)
 end
 
 @inline MonotoneMap(sampler::PolynomialCouplingATM{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = MonotoneMap(sampler, x, k, sampler.coeff[k])

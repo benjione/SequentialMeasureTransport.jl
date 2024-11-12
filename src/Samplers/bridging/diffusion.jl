@@ -76,18 +76,13 @@ end
 
 function evolve_samples(bridge::DiffusionBrigdingDensity{<:Any, T},
                         X::PSDDataVector{T}, 
-                        t::T) where {T<:Number}
-    f(du, u, p, t) = (du .= 1.0 * (bridge.μ - u))
-    g(du, u, p, t) = (du .= bridge.σ)
-    tspan = (0.0, t)
-    function evolve_X(x::PSDdata{T})
-        prob = SDEProblem(f, g, x, tspan)
-        sol = solve(prob)
-        return sol.u[end]
-    end
-    X_t = Vector{Vector{T}}(undef, length(X))
-    Threads.@threads for i=1:length(X)
-        X_t[i] = evolve_X(X[i])
+                        t::T; enrichment::Int=1) where {T<:Number}
+    X_t = Vector{Vector{T}}(undef, enrichment*length(X))
+
+    for i=1:length(X)
+        for j=1:enrichment
+            X_t[(i-1)*enrichment + j] = exp(-t) * X[i] .+ sqrt(1 - exp(-t)) * bridge.σ .* randn(T, size(X[i]))
+        end
     end
     return X_t
 end

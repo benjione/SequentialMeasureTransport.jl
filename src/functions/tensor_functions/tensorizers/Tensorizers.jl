@@ -29,3 +29,13 @@ end
 function permute_indices(t::Tensorizer, perm::Vector{Int})
     @error "not implemented for this tensorizer"
 end
+
+
+
+"""
+Conversion of Tensorizer
+"""
+function trivial_to_downward_closed(t::TrivialTensorizer{d}) where {d}
+    index_list = t.CI[1:end] .|> x->Tuple(x)
+    return DownwardClosedTensorizer(index_list)
+end

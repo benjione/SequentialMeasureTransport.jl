@@ -30,6 +30,12 @@ struct SquaredPolynomialMatrix{d, T, S, FunType}
 end
 
 function (a::SquaredPolynomialMatrix{d, T, S, FunType})(x::PSDdata{T}) where {d, T<:Number, S, FunType}
+    _clenshaw(p, x) = begin
+        l = ApproxFun.leftendpoint(p.space.domain)
+        r = ApproxFun.rightendpoint(p.space.domain)
+        ApproxFun.clenshaw(p.space, p.coefficients, (x-l)/(r-l) * 2.0 - 1.0)
+    end
+    
     vec = _eval(a.Φ, x, a.int_dim)::Vector{T}
     M = (vec * vec')::Matrix{T}
     eval_Fun = Vector{Symmetric{T, Matrix{T}}}(undef, length(a.int_dim))
@@ -40,7 +46,7 @@ function (a::SquaredPolynomialMatrix{d, T, S, FunType})(x::PSDdata{T}) where {d,
         tmp_mat = Matrix{T}(undef, size(a.int_Fun[k_index]))
         for i=1:size(a.int_Fun[k_index], 1)
             for j=i:size(a.int_Fun[k_index], 2)
-                @inbounds tmp_mat[i, j] = a.int_Fun[k_index][i, j](x[k])
+                @inbounds tmp_mat[i, j] = _clenshaw(a.int_Fun[k_index][i, j], x[k])
             end
         end
         # no need to save as symmetric, since read in this order as well.

@@ -51,8 +51,17 @@ end
 
 function permute_indices(t::TrivialTensorizer{d}, perm::Vector{Int}) where {d}
     if d>1 
-        throw(error("Not implemented!"))
+        throw(ArgumentError("Not implemented for d>1, convert to DownwardClosedTensorizer first"))
+        order_new = permutedims(t.order, perm)
+        # CI_new = CartesianIndices(order_new)
+        return TrivialTensorizer{d}(order_new, CI)
     else
         return t
     end
+end
+
+function check_in_tensorizer(t::TrivialTensorizer{d}, 
+    index::NTuple{d, Int}) where {d}
+    throw(ArgumentError("Not implemented for d>1, convert to DownwardClosedTensorizer first"))
+    return CartesianIndex(index) in t.CI
 end

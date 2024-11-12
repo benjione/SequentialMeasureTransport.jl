@@ -707,6 +707,7 @@ function _OT_JuMP!(a::PSDModel{T},
                 ϵ::T,
                 X::PSDDataVector{T},
                 Y::Vector{T};
+                use_quadrature_cost=true,
                 trace=false,
                 optimizer=nothing,
                 normalization=false,
@@ -714,6 +715,9 @@ function _OT_JuMP!(a::PSDModel{T},
                 marg_constraints=nothing,
                 marg_regularization=nothing,
                 marg_data_regularization=nothing,
+                marg_integration_mode=:quadrature, # :quadrature, :conditional_MC, :MC
+                marg_integration_number=100,       # for quadrature, number of quadrature points, for MC, number of samples
+                marg_conditional_distr=nothing,
                 marg_div_mode=:divergence,
                 α_marg=2.0,
                 λ_marg_reg=1e5,
@@ -742,7 +746,7 @@ function _OT_JuMP!(a::PSDModel{T},
         JuMP.set_silent(model)
     end
     N = size(a.B, 1)
-    JuMP.@variable(model, _B[1:N, 1:N], PSD)
+    JuMP.@variable(model, _B[1:N, 1:N] in JuMP.PSDCone())
     if set_start_value
         JuMP.set_start_value.(_B, a.B)
     end
@@ -751,7 +755,7 @@ function _OT_JuMP!(a::PSDModel{T},
         # JuMP.@variable(model, D[1:length(mat_list), 1:N, 1:N])
         D = []
         for i=1:length(mat_list)
-            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]], PSD)
+            _D = JuMP.@variable(model, [1:N_SoS_comb[i], 1:N_SoS_comb[i]] in JuMP.PSDCone())
             # JuMP.@constraint(model, D[i,:,:] in JuMP.PSDCone())
             push!(D, _D)
         end
@@ -774,27 +778,39 @@ function _OT_JuMP!(a::PSDModel{T},
         # JuMP.@constraint(model, B[prob.fixed_variables] .== prob.initial[prob.fixed_variables])
     end
 
+    ####################################
     ## cost function part
-    crate_M(x) = Φ(a, x) * Φ(a, x)'
-    quad_points, quad_weights = gausslegendre(60)
-    quad_points = (quad_points .+ 1.0) * 0.5
-    quad_weights = quad_weights * 0.5
 
-    @info "create cost matrix"
-    # res = zeros(T, size(crate_M(rand(d))))
-    # for k in Iterators.product([1:length(quad_points) for _ in 1:d]...)
-    #     _x = quad_points[[k...]]
-    #     res .+= prod(quad_weights[[k...]]) * crate_M(_x) * cost(_x)
-    # end
+    crate_M(x) = Φ(a, x) * Φ(a, x)'
     _t1 = time()
-    res = foldxl(+ , Iterators.product([1:length(quad_points) for _ in 1:d]...) |> 
-                Zip(Transducers.Map(k->@inbounds quad_points[[k...]]), Transducers.Map(k->prod(@inbounds quad_weights[[k...]]))) |> 
-                Transducers.Map((x) -> x[2] * crate_M(x[1]) * cost(x[1])), init=zeros(T, size(crate_M(rand(d)))))
+    res = if use_quadrature_cost
+        ## use quadrature points to approximate integral
+        quad_points, quad_weights = gausslegendre(70)
+        quad_points = (quad_points .+ 1.0) * 0.5
+        quad_weights = quad_weights * 0.5
+
+        @info "create cost matrix using quadrature"
+
+        res = foldxl(+ , Iterators.product([1:length(quad_points) for _ in 1:d]...) |> 
+                    Zip(Transducers.Map(k->@inbounds quad_points[[k...]]), Transducers.Map(k->prod(@inbounds quad_weights[[k...]]))) |> 
+                    Transducers.Map((x) -> x[2] * crate_M(x[1]) * cost(x[1])), init=zeros(T, size(crate_M(rand(d)))))
+
+        res
+    else
+        ## use Monte Carlo sampling to approximate integral
+        @info "create cost matrix using Monte Carlo"
+        n_sample_MC = 10000
+        res = foldxt(+ , rand(d, n_sample_MC) |> eachcol |>
+                    Transducers.Map((x) -> crate_M(x) * cost(x)), init=zeros(T, size(crate_M(rand(d)))))
+        res = (1/n_sample_MC) * res
+        res
+    end
     _t2 = time() - _t1
     @info "done! - $(_t2)  \n"
 
     JuMP.@expression(model, cost_part, tr(B * res))
 
+    ####################################
     ## Entropy regularization part
     K = reduce(hcat, Φ.(Ref(a), X))
 
@@ -804,6 +820,8 @@ function _OT_JuMP!(a::PSDModel{T},
     JuMP.@variable(model, t)
     JuMP.@constraint(model, [t; Y; ex] in JuMP.MOI.RelativeEntropyCone(2*m+1))
 
+    ####################################
+    # Marginal constraints and/or regularization
     if marg_constraints !== nothing
         for (marg_model, B_marg) in marg_constraints
             @info "fixing marginal"
@@ -815,7 +833,7 @@ function _OT_JuMP!(a::PSDModel{T},
       
         @info "marginal constraints"
         ## derive reduced matrx M
-        quad_points, quad_weights = gausslegendre(100)
+        quad_points, quad_weights = gausslegendre(200)
         quad_points = (quad_points .+ 1.0) * 0.5
         quad_weights = quad_weights * 0.5
         
@@ -850,8 +868,22 @@ function _OT_JuMP!(a::PSDModel{T},
             @inline _assemble(x, y) = permute!([x; y], _perm)
             for (i, x) in enumerate(marg_struct[2])
                 M_list[j, i] = zeros(T, size(M_marginals(rand(d))))
-                for k in Iterators.product([1:length(quad_points) for _ in 1:_d]...)
-                    M_list[j, i] .+= prod(quad_weights[[k...]]) * M_marginals(_assemble(x, quad_points[[k...]]))
+                if marg_integration_mode == :quadrature
+                    @inline for k in Iterators.product([1:length(quad_points) for _ in 1:_d]...)
+                        M_list[j, i] .+= prod(quad_weights[[k...]]) * M_marginals(_assemble(x, quad_points[[k...]]))
+                    end
+                elseif marg_integration_mode == :conditional_MC
+                    X = marg_conditional_distr[j](x, marg_integration_number)
+                    M_list[j, i] = foldl(+ , X |>
+                        Transducers.Map((y) -> M_marginals(_assemble(x, y))), init=zeros(T, size(M_marginals(rand(d)))))
+                    M_list[j, i] = (1/marg_integration_number) * M_list[j, i]
+                elseif marg_integration_mode == :MC
+                    n_sample_MC = marg_integration_number
+                    M_list[j, i] = foldxt(+ , rand(d, n_sample_MC) |> eachcol |>
+                        Transducers.Map((y) -> M_marginals(_assemble(x, y))), init=zeros(T, size(M_marginals(rand(d)))))
+                    M_list[j, i] = (1/n_sample_MC) * M_list[j, i]
+                else
+                    throw(@error "marg_integration_mode not supported!")
                 end
                 # M_list[j, i] = res
                 # M_list[j, i] = sum(quad_weights .* map(q->M(_assemble(x, q)), quad_points))
@@ -878,11 +910,11 @@ function _OT_JuMP!(a::PSDModel{T},
                 else
                     JuMP.@constraint(model, [j=1:n_marg, i=1:m_marg], [r[j, i]; one(T); marg_reg[j][3][i]^(α_marg/(1-α_marg)) * ex_marg[j, i]] in JuMP.MOI.PowerCone(1/(1-α_marg)))
                 end
-                JuMP.@constraint(model, [j=1:n_marg], t_marg[j] == (1/m_marg) * sum(W_list[j, :] .* r[j,:]))
+                JuMP.@constraint(model, [j=1:n_marg], t_marg[j] == sum(W_list[j, :] .* r[j,:]))
             elseif marg_div_mode == :mse
                 JuMP.@expression(model, ex_marg[j=1:n_marg, i=1:m_marg], dot(M_list[j, i], B))
                 JuMP.@variable(model, t_marg[j=1:n_marg])
-                JuMP.@constraint(model, [j=1:n_marg], [t_marg[j]; (1/m_marg) * sqrt.(W_list[j, :]) .* (ex_marg[j, :] - marg_reg[j][3])] in JuMP.MOI.SecondOrderCone(1+m_marg))
+                JuMP.@constraint(model, [j=1:n_marg], [t_marg[j]; sqrt.(W_list[j, :]) .* (ex_marg[j, :] - marg_reg[j][3])] in JuMP.MOI.SecondOrderCone(1+m_marg))
             end 
         end
     end

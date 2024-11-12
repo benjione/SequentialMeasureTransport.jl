@@ -327,6 +327,15 @@ function conditional_sample(sampler::AbstractCondSampler{d,dC,T,R}, x::PSDdata{T
     dx = _d_marg(sampler)
     return conditional_pushforward(sampler, sample_reference(sampler)[dx+1:d], x)
 end
+function conditional_sample(sampler::AbstractCondSampler{d,<:Any,T}, x::PSDdata{T}, amount_samples::Int;
+    threading=true
+) where {d,T<:Number}
+    res = Vector{PSDdata{T}}(undef, amount_samples)
+    @_condusethreads threading for i=1:amount_samples
+        res[i] = conditional_sample(sampler, x)
+    end
+    return res
+end
 
 ## methods for Reference distribution
 @inline _ref_pushforward(sampler::AbstractCondSampler{<:Any,<:Any,T}, x::PSDdata{T}) where {T} = pushforward(sampler.R1_map, x)
@@ -348,6 +357,10 @@ end
 ## nothing reference
 @inline pushforward(::Nothing, x) = x
 @inline pullback(::Nothing, x) = x
+@inline marginal_pushforward(::Nothing, x) = x
+@inline marginal_pullback(::Nothing, x) = x
+@inline conditional_pushforward(::Nothing, x, y) = y
+@inline conditional_pullback(::Nothing, x, y) = y
 @inline Jacobian(::Nothing, x) = 1.0
 @inline inverse_Jacobian(::Nothing, x) = 1.0
 @inline log_Jacobian(::Nothing, x) = 0.0
@@ -356,6 +369,7 @@ end
 include("mappings/ProjectionMapping.jl")
 include("mappings/MarginalMapping.jl")
 include("mappings/BlockDiagonalMapping.jl")
+include("mappings/InverseMapping.jl")
 
 include("triangular_maps/TriangularMap.jl")
 include("triangular_maps/ATM.jl")

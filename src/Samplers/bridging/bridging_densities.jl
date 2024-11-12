@@ -2,7 +2,6 @@ module BridgingDensities
 
 abstract type BridgingDensity{d, T} end
 
-using DifferentialEquations
 using ..SequentialMeasureTransport: PSDDataVector, PSDdata
 
 include("algebraic.jl")

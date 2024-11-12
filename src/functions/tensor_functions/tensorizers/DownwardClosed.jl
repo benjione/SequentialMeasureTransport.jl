@@ -11,8 +11,13 @@ struct DownwardClosedTensorizer{d} <: Tensorizer{d}
 end
 
 function DownwardClosedTensorizer(index_list::Vector{NTuple{d, Int}}) where {d}
-    M_inner = filter(x->check_in_inner_margin(x, index_list), index_list)
-    return DownwardClosedTensorizer(index_list, M_inner)
+    M_inner = NTuple{d, Int}[]
+    ten = DownwardClosedTensorizer{d}(index_list, M_inner)
+    M_inner = filter(x->check_in_inner_margin(ten, x), index_list)
+    for i in M_inner
+        push!(ten.M_inner, i)
+    end
+    return ten
 end
 
 function DownwardClosedTensorizer(d::Int, max_order::Int; max_Φ_size=nothing)
