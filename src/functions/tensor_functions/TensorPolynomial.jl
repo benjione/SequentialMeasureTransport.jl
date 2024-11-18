@@ -18,14 +18,10 @@ struct FMTensorPolynomial{d, T, S<:Tensorizer{d}, tsp<:TensorSpace} <: TensorFun
     end
 end
 
-dimensions(::FMTensorPolynomial{d}) where {d} = d
 domain_interval(p::FMTensorPolynomial, dim::Int) = begin
     return (leftendpoint(p.space.spaces[dim].domain),
     rightendpoint(p.space.spaces[dim].domain))
 end
-
-@inline σ(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S<:Tensorizer} = σ(p.ten, i)
-@inline σ_inv(p::FMTensorPolynomial{<:Any, <:Any, S}, i) where {S<:Tensorizer} = σ_inv(p.ten, i)
 
 ## Pretty printing
 Base.show(io::IO, p::FMTensorPolynomial{d, T, S, tsp}) where {d, T, S<:Tensorizer, tsp<:TensorSpace} = begin
@@ -98,9 +94,9 @@ function trivial_TensorPolynomial(T::Type{<:Number},
                                 space::TensorSpace, 
                                 N::Int)
     d = length(space.spaces)
-    if N^(1/d) - floor(N^(1/d)) > 1e-12
-        throw(ArgumentError("N must be a perfect power of d"))
-    end
+    # if N^(1/d) - floor(N^(1/d)) > 1e-12
+    #     throw(ArgumentError("N must be a perfect power of d"))
+    # end
     ten = TrivialTensorizer(d, N)
     ten = trivial_to_downward_closed(ten)
     high_order = highest_order(ten)-1
