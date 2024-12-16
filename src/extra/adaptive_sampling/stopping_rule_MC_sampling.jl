@@ -76,7 +76,7 @@ Stopping rule estimates condition so that
 P(|X - μ| > δ) < p
 where X is the sample mean and μ is the true mean
 """
-_chebyshev_stopping_rule(δ, p, m, variance) = (1 - p) - (variance / (m * δ^2))
+_chebyshev_stopping_rule(δ, p, m, variance) = (variance / (δ^2)) - p
 
 ## following algorithm 2 from Bicher et al 2022
 ## adds samples to X, Y until stopping rule is satisfied
