@@ -25,6 +25,8 @@ end
 @inline _of_same_PSD(a::PSDModelKernel{T}, B::AbstractMatrix{T}) where {T<:Number} =
                                 PSDModelKernel(Hermitian(B), a.k, a.X)
 
+dimension(a::PSDModelKernel) = length(a.X[1])
+
 """
 Φ(a::PSDModelKernel, x::PSDdata{T}) where {T<:Number}
 
@@ -60,8 +62,9 @@ function PSDModel_direct(
         Y::Vector{T}, 
         k::Kernel;
         regularize_kernel=true,
-        cond_thresh=1e10,
-        λ_1=1e-8,
+        cond_thresh=1e4,
+        λ_1=1e-3,
+        λ_2=1e-8,
         trace=false,
         kwargs...
     ) where {T<:Number}
@@ -83,9 +86,13 @@ function PSDModel_direct(
 
     V = cholesky(K)
     V_inv = inv(V)
+    V2 = Matrix(V)
 
-    A = Hermitian(spdiagm(Y))
-    B = Hermitian((V_inv' * A * V_inv))
+    A = Hermitian(spdiagm(Y.+1e-8))
+    evals, evecs = eigen((V2 * A * V2' + λ_1 * I))
+    evals = max.(evals, Ref(0.0))
+    B = Hermitian((evecs * Diagonal(evals) * evecs'))
+    B = Hermitian((V_inv' * B * V_inv))
 
     # # project B onto the PSD cone, just in case
     # B, _ = prox(IndPSD(), B)
@@ -115,3 +122,53 @@ function add_support(a::PSDModelKernel{T}, X::PSDDataVector{T}) where {T<:Number
     return PSDModelKernel(B, a.k, new_S)
 end
 
+"""
+Marginalize for RBF kernel, where the kernel is defined as
+    k(x, y) = σ^2 * exp(-||x - y||^2 / (2l^2))
+"""
+function marginalize(a::PSDModelKernel{T}, dim::Int; σ=1.0) where {T<:Number}
+    l = 1/a.k.transform.s[1]
+    X_dim = [x[dim] for x in a.X]
+    # K = -((X_dim .- X_dim').^2) ./ (4.0 * l^2)
+    # K = - 2.0 * ((X_dim .+ X_dim') ./ 2.0).^2 + (X_dim * X_dim')
+    K = 0.5*((X_dim .- X_dim')).^2
+    K = exp.(-K ./ (2.0*l^2)) * σ^4 * (sqrt(π)) * l
+    B = a.B .* K
+    _d = length(a.X[1])
+    if _d == 1
+        return sum(B)
+    end
+    X_new = [x[1:dim-1] ∪ x[dim+1:_d] for x in a.X]
+    return PSDModelKernel(Hermitian(B), a.k, X_new)
+end
+
+function marginalize(a::PSDModelKernel{T}, dims::Vector{Int}; σ=1.0) where {T<:Number}
+    d = length(a.X[1])
+    @assert 1 ≤ minimum(dims) ≤ maximum(dims) ≤ d
+    dims = sort(dims)
+    for dim in reverse(dims) ## reverse order to avoid changing the indices
+        a = marginalize(a, dim; σ=σ)
+    end
+    return a
+end
+
+normalize!(a::PSDModelKernel{T}) where {T<:Number} = begin
+    d = length(a.X[1])
+    c = marginalize(a, collect(1:d))
+    a.B .= a.B / c
+end
+
+normalize(a::PSDModelKernel{T}) where {T<:Number} = begin
+    d = length(a.X[1])
+    c = marginalize(a, collect(1:d))
+    return PSDModelKernel(a.B / c, a.k, a.X)
+end
+
+
+function integral(a::PSDModelKernel{T}, dim::Int) where {T<:Number}
+    return KernelTraceModel(a.X, a.B, a.k, dim)
+end
+
+function permute_indices(a::PSDModelKernel{T}, perm::Vector{Int}) where {T<:Number}
+    return PSDModelKernel(a.B, a.k, [x[perm] for x in a.X])
+end

@@ -374,6 +374,7 @@ include("mappings/InverseMapping.jl")
 include("triangular_maps/TriangularMap.jl")
 include("triangular_maps/ATM.jl")
 include("triangular_maps/GridMapping.jl")
+include("triangular_maps/PSDModelMapping.jl")
 
 include("samplers/Sampler.jl")
 include("samplers/PSDModelSampler.jl")

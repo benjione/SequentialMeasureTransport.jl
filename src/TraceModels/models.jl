@@ -1,6 +1,7 @@
 
 
 include("polynomial.jl")
+include("kernel.jl")
 
 ## trace model evaluation
 function (a::TraceModel{T})(x::PSDdata{T}) where {T<:Number}

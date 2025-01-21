@@ -1,5 +1,7 @@
 abstract type PSDModelOrthonormal{d, T, S} <: AbstractPSDModelFM{T} end
 
+dimension(a::PSDModelOrthonormal{d}) where {d} = d
+
 ## special feature map models:
 include("polynomial.jl")
 include("SubMarginalModel.jl")
