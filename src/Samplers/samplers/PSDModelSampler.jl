@@ -14,6 +14,8 @@ struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Not
         # check that the last {dC} variables are the last ones in the ordering
         @assert issetequal(variable_ordering[(d-dC+1):d], (d-dC+1):d)
         model = normalize(model) # create normalized copy
+        # model.B[1, 1] += 0.0001
+        # normalize!(model)
         perm_model = permute_indices(model, variable_ordering) # permute dimensions
         margins = PSDModelOrthonormal{<:Any, T, S}[marginalize(perm_model, collect(k:d)) for k in 2:d]
         margins = [margins; perm_model] # add the full model at last
@@ -141,14 +143,14 @@ function Distributions.pdf(
         sar::PSDModelSampler{d, <:Any, T},
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return sar.model(x)::T
+    return sar.model(x)
 end
 
 function Distributions.logpdf(
         sar::PSDModelSampler{d, <:Any, T},
         x::PSDdata{T}
     ) where {d, T<:Number}
-    return log(sar.model(x)+ϵ_log)::T
+    return log(sar.model(x))::T
 end
 
 
@@ -170,6 +172,9 @@ marginal_logpdf(sampler::PSDModelSampler{d, dC, T, S}, x::PSDdata{T}) where {d, 
 @inline inverse_Jacobian(sampler::PSDModelSampler{d, <:Any, T}, 
                         x::PSDdata{T}
         ) where {d, T<:Number} = Distributions.pdf(sampler, x)
+@inline inverse_log_Jacobian(sampler::PSDModelSampler{d, <:Any, T}, 
+                        x::PSDdata{T}
+        ) where {d, T<:Number} = Distributions.logpdf(sampler, x)
 
 
 ## Methods for satisfying ConditionalSampler interface

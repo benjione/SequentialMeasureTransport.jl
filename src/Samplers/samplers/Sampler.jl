@@ -238,10 +238,8 @@ function Distributions.logpdf(
         res += inverse_log_Jacobian(s, _x)
         _x = pullback(s, _x)
     end
-    # jump last reference map, since it pushed to U([0, 1]^d)
+    # jump last reference map, since it pushed to U([0, 1]^d), log(1) = 0
     return res
-    # log_pdf_func = log_pushforward(sar, x->log(reference_pdf(sar, x)))
-    # return log_pdf_func(x)
 end
 
 function marginal_pdf(sra::CondSampler{<:Any, <:Any, T}, x::PSDdata{T}) where {T<:Number}

@@ -7,6 +7,7 @@ using ..SequentialMeasureTransport: PSDDataVector, PSDdata
 include("algebraic.jl")
 include("diffusion.jl")
 include("alpha_geodesic.jl")
+include("rare_event.jl")
 
 export BridgingDensity
 export DiffusionBrigdingDensity, AlgebraicBridgingDensity, AlphaGeodesicBridgingDensity
