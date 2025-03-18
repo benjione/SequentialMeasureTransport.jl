@@ -1,4 +1,5 @@
 using Roots: find_zero
+import Roots
 
 struct PSDModelSampler{d, dC, T<:Number, S} <: AbstractCondSampler{d, dC, T, Nothing, Nothing}
     model::PSDModelOrthonormal{d, T, S}                 # model to sample from
@@ -100,7 +101,7 @@ function _pushforward_first_n(sampler::PSDModelSampler{d, <:Any, T, S},
     else
         for k=1:n
             left, right = domain_interval(sampler.model, sampler.variable_ordering[k])
-            x[k] = find_zero(f(k), (left, right))::T
+            x[k] = find_zero(f(k), (left, right), Roots.AlefeldPotraShi())::T
         end
     end
     return invpermute!(x, sampler.variable_ordering[1:n])
@@ -211,7 +212,7 @@ function conditional_pushforward(sampler::PSDModelSampler{d, dC, T, S}, u::PSDda
     else
         for k=1:dC
             left, right = domain_interval(sampler.model, sampler.variable_ordering[dx+k])
-            y[k] = find_zero(f(k), (left, right))
+            y[k] = find_zero(f(k), (left, right), Roots.AlefeldPotraShi())
         end
     end
     return invpermute!(y, sampler.variable_ordering[dx+1:end].-dx)

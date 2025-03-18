@@ -9,6 +9,7 @@ using Combinatorics: multiexponents
 using Transducers
 import ForwardDiff as FD
 import StatsBase
+import LinearAlgebra: normalize!, normalize
 
 ## overwrite functions in this module for compatibility
 import Base
@@ -25,7 +26,7 @@ export fit!, minimize!, IRLS!
 ## export differentiation and integration
 export gradient
 export integral
-export normalize!, normalize_orth_measure!
+export normalize_orth_measure!
 export marginalize_orth_measure, marginalize
 
 ## export arithmetic

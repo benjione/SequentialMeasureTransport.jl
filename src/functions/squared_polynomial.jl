@@ -6,7 +6,7 @@ struct SquaredPolynomialMatrix{d, T, S, FunType}
     int_Fun::Vector{FunType}    # integral of Φ[i] * Φ[j] over dimension int_dim
     function SquaredPolynomialMatrix(Φ::FMTensorPolynomial{d, T, S}, int_dim::Vector{Int}; C=nothing) where {d, T, S}
         if C === nothing
-            C = leftendpoint(Φ.space.spaces[int_dim].domain)
+            C = [leftendpoint(Φ.space.spaces[id].domain) for id in int_dim]
         end
         
         M_type = typeof(Fun(Φ.space.spaces[int_dim[1]], rand(2)))
@@ -19,7 +19,7 @@ struct SquaredPolynomialMatrix{d, T, S, FunType}
                     f1 = Fun(Φ.space.spaces[k], T[zeros(T, i-1);Φ.normal_factor[k][i]])
                     f2 = Fun(Φ.space.spaces[k], T[zeros(T, j-1);Φ.normal_factor[k][j]])
                     res = Integral() * (f1 * f2)
-                    res = res - res(C)  ## let integral start from 0
+                    res = res - res(C[k_index])  ## let integral start from 0
                     int_Fun[k_index][i, j] = res
                     int_Fun[k_index][j, i] = res
                 end

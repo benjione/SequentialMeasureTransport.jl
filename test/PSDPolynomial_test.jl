@@ -146,7 +146,7 @@ end
         normalize_orth_measure!(model)
         @test tr(model.B) ≈ 1.0
 
-        SequentialMeasureTransport.normalize!(model)
+        normalize!(model)
         @test tr(model.B) ≈ 1.0
     end
 
@@ -162,7 +162,7 @@ end
             normalize_orth_measure!(model)
             @test tr(model.B) ≈ 1.0
 
-            SequentialMeasureTransport.normalize!(model)
+            normalize!(model)
             @test tr(model.B) ≈ 1.0
         end
     end

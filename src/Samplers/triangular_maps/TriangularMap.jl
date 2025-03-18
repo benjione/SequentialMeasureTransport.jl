@@ -1,47 +1,19 @@
 abstract type AbstractTriangularMap{d, dC, T} <: ConditionalMapping{d,dC,T} end
 
-"""
-    TriangularMap{d, dC, T}
-    A generic implementation of triangular transport maps. In practice, this is
-    overriten by a specific implementation of a triangular transport map.
-    The functions defined here can be reused, by defining the `map[k]` and `jacobian[k]`
 
-    The map is defned as Q(x)_k = Q(x_k | x_{<k}) and the jacobian as ∂_k Q(x)_k = ∂_k Q(x_k | x_{<k})
-    where x_{<k} = [x_1, ..., x_{k-1}]
-"""
-struct TriangularMap{d, dC, T<:Number} <: AbstractTriangularMap{d,dC,T}
-    MonotoneMap::Vector{Function}       # Q(x_k | x_{<k})
-    jacobian::Vector{Function}          # ∂_k Q(x_k | x_{<k})
-    variable_ordering::Vector{Int}      # variable ordering for the model
-    in_dom::Vector{Tuple{<:Number, <:Number}}
-    out_dom::Vector{Tuple{<:Number, <:Number}}
-    function TriangularMap{T}(
-            map::Vector{Function}, 
-            jacobian::Vector{Function},
-            variable_ordering::Vector{Int}, 
-            dC::Int,
-            in_dom::Vector{<:Tuple{<:Number, <:Number}},
-            out_dom::Vector{<:Tuple{<:Number, <:Number}}
-        ) where {T<:Number}
-        d = length(map)
-        @assert dC < d
-        # check that the last {dC} variables are the last ones in the ordering
-        @assert issetequal(variable_ordering[(d-dC+1):d], (d-dC+1):d)
-        
-        new{d, dC, T}(map, jacobian, variable_ordering, in_dom, out_dom)
-    end
-    function TriangularMap{T}(map::Vector{Function}, 
-                    jacobian::Vector{Function}, 
-                    variable_ordering::Vector{Int},
-                    in_dom::Vector{<:Tuple{<:Number, <:Number}},
-                    out_dom::Vector{<:Tuple{<:Number, <:Number}}
-            ) where {T<:Number}
-        TriangularMap{T}(map, jacobian, variable_ordering, 0, in_dom, out_dom)
-    end
-end
+# interface functions
+@inline MonotoneMap(sampler::AbstractTriangularMap, 
+            x::PSDdata, 
+            k::Int) = throw(error("Not implemented"))
+@inline ∂k_MonotoneMap(sampler::AbstractTriangularMap, 
+            x::PSDdata, 
+            k::Int) = throw(error("Not implemented"))
 
-@inline MonotoneMap(sampler::TriangularMap{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = sampler.MonotoneMap[k](x[1:k])
-@inline ∂k_MonotoneMap(sampler::TriangularMap{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = sampler.jacobian[k](x[1:k])
+
+
+"""
+Generic implementations of Triangular maps
+"""
 
 function _pushforward_first_n(sampler::AbstractTriangularMap{d, <:Any, T}, 
                      x::PSDdata{T}, n::Int) where {d, T<:Number}
@@ -128,3 +100,49 @@ function conditional_pullback(sampler::AbstractTriangularMap{d, dC, T},
     return invpermute!(y, sampler.variable_ordering[dx+1:end].-dx)
 end
 
+
+
+
+
+"""
+    TriangularMap{d, dC, T}
+    A generic implementation of triangular transport maps. In practice, this is
+    overriten by a specific implementation of a triangular transport map.
+    The functions defined here can be reused, by defining the `map[k]` and `jacobian[k]`
+
+    The map is defned as Q(x)_k = Q(x_k | x_{<k}) and the jacobian as ∂_k Q(x)_k = ∂_k Q(x_k | x_{<k})
+    where x_{<k} = [x_1, ..., x_{k-1}]
+"""
+struct TriangularMap{d, dC, T<:Number} <: AbstractTriangularMap{d,dC,T}
+    MonotoneMap::Vector{Function}       # Q(x_k | x_{<k})
+    jacobian::Vector{Function}          # ∂_k Q(x_k | x_{<k})
+    variable_ordering::Vector{Int}      # variable ordering for the model
+    in_dom::Vector{Tuple{<:Number, <:Number}}
+    out_dom::Vector{Tuple{<:Number, <:Number}}
+    function TriangularMap{T}(
+            map::Vector{Function}, 
+            jacobian::Vector{Function},
+            variable_ordering::Vector{Int}, 
+            dC::Int,
+            in_dom::Vector{<:Tuple{<:Number, <:Number}},
+            out_dom::Vector{<:Tuple{<:Number, <:Number}}
+        ) where {T<:Number}
+        d = length(map)
+        @assert dC < d
+        # check that the last {dC} variables are the last ones in the ordering
+        @assert issetequal(variable_ordering[(d-dC+1):d], (d-dC+1):d)
+        
+        new{d, dC, T}(map, jacobian, variable_ordering, in_dom, out_dom)
+    end
+    function TriangularMap{T}(map::Vector{Function}, 
+                    jacobian::Vector{Function}, 
+                    variable_ordering::Vector{Int},
+                    in_dom::Vector{<:Tuple{<:Number, <:Number}},
+                    out_dom::Vector{<:Tuple{<:Number, <:Number}}
+            ) where {T<:Number}
+        TriangularMap{T}(map, jacobian, variable_ordering, 0, in_dom, out_dom)
+    end
+end
+
+@inline MonotoneMap(sampler::TriangularMap{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = sampler.MonotoneMap[k](x[1:k])
+@inline ∂k_MonotoneMap(sampler::TriangularMap{d, <:Any, T}, x::PSDdata{T}, k::Int) where {d, T<:Number} = sampler.jacobian[k](x[1:k])

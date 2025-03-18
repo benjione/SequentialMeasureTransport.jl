@@ -13,7 +13,6 @@ function SelfReinforcedSampler(
             N_sample=1000,
             max_blur=1.0,
             algebraic_base=2.0,
-            N_relaxation=20, # number of MC for blurring
             langevin_time_grad=1.0,
             langevin_max_time=0.2,
             kwargs...) where {d, T<:Number, S}

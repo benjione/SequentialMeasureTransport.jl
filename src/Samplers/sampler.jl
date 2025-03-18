@@ -380,3 +380,4 @@ include("samplers/Sampler.jl")
 include("samplers/PSDModelSampler.jl")
 
 include("algorithms.jl")
+include("SeqTransport.jl")

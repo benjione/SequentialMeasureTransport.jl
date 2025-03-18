@@ -91,6 +91,12 @@ function Hellinger_fit!(model::PSDModel{T},
     minimize!(model, loss_Hellinger, X; kwargs...)
 end
 
+function Hellinger_fit!(model::SMT.SqPolynomial{<:Any, T}, 
+        X::PSDDataVector{T},
+        Y::AbstractVector{T}) where {T<:Number}
+    SMT._sq_poly_Hellinger_fit!(model, X, Y, ones(length(Y)))
+end
+
 function TV_fit!(model::PSDModel{T},
     X::PSDDataVector{T},
     Y::AbstractVector{T};

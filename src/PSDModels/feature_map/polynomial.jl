@@ -213,10 +213,10 @@ function get_semialgebraic_domain_constraints(a::PSDModelPolynomial{d, T}) where
     return D_list, coef_list
 end
 
-import LinearAlgebra: normalize, normalize!
-normalize(a::PSDModelPolynomial{d, <:Number}, measure::Function; kwargs...) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d), measure; kwargs...)))
-normalize(a::PSDModelPolynomial{d, <:Number}; kwargs...) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d); kwargs...)))
+import LinearAlgebra
+LinearAlgebra.normalize(a::PSDModelPolynomial{d, <:Number}, measure::Function; kwargs...) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d), measure; kwargs...)))
+LinearAlgebra.normalize(a::PSDModelPolynomial{d, <:Number}; kwargs...) where {d} = _of_same_PSD(a, a.B * (1/marginalize(a, collect(1:d); kwargs...)))
 normalize_orth_measure(a::PSDModelPolynomial{<:Any, <:Number}) = _of_same_PSD(a, a.B * (1/tr(a.B)))
 normalize_orth_measure!(a::PSDModelPolynomial{<:Any, T}) where {T<:Number} = a.B .= a.B * (1/tr(a.B))
-normalize!(a::PSDModelPolynomial{d, T}; kwargs...) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d); kwargs...))
-normalize!(a::PSDModelPolynomial{d, T}, measure::Function; kwargs...) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d), measure; kwargs...))
+LinearAlgebra.normalize!(a::PSDModelPolynomial{d, T}; kwargs...) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d); kwargs...))
+LinearAlgebra.normalize!(a::PSDModelPolynomial{d, T}, measure::Function; kwargs...) where {d, T<:Number} = a.B .= a.B * (1/marginalize(a, collect(1:d), measure; kwargs...))
