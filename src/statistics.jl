@@ -35,7 +35,7 @@ function ML_fit!(model::PSDModel{T},
         end
         return _ML_JuMP!(model, samples; normalization=true, kwargs...)
     elseif SDP_library == :Manopt
-        return _ML_Manopt!(model, samples; kwargs...)
+        return _ML_Manopt!(model, samples; use_putinar=use_putinar, kwargs...)
     end
 
     loss_KL(Z) = -(1/length(Z)) * sum(log.(Z))
@@ -132,7 +132,7 @@ function α_divergence_fit!(model::PSDModel{T},
         end
         return _α_divergence_JuMP!(model, α, X, Y; kwargs...)
     elseif SDP_library == :Manopt
-        return _α_divergence_Manopt!(model, α, X, Y; kwargs...)
+        return _α_divergence_Manopt!(model, α, X, Y; use_putinar=use_putinar, kwargs...)
     else
         throw(ArgumentError("Only JuMP and Manopt is supported for now."))
     end
