@@ -407,29 +407,20 @@ function _α_divergence_Manopt!(a::PSDModel{T},
     return cost_alpha(nothing, A_new)
 end
 
-function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
-    α::T,
-    X::PSDDataVector{T},
-    Y::AbstractVector{T}; use_putinar=false, kwargs...) where {d, T<:Number}
-    if use_putinar
-        return _α_divergence_Manopt_putinar!(a, α, X, Y; kwargs...)
-    end
-    return invoke(_α_divergence_Manopt!, Tuple{PSDModel{T}, typeof(α), typeof(X), typeof(Y)}, 
-                a, α, X, Y; kwargs...)
-end
 
-function _α_divergence_Manopt_putinar!(a::PSDModelPolynomial{d, T},
+function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
                 α::T,
                 X::PSDDataVector{T},
                 Y::AbstractVector{T};
                 λ_1 = 0.0,
                 λ_2 = 0.0,
                 ϵ = 1e-8,
+                use_putinar=true,
                 trace=false,
                 normalization=false,
                 algorithm=:gradient_descent,
                 use_CV=false,
-                CV_split=0.8,
+                CV_K=5,
                 maxit=1000,
                 mingrad_stop=1e-8,
                 kwargs...
@@ -447,7 +438,11 @@ function _α_divergence_Manopt_putinar!(a::PSDModelPolynomial{d, T},
     for i in 1:d
         push!(M_list, Manifolds.SymmetricPositiveDefinite(size(D_list[i][1],2)))
     end
-    M = foldl(×, M_list, init=Manifolds.SymmetricPositiveDefinite(N))
+    M = if use_putinar
+        foldl(×, M_list, init=Manifolds.SymmetricPositiveDefinite(N))
+    else
+        Manifolds.SymmetricPositiveDefinite(N)
+    end
 
 
     function _cost_alpha(A, α, X, Y)
@@ -464,41 +459,50 @@ function _α_divergence_Manopt_putinar!(a::PSDModelPolynomial{d, T},
     stop_CV = nothing
     X_train, Y_train = X, Y
     X_test, Y_test = nothing, nothing
+    
     if use_CV
         shuf = Random.shuffle(1:length(X))
-        _X, _Y = X[shuf], Y[shuf]
-        X_train = _X[1:round(Int, CV_split * length(_X))]
-        Y_train = _Y[1:round(Int, CV_split * length(_Y))]
-        X_test = _X[round(Int, CV_split * length(_X))+1:end]
-        Y_test = _Y[round(Int, CV_split * length(_Y))+1:end]
-        CV_loss = let α=α
-            (X, Y, A) -> _cost_alpha(A, α, X, Y)
+        _Xtmp, _Ytmp = X[shuf], Y[shuf]
+        _X = [_Xtmp[1+round(Int, ((k-1)/CV_K) * length(X)):round(Int, (k/CV_K) * length(X))] for k in 1:CV_K]
+        _Y = [_Ytmp[1+round(Int, ((k-1)/CV_K) * length(X)):round(Int, (k/CV_K) * length(X))] for k in 1:CV_K]
+    end
+    
+    p = rand(M)
+    for k=1:CV_K
+
+        if use_CV
+            trace && println("CV iteration $k of $CV_K")
+            X_train = [_X[k2] for k2 in 1:CV_K if k2 != k] |> x->vcat(x...)
+            X_test = _X[k]
+            Y_train = [_Y[k2] for k2 in 1:CV_K if k2 != k] |> x->vcat(x...)
+            Y_test = _Y[k]
+            CV_loss = let α=α
+                (X, Y, A) -> _cost_alpha(A, α, X, Y)
+            end
+            stop_CV = CrossValidationStopping(X_test, Y_test, CV_loss; coef_list=coef_list, D_list=D_list) | 
+                        Manopt.StopAfterIteration(maxit) |
+                        Manopt.StopWhenGradientNormLess(mingrad_stop) |
+                        Manopt.StopWhenStepsizeLess(1e-8)
         end
-        stop_CV = CrossValidationStopping(X_test, Y_test, CV_loss; coef_list=coef_list, D_list=D_list) | 
-                    Manopt.StopAfterIteration(maxit) |
-                    Manopt.StopWhenGradientNormLess(mingrad_stop) |
-                    Manopt.StopWhenStepsizeLess(1e-8)
+
+        cost_alpha = let α=α, X_train=X_train, Y_train=Y_train, D_list=D_list, coef_list=coef_list, d=d
+            (M, A) -> _cost_alpha(_p_to_A(M, A, D_list, coef_list), α, X_train, Y_train) - ϵ * mapreduce(i->logdet(A[M, i]), +, 1:d+1)
+        end
+
+        grad_p = rand(M)
+        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), grad_p, X_train, Y_train, λ_1, λ_2; ϵ=ϵ)
+        grad_p_M! = let grad_t=grad_alpha!, D_list=D_list, coef_list=coef_list
+            (M, grad_p, p) -> _grad_p_cost_M!(grad_t, M, grad_p, p, D_list, coef_list)
+        end
+        
+
+        prob = ManoptOptPropblem(M, cost_alpha, grad_alpha!, grad_p_M!, algorithm)
+        p = optimize(prob, p; trace=trace, custom_stopping_criterion=stop_CV, kwargs...)
+        
     end
-
-    cost_alpha = let α=α, X_train=X_train, Y_train=Y_train, D_list=D_list, coef_list=coef_list, d=d
-        (M, A) -> _cost_alpha(_p_to_A(M, A, D_list, coef_list), α, X_train, Y_train) - ϵ * mapreduce(i->logdet(A[M, i]), +, 1:d+1)
-    end
-
-    grad_p = rand(M)
-    grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), grad_p, X_train, Y_train, λ_1, λ_2; ϵ=ϵ)
-    grad_p_M! = let grad_t=grad_alpha!, D_list=D_list, coef_list=coef_list
-        (M, grad_p, p) -> _grad_p_cost_M!(grad_t, M, grad_p, p, D_list, coef_list)
-    end
-
-
-    prob = ManoptOptPropblem(M, cost_alpha, grad_alpha!, grad_p_M!, algorithm)
-    p_init = rand(M)
-    p_new = optimize(prob, p_init; trace=trace, custom_stopping_criterion=stop_CV, kwargs...)
-    # prob2 = ManoptOptPropblem(M, cost_alpha, grad_alpha!, grad_p_M!, :quasi_newton)
-    # p_new = optimize(prob2, p_new; trace=trace, kwargs...)
-    A_new = _p_to_A(M, p_new, D_list, coef_list)
+    A_new = _p_to_A(M, p, D_list, coef_list)
     set_coefficients!(a, Hermitian(A_new))
-    return cost_alpha(M, p_new)
+    return _cost_alpha(A_new, α, X, Y)
 end
 
 
