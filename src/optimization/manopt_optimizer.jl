@@ -419,6 +419,7 @@ function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
                 trace=false,
                 normalization=false,
                 algorithm=:gradient_descent,
+                threading=true,
                 use_CV=false,
                 CV_K=5,
                 maxit=1000,
@@ -490,7 +491,7 @@ function _α_divergence_Manopt!(a::PSDModelPolynomial{d, T},
         end
 
         grad_p = rand(M)
-        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), grad_p, X_train, Y_train, λ_1, λ_2; ϵ=ϵ)
+        grad_alpha! = _grad_cost_alpha(a, α, zeros(T, N, N), zeros(T, N, N), grad_p, X_train, Y_train, λ_1, λ_2; ϵ=ϵ, threading=threading)
         grad_p_M! = let grad_t=grad_alpha!, D_list=D_list, coef_list=coef_list
             (M, grad_p, p) -> _grad_p_cost_M!(grad_t, M, grad_p, p, D_list, coef_list)
         end
