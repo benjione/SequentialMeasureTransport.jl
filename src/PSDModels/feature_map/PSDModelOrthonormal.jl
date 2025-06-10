@@ -94,6 +94,11 @@ function _calculate_marginal_M(a::PSDModelOrthonormal{d, T}, dim::Vector{Int}) w
     return Symmetric(M)
 end
 
+
+function integration_matrix(a::PSDModelOrthonormal{<:Any, T}) where {T<:Number}
+    return LinearAlgebra.I
+end
+
 function _calculate_projector_P(dim::Int, 
                 new_Φ::TensorFunction{<:Any, T}, 
                 old_Φ::TensorFunction{d, T}

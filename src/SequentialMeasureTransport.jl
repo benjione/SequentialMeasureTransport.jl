@@ -2,6 +2,7 @@ module SequentialMeasureTransport
 
 using LinearAlgebra, SparseArrays, StaticArrays
 using KernelFunctions: Kernel, kernelmatrix
+import KernelFunctions
 using DomainSets
 using FastGaussQuadrature: gausslegendre
 using ApproxFun
