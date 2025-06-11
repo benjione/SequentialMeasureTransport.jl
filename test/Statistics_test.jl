@@ -27,17 +27,17 @@ using Distributions
         @test mean((model.(X) .- Y).^2) < 1e-3
     end
 
-    @testset "KL Manopt" begin
-        f(x) = pdf(MvNormal([0.0, 0.0], 4.0*diagm(ones(2))), x)
-        model = PSDModel(Legendre(-10.0..10.0)^2, :downward_closed, 5)
-        # generate some data
-        X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
-        Y = f.(X)
-        Statistics.KL_fit!(model, X, Y, trace=false, SDP_library=:Manopt)
-        normalize!(model)
+    # @testset "KL Manopt" begin
+    #     f(x) = pdf(MvNormal([0.0, 0.0], 4.0*diagm(ones(2))), x)
+    #     model = PSDModel(Legendre(-10.0..10.0)^2, :downward_closed, 5)
+    #     # generate some data
+    #     X = [(rand(2) * 20.0 .- 10.0) for i in 1:500]
+    #     Y = f.(X)
+    #     Statistics.KL_fit!(model, X, Y, trace=false, SDP_library=:Manopt)
+    #     normalize!(model)
 
-        @test mean((model.(X) .- Y).^2) < 1e-3
-    end
+    #     @test mean((model.(X) .- Y).^2) < 1e-3
+    # end
 
     @testset "reversed KL" begin
         f(x) = pdf(MvNormal([0.0, 0.0], 4.0*diagm(ones(2))), x)

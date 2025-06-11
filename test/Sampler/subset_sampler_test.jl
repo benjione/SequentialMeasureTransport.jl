@@ -110,7 +110,7 @@ end
     X = hcat(X1, X2)
     T = Float64
     bridge = DiffusionBrigdingDensity{2}(f, T[1.5, 1.0, 0.75, 0.5, 0.3, 0.25, 0.18, 0.1, 0.07, 0.02, 0.01, 0.005, 0.0], T(2.0))
-    ref_map = SMT.ReferenceMaps.GaussianReference{2, T}(T(2.0))
+    ref_map = SMT.ReferenceMaps.AlgebraicReference{2, T}()
     to_subspace_ref_map = SMT.ReferenceMaps.GaussianReference{2, T}(T(2.0))
     subspace_ref_map = SMT.ReferenceMaps.GaussianReference{1, T}(T(2.0))
 

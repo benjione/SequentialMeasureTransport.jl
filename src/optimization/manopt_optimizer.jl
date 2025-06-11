@@ -155,12 +155,15 @@ end
 
 struct _grad_KL <: _grad_struct
     model
-    M               # integration matrix
+    A
+    M_int               # integration matrix
     grad_A
+    grad_p
     X
     Y
     λ_1
     λ_2
+    ϵ
 end
 
 function (a::_grad_KL)(_, A)
@@ -177,7 +180,7 @@ function (a::_grad_KL)(_, A)
     # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]), init=a.grad_A)
     a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]))
     a.grad_A .*= -(1/length(a.X))
-    a.grad_A .= a.grad_A + a.M
+    a.grad_A .= a.grad_A + a.M_int
     _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
     _λ2_regularization_gradient!(a.grad_A, A, a.λ_2)
     return nothing
@@ -763,35 +766,96 @@ function _KL_Manopt!(a::PSDModel{T},
                 Y::AbstractVector{T};
                 λ_1 = 0.0,
                 λ_2 = 0.0,
-                ϵ = 1e-7,
+                ϵ = 1e-8,
                 trace=false,
                 normalization=false,
                 algorithm=:gradient_descent,
+                use_putinar=true,
+                use_CV=false,
+                mingrad_stop=1e-8,
+                maxit=1000,
+                CV_K=5,
                 kwargs...
             ) where {T<:Number}
 
     @assert normalization == false "Normalization not implemented yet."
 
-    function _cost_KL(A, X, Y)
+    d = length(X[1])
+    N = size(a.B, 1)
+
+    D_list, coef_list = if typeof(a) <: PSDModelPolynomial
+        get_semialgebraic_domain_constraints(a)
+    else
+        use_putinar = false
+        [], []
+    end
+
+    M = if use_putinar
+        M_list = []
+        for i in 1:d
+            push!(M_list, Manifolds.SymmetricPositiveDefinite(size(D_list[i][1],2)))
+        end
+        foldl(×, M_list, init=Manifolds.SymmetricPositiveDefinite(N))
+    else
+        Manifolds.SymmetricPositiveDefinite(N)
+    end
+
+    function _cost_KL(A, M_int, X, Y)
         res = zero(T)
         for (x, y) in zip(X, Y)
             res += (log(y)-log(a(x, A))-1) * y
         end
-        res = (1/length(X)) * res + tr(A)
+        res = (1/length(X)) * res + tr(A * M_int)
         res += λ_1 * _λ1_regularization(A) + λ_2 * _λ2_regularization(A)
         return res
     end
 
-    cost_KL = let X=X
-        (M, A) -> _cost_KL(A, X, Y) + ϵ * _M_penalty(M, A)
+    stop_CV = nothing
+    X_train, Y_train = X, Y
+    X_test, Y_test = nothing, nothing
+    
+    if use_CV
+        shuf = Random.shuffle(1:length(X))
+        _Xtmp, _Ytmp = X[shuf], Y[shuf]
+        _X = [_Xtmp[1+round(Int, ((k-1)/CV_K) * length(X)):round(Int, (k/CV_K) * length(X))] for k in 1:CV_K]
+        _Y = [_Ytmp[1+round(Int, ((k-1)/CV_K) * length(X)):round(Int, (k/CV_K) * length(X))] for k in 1:CV_K]
     end
+    
+    p = rand(M)
+    M_int = integration_matrix(a)
+    for k=1:CV_K
 
-    N = size(a.B, 1)
+        if use_CV
+            trace && println("CV iteration $k of $CV_K")
+            X_train = [_X[k2] for k2 in 1:CV_K if k2 != k] |> x->vcat(x...)
+            X_test = _X[k]
+            Y_train = [_Y[k2] for k2 in 1:CV_K if k2 != k] |> x->vcat(x...)
+            Y_test = _Y[k]
+            CV_loss = let M_int=M_int
+                (X, Y, A) -> _cost_KL(A, M_int, X, Y)
+            end
+            stop_CV = CrossValidationStopping(X_test, Y_test, CV_loss; coef_list=coef_list, D_list=D_list) | 
+                        Manopt.StopAfterIteration(maxit) |
+                        Manopt.StopWhenGradientNormLess(mingrad_stop) |
+                        Manopt.StopWhenStepsizeLess(1e-8)
+        end
 
-    grad_KL! = _grad_KL(a, zeros(T, N, N), X, Y, λ_1, λ_2)
+        cost_KL = let M_int=M_int, X_train=X_train, Y_train=Y_train, D_list=D_list, coef_list=coef_list
+            (M, A) -> _cost_KL(_p_to_A(M, A, D_list, coef_list), M_int, X_train, Y_train) + ϵ * _M_penalty(M, A)
+        end
 
-    prob = ManoptOptPropblem(cost_KL, grad_KL!, N; algorithm=algorithm)
-    A_new = optimize(prob, a.B; trace=trace, kwargs...)
+        grad_p = rand(M)
+        grad_KL! = _grad_KL(a, zeros(T, N, N), M_int, zeros(T, N, N), grad_p, X_train, Y_train, λ_1, λ_2, ϵ)
+        grad_p_M! = let grad_t=grad_KL!, D_list=D_list, coef_list=coef_list
+            (M, grad_p, p) -> _grad_p_cost_M!(grad_t, M, grad_p, p, D_list, coef_list)
+        end
+        
+
+        prob = ManoptOptPropblem(M, cost_KL, grad_KL!, grad_p_M!, algorithm)
+        p = optimize(prob, p; trace=trace, custom_stopping_criterion=stop_CV, kwargs...)
+        
+    end
+    A_new = _p_to_A(M, p, D_list, coef_list)
     set_coefficients!(a, Hermitian(A_new))
-    return cost_KL(nothing, A_new)
+    return _cost_KL(A_new, M_int, X, Y)
 end
