@@ -180,6 +180,35 @@ function (a::_grad_KL)(_, A)
     return nothing
 end
 
+struct _grad_reversed_KL <: _grad_struct
+    model
+    grad_A
+    X
+    Y
+    λ_1
+    λ_2
+end
+
+function (a::_grad_reversed_KL)(_, A)
+    @inline _help(x) = begin
+        v = Φ(a.model, x)
+        ret = (1/dot(v, A, v)) * (v * v')
+        return ret
+    end
+    # put grad_A to zero
+    a.grad_A .= 0.0
+    # for (x, y) in zip(a.X, a.Y)
+    #     a.grad_A .+= _help(x) * y
+    # end
+    # foldl(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]), init=a.grad_A)
+    a.grad_A .= foldxt(add_grad!, zip(a.X, a.Y) |> Transducers.Map(x->_help(x[1]) * x[2]))
+    a.grad_A .*= -(1/length(a.X))
+    a.grad_A .= a.grad_A + I
+    _λ1_regularization_gradient!(a.grad_A, A, a.λ_1)
+    _λ2_regularization_gradient!(a.grad_A, A, a.λ_2)
+    return nothing
+end
+
 
 struct ManoptOptPropblem
     M::Manifolds.AbstractManifold       # Manifold and metric used, by default standard SDP with affine metric
