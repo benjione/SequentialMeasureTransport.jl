@@ -168,6 +168,10 @@ function integrate(a::PSDModel{T}, p::Function, χ::Domain;
     return tr(a.B * M_p)
 end
 
+function integration_matrix(a::PSDModel{T}) where {T<:Number}
+    throw(@error "Not implemented!")
+end
+
 function Base.:+(a::PSDModel, 
                 b::PSDModel)
     @error "Not implemented"

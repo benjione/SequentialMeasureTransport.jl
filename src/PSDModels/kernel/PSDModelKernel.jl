@@ -16,10 +16,15 @@ struct PSDModelKernel{T<:Number} <: PSDModel{T}
         X = if use_view
             @view X[1:end] # protect from appending
         else
-            deepcopy(X)       # protect from further changes
+            deepcopy(X)    # protect from further changes
         end
         new{T}(B, k, X)
     end
+end
+
+function PSDModelKernel(k::Kernel, X::PSDDataVector{T}; kwargs...) where {T<:Number}
+    B = rand(Manifolds.SymmetricPositiveDefinite(length(X)))
+    PSDModelKernel(Hermitian(B), k, X; kwargs...)
 end
 
 @inline _of_same_PSD(a::PSDModelKernel{T}, B::AbstractMatrix{T}) where {T<:Number} =
@@ -127,12 +132,22 @@ Marginalize for RBF kernel, where the kernel is defined as
     k(x, y) = σ^2 * exp(-||x - y||^2 / (2l^2))
 """
 function marginalize(a::PSDModelKernel{T}, dim::Int; σ=1.0) where {T<:Number}
-    l = 1/a.k.transform.s[1]
+
+    l = 1.0
+    if typeof(a.k) <: KernelFunctions.TransformedKernel
+        @assert typeof(a.k.kernel) <: KernelFunctions.SqExponentialKernel
+        @assert typeof(a.k.transform) <: KernelFunctions.ScaleTransform
+        l = 1/a.k.transform.s[1]
+    else
+        @assert typeof(a.k) <: KernelFunctions.SqExponentialKernel
+    end
+
     X_dim = [x[dim] for x in a.X]
-    # K = -((X_dim .- X_dim').^2) ./ (4.0 * l^2)
-    # K = - 2.0 * ((X_dim .+ X_dim') ./ 2.0).^2 + (X_dim * X_dim')
-    K = 0.5*((X_dim .- X_dim')).^2
-    K = exp.(-K ./ (2.0*l^2)) * σ^4 * (sqrt(π)) * l
+
+    ## the result is \exp(-||x_1 - x_2||^2 / (4.0 l^2)) * l (\sqrt(\pi))
+
+    K = ((X_dim .- X_dim')).^2
+    K = exp.(-K ./ (4.0*l^2)) * σ^4 * (sqrt(π)) * l
     B = a.B .* K
     _d = length(a.X[1])
     if _d == 1
@@ -162,6 +177,28 @@ normalize(a::PSDModelKernel{T}) where {T<:Number} = begin
     d = length(a.X[1])
     c = marginalize(a, collect(1:d))
     return PSDModelKernel(a.B / c, a.k, a.X)
+end
+
+function integration_matrix(a::PSDModelKernel{T}) where {T<:Number}
+    l = 1.0
+    if typeof(a.k) <: KernelFunctions.TransformedKernel
+        @assert typeof(a.k.kernel) <: KernelFunctions.SqExponentialKernel
+        @assert typeof(a.k.transform) <: KernelFunctions.ScaleTransform
+        l = 1/a.k.transform.s[1]
+    else
+        @assert typeof(a.k) <: KernelFunctions.SqExponentialKernel
+    end
+    d = length(a.X[1])
+
+    ## the result is \exp(-||x_1 - x_2||^2 / (4.0 l^2)) * l (\sqrt(\pi))
+    new_k = KernelFunctions.TransformedKernel(
+            KernelFunctions.SqExponentialKernel(),
+            KernelFunctions.ScaleTransform(0.5/l))
+    K = kernelmatrix(new_k, a.X)
+    # K = ((a.X .- a.X')).^2
+    # K = exp.(-K ./ (4.0*l^2)) * σ^4 * (sqrt(π)) * l
+    K .= K .* ((sqrt(π)) * l)^d
+    return K
 end
 
 

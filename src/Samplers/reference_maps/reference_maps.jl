@@ -25,6 +25,7 @@ include("scaling.jl")
 include("gaussian.jl")
 include("algebraic.jl")
 include("composed_reference.jl")
+include("super_heavy.jl")
 
 export ReferenceMap
 export ScalingReference, GaussianReference, AlgebraicReference

@@ -8,6 +8,7 @@ include("algebraic.jl")
 include("diffusion.jl")
 include("alpha_geodesic.jl")
 include("rare_event.jl")
+include("tempered_limit_state_function.jl")
 
 export BridgingDensity
 export DiffusionBrigdingDensity, AlgebraicBridgingDensity, AlphaGeodesicBridgingDensity

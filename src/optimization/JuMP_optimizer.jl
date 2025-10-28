@@ -57,9 +57,8 @@ function optimize(prob::JuMPOptProp{T}) where {T<:Number}
     JuMP.@objective(model, Min, prob.loss(B))
 
     if prob.normalization
-        # IMPORTANT: only valid for tensorized polynomial maps.
-        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
-        JuMP.@constraint(model, tr(B) == 1)
+        M = integration_matrix(a)
+        JuMP.@constraint(model, tr(B * K) == 1)
     end
 
     if prob.marg_constraints !== nothing
@@ -357,8 +356,8 @@ function _ML_JuMP!(a::PSDModel{T},
     # JuMP.@variable(model, t[i=1:m])
     # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
 
-
-    JuMP.@expression(model, min_func, t + tr(B))
+    M = integration_matrix(a)
+    JuMP.@expression(model, min_func, t + tr(B * M))
 
     
     if λ_1 > 0.0
@@ -373,9 +372,7 @@ function _ML_JuMP!(a::PSDModel{T},
 
     # @show t2
     if normalization
-        # IMPORTANT: only valid for tensorized polynomial maps.
-        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
-        JuMP.@constraint(model, tr(B) == 1)
+        JuMP.@constraint(model, tr(B * M) == 1)
     end
 
     JuMP.optimize!(model)
@@ -483,7 +480,8 @@ function _KL_JuMP!(a::PSDModel{T},
     # JuMP.@variable(model, t[i=1:m])
     # JuMP.@constraint(model, [i=1:m], [t[i]; 1; ex[i]] in JuMP.MOI.ExponentialCone())
 
-    JuMP.@expression(model, min_func, t + tr(B))
+    M = integration_matrix(a)
+    JuMP.@expression(model, min_func, t + tr(B * M))
     if λ_2 > 0.0
         JuMP.@expression(model, norm_B, sum(B[i,j]^2 for i=1:N, j=1:N))
         # JuMP.add_to_expression!(min_func, λ_2 * norm_B)
@@ -499,9 +497,7 @@ function _KL_JuMP!(a::PSDModel{T},
 
     # @show t2
     if normalization
-        # IMPORTANT: only valid for tensorized polynomial maps.
-        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
-        JuMP.@constraint(model, tr(B) == 1)
+        JuMP.@constraint(model, tr(B * M) == 1)
     end
 
 
@@ -648,13 +644,15 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
     end
 
     if marg_regularization !== nothing
-        JuMP.@expression(model, min_func, t - tr(B) + λ_marg_reg * sum(t_reg))
+        M = integration_matrix(a)
+        JuMP.@expression(model, min_func, t - tr(B * M) + λ_marg_reg * sum(t_reg))
     elseif marg_data_regularization !== nothing
         JuMP.@expression(model, min_func, t - tr(B) + 
                 λ_marg_reg * (sum(t_marg) + sum(tr(marg_data_regularization[i][1].P * (marg_data_regularization[i][1].M .* B) * 
                 marg_data_regularization[i][1].P') for i=1:length(marg_data_regularization))))
     else
-        JuMP.@expression(model, min_func, t - tr(B))
+        M = integration_matrix(a)
+        JuMP.@expression(model, min_func, t - tr(B * M))
     end
 
     if λ_2 > 0.0
@@ -672,9 +670,8 @@ function _reversed_KL_JuMP!(a::PSDModel{T},
 
     # @show t2
     if normalization
-        # IMPORTANT: only valid for tensorized polynomial maps.
-        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
-        JuMP.@constraint(model, tr(B) == 1)
+        M = integration_matrix(a)
+        JuMP.@constraint(model, tr(B * M) == 1)
     end
 
     JuMP.optimize!(model)
@@ -919,23 +916,22 @@ function _OT_JuMP!(a::PSDModel{T},
         end
     end
 
+    M = integration_matrix(a)
     if marg_regularization !== nothing
-        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B)) + 
-                λ_marg_reg * ((one(T)/(α_marg*(α_marg-one(T)))) * sum(t_marg) + (one(T)/α_marg) * 2 * tr(B)))
+        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B * M)) + 
+                λ_marg_reg * ((one(T)/(α_marg*(α_marg-one(T)))) * sum(t_marg) + (one(T)/α_marg) * 2 * tr(B * M)))
     elseif (marg_data_regularization) !== nothing
-        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B)) + 
-                λ_marg_reg * (sum(t_marg) + 2 * tr(B)))
+        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B * M)) + 
+                λ_marg_reg * (sum(t_marg) + 2 * tr(B * M)))
     else
-        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B)))
+        JuMP.@expression(model, min_func, cost_part + ϵ * ((1/m)*t - tr(B * M)))
     end
 
     JuMP.@objective(model, Min, min_func)
 
     # @show t2
     if normalization
-        # IMPORTANT: only valid for tensorized polynomial maps.
-        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
-        JuMP.@constraint(model, tr(B) == 1)
+        JuMP.@constraint(model, tr(B * M) == 1)
     end
 
     JuMP.optimize!(model)
@@ -954,7 +950,7 @@ function _OT_JuMP!(a::PSDModel{T},
         res_B
     end
     set_coefficients!(a, Hermitian(res_B))
-    _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B)
+    _loss(Z) = (1.0/length(Z)) * sum(log.(Y./Z) .* Y .- Y) + tr(a.B * M)
 
     finalize(model)
     model = nothing
@@ -1027,6 +1023,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     end
 
     K = reduce(hcat, Φ.(Ref(a), X))
+    M = integration_matrix(a)
 
     m = length(X)
     JuMP.@expression(model, ex[i=1:m], K[:,i]' * B * K[:,i])
@@ -1042,7 +1039,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
     end
     JuMP.@constraint(model, t == (1/m) * sum(r))
 
-    JuMP.@expression(model, min_func, (one(T)/(α*(α-one(T)))) * t + (1/α)* tr(B))
+    JuMP.@expression(model, min_func, (one(T)/(α*(α-one(T)))) * t + (1/α)* tr(B * M))
     ## use discrete approximation of the integral
     # JuMP.@expression(model, min_func, (one(T)/(α*(α-one(T)))) * t + (1/α)* sum(ex[i] for i=1:m))
     if λ_2 > 0.0
@@ -1060,9 +1057,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
 
     # @show t2
     if normalization
-        # IMPORTANT: only valid for tensorized polynomial maps.
-        @info "s.t. tr(B) = 1 used, only valid for tensorized polynomial maps as normalization constraint."
-        JuMP.@constraint(model, tr(B) == 1)
+        JuMP.@constraint(model, tr(B * M) == 1)
     end
 
     if marg_constraints !== nothing
@@ -1088,7 +1083,7 @@ function _α_divergence_JuMP!(a::PSDModel{T},
         res_B
     end
     set_coefficients!(a, Hermitian(res_B))
-    _loss(Z) = (1.0/length(Z)) * (one(T)/(α*(α-one(T)))) * sum(Z.^(one(T)-α) .* Y.^(α) .- α * Y) + (one(T)/α) * tr(a.B)
+    _loss(Z) = (1.0/length(Z)) * (one(T)/(α*(α-one(T)))) * sum(Z.^(one(T)-α) .* Y.^(α) .- α * Y) + (one(T)/α) * tr(a.B * M)
 
     finalize(model)
     model = nothing

@@ -166,7 +166,8 @@ function KL_fit!(model::PSDModel{T},
                         kwargs...)
     elseif SDP_library == :Manopt
         return _KL_Manopt!(model, X, Y; 
-                        normalization=normalization_constraint, 
+                        normalization=normalization_constraint,
+                        use_putinar=use_putinar,
                         kwargs...)
     elseif SDP_library == :Convex
         # KL by α div: \int log(f/g) df - \int df + \int dg
